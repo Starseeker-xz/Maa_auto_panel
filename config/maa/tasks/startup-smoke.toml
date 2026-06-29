@@ -1,0 +1,6 @@
+"$schema" = "../../../docs/maa-cli/schemas/task.schema.json"
+
+[[tasks]]
+name = "启动 B 服"
+type = "StartUp"
+params = { client_type = "Bilibili", start_game_enabled = true }

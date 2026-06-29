@@ -1,13 +1,23 @@
 [project]
 name = "linux-maa"
 version = "0.1.0"
-description = "Add your description here"
+description = "Linux-side automation helpers for MaaAssistantArknights"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "beautifulsoup4>=4.14.3",
+    "fastapi>=0.116.0",
     "hdiffpatch>=1.0.0",
     "lxml>=6.0.2",
+    "pydantic>=2.11.0",
     "requests>=2.32.5",
     "tqdm>=4.67.1",
+    "uvicorn[standard]>=0.35.0",
 ]
+
+[project.scripts]
+linux-maa = "linux_maa.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

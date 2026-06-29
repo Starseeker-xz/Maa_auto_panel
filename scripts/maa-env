@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+export PATH="${repo_root}/runtime/maa/bin:${PATH}"
+export MAA_CONFIG_DIR="${repo_root}/config/maa"
+export XDG_DATA_HOME="${repo_root}/runtime/maa/data"
+export XDG_CACHE_HOME="${repo_root}/runtime/maa/cache"
+export XDG_STATE_HOME="${repo_root}/runtime/maa/state"
+
+exec "$@"

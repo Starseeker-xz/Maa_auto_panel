@@ -1,0 +1,10 @@
+# Conversation Index
+
+- `2026-06-26_1620-maa-cli-framework-docs`: Initial project state setup, environment probing, PVE topology memory, and MAA documentation mirroring/reading for future maa-cli framework design.
+- `2026-06-26_1702-setup-maa-cli-test`: Installed project-local `maa-cli`/MaaCore runtime, converted uploaded Windows GUI `test` basics into maa-cli profile/task config, and started first real `test` run.
+
+- `2026-06-26_1727-webui-config-runner`: Started minimal WebUI/config-runner/src-organization task.
+
+- `2026-06-26_2030-separate-frontend`: Separate the simple WebUI into the planned React/Vite frontend and reshape the UI around task list, config center, and maa-cli info logs.
+
+- `2026-06-29_1929-shadcn-sidebar`: Replace the Mantine frontend pass with shadcn-style local components and clean Mantine out fully.

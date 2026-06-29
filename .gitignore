@@ -9,5 +9,15 @@ wheels/
 # Virtual environments
 .venv
 
+# Frontend dependencies/build output
+frontend/node_modules/
+frontend/dist/
+
 # Downloaded files
 downloads/
+
+# Local Maa runtime: downloaded maa-cli/MaaCore/resources, logs, cache, generated config, and state
+runtime/
+
+# User-uploaded local exports and temporary inputs
+TEMP/

@@ -1,0 +1,19 @@
+"$schema" = "../../../docs/maa-cli/schemas/asst.schema.json"
+
+[connection]
+type = "ADB"
+adb_path = "adb"
+address = "192.168.5.151:5555"
+config = "CompatPOSIXShell"
+
+[resource]
+user_resource = false
+
+[static_options]
+cpu_ocr = true
+
+[instance_options]
+touch_mode = "ADB"
+deployment_with_pause = false
+adb_lite_enabled = false
+kill_adb_on_exit = false
