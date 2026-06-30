@@ -73,13 +73,14 @@ The current slice reads managed maa-cli config files from:
 - `config/maa/profiles/`
 - `config/maa/tasks/`
 
-It can select a task config, list and locally edit task items, open a
-schema-driven visual editor for supported MaaCore task params, start
-`maa run <task> --batch --profile default`, show the info-level maa-cli
-log/status in the right pane, and stop the active process. Frontend config edits
-are currently local-only and are not saved back to disk. Low-level MaaCore debug
-logs such as `asst.log` stay in the runtime directory for diagnosis and are not
-streamed in the WebUI.
+It can select a task config, list and edit task items, open a
+schema-driven visual editor for supported MaaCore task params, save task
+config changes back through the backend, move deleted task config files to a
+local recycle folder, edit default Profile/framework/maa-cli settings, trigger
+manual resource or maa-cli updates, start `maa run <task> --batch --profile
+default`, show the info-level maa-cli log/status in the right pane, and stop the
+active process. Low-level MaaCore debug logs such as `asst.log` stay in the
+runtime directory for diagnosis and are not streamed in the WebUI.
 
 Current WebUI routes:
 

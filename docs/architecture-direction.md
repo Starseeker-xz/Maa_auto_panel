@@ -144,9 +144,15 @@ Current frontend stack:
 Current UI shape:
 
 - Persistent sidebar for `主界面`, `定时执行`, and `设置`.
-- Main page uses a three-column operational layout: task list, future config editor, and info-level log/status panel.
+- Main page uses a three-column operational layout: task config/task-item list, schema-driven task editor, and info-level log/status panel.
 - Profile selection is hidden from the main page for now and defaults to `default`.
 - Schedule/settings pages are placeholders.
+
+Current config editing behavior:
+
+- Frontend edits are staged as drafts and only affect disk after explicit save.
+- Backend validates structured task config saves before writing `config/maa/tasks/*`.
+- Deleting a config moves the file to `config/maa/.trash/` through a reusable trash manager.
 
 Recommendation remains: do not build the full config editor first. Build workflow execution, run history, log viewing, and retry/fallback engine first. Add schema-driven config editing after the model stabilizes.
 

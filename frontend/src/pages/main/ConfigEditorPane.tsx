@@ -6,9 +6,10 @@ import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { linuxMaaCells, linuxMaaRenderers } from "@/lib/jsonformsRenderers";
-import type { ConfigValidation, TaskItem } from "@/lib/types";
+import type { ConfigValidation, ManagedParamSpec, TaskItem } from "@/lib/types";
 import { schemaForTaskType } from "@/lib/taskSchemas";
 import { cn } from "@/lib/utils";
+import { useTaskDynamicOptions } from "@/pages/main/useTaskDynamicOptions";
 
 type EditorMode = "general" | "advanced";
 
@@ -23,12 +24,16 @@ export function ConfigEditorPane({ taskConfig, selectedTaskItem, validation, onT
   const [mode, setMode] = React.useState<EditorMode>("general");
   const [params, setParams] = React.useState<Record<string, unknown>>({});
   const [metadata, setMetadata] = React.useState<Record<string, unknown>>({});
+  const dynamicOptions = useTaskDynamicOptions(selectedTaskItem, params);
+
+  React.useEffect(() => {
+    setMode("general");
+  }, [selectedTaskItem?.id]);
 
   React.useEffect(() => {
     setParams({ ...(selectedTaskItem?.params || {}) });
     setMetadata({ ...(selectedTaskItem?.linux_maa || {}) });
-    setMode("general");
-  }, [selectedTaskItem?.id]);
+  }, [selectedTaskItem]);
 
   const editorSchema = selectedTaskItem ? schemaForTaskType(selectedTaskItem.type) : undefined;
   const currentUiSchema = mode === "general" ? editorSchema?.general : editorSchema?.advanced;
@@ -68,8 +73,8 @@ export function ConfigEditorPane({ taskConfig, selectedTaskItem, validation, onT
 
           <section className="grid gap-2 rounded-md border bg-background p-3">
             <div className="flex items-center justify-between gap-2">
-              <div className="font-medium">Linux MAA metadata</div>
-              <span className="rounded-md bg-muted px-2 py-0.5 text-xs text-muted-foreground">不传给 maa-cli</span>
+              <div className="font-medium">定时执行配置</div>
+              <span className="rounded-md bg-muted px-2 py-0.5 text-xs text-muted-foreground">单次运行不受该配置影响</span>
             </div>
             <MetadataEditor
               metadata={metadata}
@@ -93,9 +98,26 @@ export function ConfigEditorPane({ taskConfig, selectedTaskItem, validation, onT
                 data={params}
                 renderers={linuxMaaRenderers}
                 cells={linuxMaaCells}
-                config={{ rootData: params }}
+                config={{
+                  rootData: params,
+                  metadata,
+                  dynamicOptions,
+                  onManagedParamChange: (path: string, spec: ManagedParamSpec) => {
+                    const nextMetadata = withManagedParam(metadata, path, spec);
+                    setMetadata(nextMetadata);
+                    onTaskItemUpdate(selectedTaskItem.id, { linux_maa: nextMetadata });
+                  },
+                  onManagedParamValueChange: (path: string, value: unknown, spec: ManagedParamSpec) => {
+                    const nextParams = { ...params, [path]: value };
+                    const nextMetadata = withManagedParam(metadata, path, spec);
+                    setParams(nextParams);
+                    setMetadata(nextMetadata);
+                    onTaskItemUpdate(selectedTaskItem.id, { params: nextParams, linux_maa: nextMetadata });
+                  }
+                }}
                 onChange={({ data }) => {
                   const nextParams = data || {};
+                  if (jsonEqual(nextParams, params)) return;
                   setParams(nextParams);
                   onTaskItemUpdate(selectedTaskItem.id, { params: nextParams });
                 }}
@@ -112,6 +134,23 @@ export function ConfigEditorPane({ taskConfig, selectedTaskItem, validation, onT
       </ScrollArea>
     </Card>
   );
+}
+
+function jsonEqual(left: unknown, right: unknown) {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
+function withManagedParam(metadata: Record<string, unknown>, path: string, spec: ManagedParamSpec) {
+  const managedParams = metadata.managed_params && typeof metadata.managed_params === "object" && !Array.isArray(metadata.managed_params)
+    ? (metadata.managed_params as Record<string, ManagedParamSpec>)
+    : {};
+  return {
+    ...metadata,
+    managed_params: {
+      ...managedParams,
+      [path]: spec
+    }
+  };
 }
 
 function ModeTabs({
@@ -177,6 +216,7 @@ function MetadataEditor({
   const unlimitedRuns = metadata.unlimited_runs !== false;
   const minimum = typeof metadata.min_daily_successes === "number" ? metadata.min_daily_successes : 1;
   const nonImportant = metadata.important === false;
+  const retryEvenSuccess = metadata.retry_even_success === true;
 
   return (
     <div className="grid gap-2">
@@ -184,7 +224,11 @@ function MetadataEditor({
         <Checkbox
           checked={nonImportant}
           onCheckedChange={(checked) =>
-            onChange(checked === true ? { ...metadata, important: false, unlimited_runs: true } : { ...metadata, important: true })
+            onChange(
+              checked === true
+                ? { ...metadata, important: false, unlimited_runs: true, retry_even_success: false }
+                : { ...metadata, important: true }
+            )
           }
         />
         <span className="text-sm">非重要任务</span>
@@ -196,6 +240,14 @@ function MetadataEditor({
           onCheckedChange={(checked) => onChange({ ...metadata, unlimited_runs: checked === true })}
         />
         <span className="text-sm">无限次运行</span>
+      </label>
+      <label className={cn("flex min-h-9 items-center gap-2 rounded-md border px-2.5 py-2", nonImportant && "opacity-60")}>
+        <Checkbox
+          checked={retryEvenSuccess}
+          disabled={nonImportant}
+          onCheckedChange={(checked) => onChange({ ...metadata, retry_even_success: checked === true })}
+        />
+        <span className="text-sm">成功也参与重试</span>
       </label>
       <label className={cn("grid grid-cols-[minmax(0,1fr)_110px] items-center gap-3 rounded-md border px-2.5 py-2", (unlimitedRuns || nonImportant) && "opacity-60")}>
         <span className="text-sm">每日最低成功次数</span>

@@ -1,9 +1,8 @@
 import type { ConfigFile, ConfigResponse, TaskItem } from "@/lib/types";
 
 export function normalizedConfigName(rawName: string) {
-  const trimmed = rawName.trim();
-  if (!trimmed) return "new-task.toml";
-  return trimmed.endsWith(".toml") ? trimmed : `${trimmed}.toml`;
+  const trimmed = rawName.trim().replace(/\.toml$/i, "");
+  return trimmed || "new-task";
 }
 
 export function uniqueTaskConfigName(rawName: string, existing: ConfigFile[]) {
@@ -11,37 +10,38 @@ export function uniqueTaskConfigName(rawName: string, existing: ConfigFile[]) {
   const usedNames = new Set(existing.map((item) => item.name));
   if (!usedNames.has(normalized)) return normalized;
 
-  const base = normalized.replace(/\.toml$/, "");
+  const base = normalized;
   let suffix = 2;
-  while (usedNames.has(`${base}-${suffix}.toml`)) suffix += 1;
-  return `${base}-${suffix}.toml`;
+  while (usedNames.has(`${base}-${suffix}`)) suffix += 1;
+  return `${base}-${suffix}`;
 }
 
 export function localConfigFile(name: string): ConfigFile {
+  const normalized = normalizedConfigName(name);
   const now = Date.now() / 1000;
   return {
     kind: "task",
-    name,
-    filename: name,
-    path: `config/maa/tasks/${name}`,
-    suffix: ".toml",
+    name: normalized,
+    filename: `${normalized}.toml`,
+    path: `config/maa/tasks/${normalized}.toml`,
+    suffix: "toml",
     size: 0,
     modified_at: now
   };
 }
 
-export function localConfigResponse(file: ConfigFile, taskItems: TaskItem[]): ConfigResponse {
+export function localConfigResponse(file: ConfigFile, taskItems: TaskItem[], baseData: Record<string, unknown> = {}): ConfigResponse {
   return {
     file,
     content: "",
-    data: { tasks: [] },
+    data: { ...baseData, tasks: [] },
     task_items: taskItems,
     validation: { valid: true, errors: [] }
   };
 }
 
-export function reindexTaskItems(items: TaskItem[]) {
-  return items.map((item, index) => ({ ...item, index }));
+export function withTaskItemIndexes(items: TaskItem[]) {
+  return items.map((item, index) => ({ ...item, index: index + 1 }));
 }
 
 export function renameTaskItem(items: TaskItem[], itemId: string, name: string) {
@@ -51,7 +51,7 @@ export function renameTaskItem(items: TaskItem[], itemId: string, name: string) 
 }
 
 export function deleteTaskItem(items: TaskItem[], itemId: string) {
-  return reindexTaskItems(items.filter((item) => item.id !== itemId));
+  return withTaskItemIndexes(items.filter((item) => item.id !== itemId));
 }
 
 export function setTaskItemEnabled(items: TaskItem[], itemId: string, enabled: boolean) {

@@ -1,39 +1,51 @@
 "$schema" = "../../schemas/task.schema.json"
 
-# Reference task file for the currently documented maa-cli custom task wrapper
-# plus MaaCore task params from docs/maa-upstream/zh-cn/protocol/integration.md.
-# This is intentionally broad and is not a recommended daily run.
-# Deprecated integration values are omitted. For example Roguelike mode = 2 is
-# deprecated and ParadoxCopilot is not present in the current maa-cli task enum.
-
 [[tasks]]
 name = "Reference StartUp"
 type = "StartUp"
+
 [tasks.params]
 enable = true
 client_type = "Official"
 start_game_enabled = true
 account_name = ""
 
+[tasks.linux_maa]
+id = "startup-reference-startup-f18a4412"
+unlimited_runs = true
+important = true
+retry_even_success = true
+
+[tasks.linux_maa.managed_params]
+
 [[tasks]]
 name = "Reference CloseDown"
 type = "CloseDown"
+
 [tasks.params]
 enable = true
 client_type = "Official"
 
+[tasks.linux_maa]
+id = "closedown-reference-closedown-4c639fd1"
+unlimited_runs = true
+important = true
+retry_even_success = true
+
+[tasks.linux_maa.managed_params]
+
 [[tasks]]
 name = "Reference Fight"
 type = "Fight"
+
 [tasks.params]
 enable = true
-stage = "1-7"
+stage = "__linux_maa_runtime__:fight_stage"
 medicine = 1
 expiring_medicine = 0
 stone = 0
 times = 10
 series = 0
-drops = { "30011" = 10, "30012" = 5 }
 report_to_penguin = false
 penguin_id = ""
 report_to_yituliu = false
@@ -42,35 +54,78 @@ server = "CN"
 client_type = "Official"
 DrGrandet = false
 
+[tasks.params.drops]
+30011 = 10
+30012 = 5
+
+[tasks.linux_maa]
+id = "fight-reference-fight-b3748c8e"
+
+[tasks.linux_maa.managed_params.stage]
+type = "runtime"
+handler = "fight_stage"
+items = [
+    { value = "1-7", enabled = true },
+]
+
 [[tasks]]
 name = "Reference Recruit"
 type = "Recruit"
+
 [tasks.params]
 enable = true
 refresh = true
-select = [5, 4]
-confirm = [5, 4]
-first_tags = ["高级资深干员"]
+select = "__linux_maa_runtime__:array:select"
+confirm = "__linux_maa_runtime__:array:confirm"
+first_tags = "__linux_maa_runtime__:array:first_tags"
 extra_tags_mode = 1
 times = 4
 set_time = true
 expedite = false
 expedite_times = 0
 skip_robot = true
-recruitment_time = { "3" = 540, "4" = 540, "5" = 540 }
 report_to_penguin = false
 penguin_id = ""
 report_to_yituliu = false
 yituliu_id = ""
 server = "CN"
 
+[tasks.params.recruitment_time]
+3 = 540
+4 = 540
+5 = 540
+
+[tasks.linux_maa]
+id = "recruit-reference-recruit-83139c98"
+
+[tasks.linux_maa.managed_params.select]
+type = "array"
+items = [
+    { value = 5, enabled = true },
+    { value = 4, enabled = true },
+]
+
+[tasks.linux_maa.managed_params.confirm]
+type = "array"
+items = [
+    { value = 5, enabled = true },
+    { value = 4, enabled = true },
+]
+
+[tasks.linux_maa.managed_params.first_tags]
+type = "array"
+items = [
+    { value = "高级资深干员", enabled = true },
+]
+
 [[tasks]]
 name = "Reference Infrast"
 type = "Infrast"
+
 [tasks.params]
 enable = true
 mode = 10000
-facility = ["Mfg", "Trade", "Power", "Control", "Reception", "Office", "Dorm", "Processing", "Training"]
+facility = "__linux_maa_runtime__:array:facility"
 drones = "_NotUse"
 threshold = 0.3
 replenish = true
@@ -80,26 +135,67 @@ reception_message_board = true
 reception_clue_exchange = true
 reception_send_clue = true
 filename = "schedules/base.json"
-plan_index = 0
+plan_index = "__linux_maa_runtime__:infrast_plan_index"
+
+[tasks.linux_maa]
+id = "infrast-reference-infrast-fcc3c777"
+
+[tasks.linux_maa.managed_params.facility]
+type = "array"
+items = [
+    { value = "Mfg", enabled = true },
+    { value = "Trade", enabled = true },
+    { value = "Power", enabled = true },
+    { value = "Control", enabled = true },
+    { value = "Reception", enabled = true },
+    { value = "Office", enabled = true },
+    { value = "Dorm", enabled = true },
+    { value = "Processing", enabled = true },
+    { value = "Training", enabled = true },
+]
+
+[tasks.linux_maa.managed_params.plan_index]
+type = "runtime"
+handler = "infrast_plan_index"
+value = "0"
 
 [[tasks]]
 name = "Reference Mall"
 type = "Mall"
+
 [tasks.params]
 enable = true
 visit_friends = true
 shopping = true
-buy_first = ["招聘许可", "龙门币"]
-blacklist = ["家具零件", "碳"]
+buy_first = "__linux_maa_runtime__:array:buy_first"
+blacklist = "__linux_maa_runtime__:array:blacklist"
 force_shopping_if_credit_full = false
 only_buy_discount = true
 reserve_max_credit = false
 credit_fight = false
 formation_index = 0
 
+[tasks.linux_maa]
+id = "mall-reference-mall-7adeea5a"
+
+[tasks.linux_maa.managed_params.buy_first]
+type = "array"
+items = [
+    { value = "招聘许可", enabled = true },
+    { value = "龙门币", enabled = true },
+]
+
+[tasks.linux_maa.managed_params.blacklist]
+type = "array"
+items = [
+    { value = "家具零件", enabled = true },
+    { value = "碳", enabled = true },
+]
+
 [[tasks]]
 name = "Reference Award"
 type = "Award"
+
 [tasks.params]
 enable = true
 award = true
@@ -109,9 +205,15 @@ orundum = false
 mining = false
 specialaccess = false
 
+[tasks.linux_maa]
+id = "award-reference-award-da4407e6"
+
+[tasks.linux_maa.managed_params]
+
 [[tasks]]
 name = "Reference Roguelike"
 type = "Roguelike"
+
 [tasks.params]
 enable = true
 theme = "Sami"
@@ -133,12 +235,11 @@ start_with_elite_two = false
 only_start_with_elite_two = false
 refresh_trader_with_dice = false
 first_floor_foldartal = ""
-start_foldartal_list = []
-collectible_mode_start_list = { hot_water = true, shield = false, ingot = false, hope = true, random = false, key = false, dice = false, ideas = false, ticket = false }
+start_foldartal_list = "__linux_maa_runtime__:array:start_foldartal_list"
 use_foldartal = true
 check_collapsal_paradigms = true
 double_check_collapsal_paradigms = true
-expected_collapsal_paradigms = ["目空一些", "睁眼瞎"]
+expected_collapsal_paradigms = "__linux_maa_runtime__:array:expected_collapsal_paradigms"
 monthly_squad_auto_iterate = false
 monthly_squad_check_comms = false
 deep_exploration_auto_iterate = false
@@ -146,9 +247,35 @@ collectible_mode_shopping = false
 collectible_mode_squad = ""
 start_with_seed = false
 
+[tasks.params.collectible_mode_start_list]
+hot_water = true
+shield = false
+ingot = false
+hope = true
+random = false
+key = false
+dice = false
+ideas = false
+ticket = false
+
+[tasks.linux_maa]
+id = "roguelike-reference-roguelike-7fdd0b10"
+
+[tasks.linux_maa.managed_params.start_foldartal_list]
+type = "array"
+items = []
+
+[tasks.linux_maa.managed_params.expected_collapsal_paradigms]
+type = "array"
+items = [
+    { value = "目空一些", enabled = true },
+    { value = "睁眼瞎", enabled = true },
+]
+
 [[tasks]]
 name = "Reference Copilot"
 type = "Copilot"
+
 [tasks.params]
 enable = true
 filename = "copilot/1-7.json"
@@ -156,62 +283,126 @@ loop_times = 1
 use_sanity_potion = false
 formation = true
 formation_index = 0
-user_additional = [{ name = "能天使", skill = 3 }]
+user_additional = "__linux_maa_runtime__:array:user_additional"
 add_trust = false
 ignore_requirements = false
 support_unit_usage = 0
 support_unit_name = ""
 
+[tasks.linux_maa]
+id = "copilot-reference-copilot-406411db"
+
+[tasks.linux_maa.managed_params.user_additional]
+type = "array"
+items = [
+    { value = { name = "能天使", skill = 3 }, enabled = true },
+]
+
 [[tasks]]
 name = "Reference SSSCopilot"
 type = "SSSCopilot"
+
 [tasks.params]
 enable = true
 filename = "sss/plan.json"
 loop_times = 1
 
+[tasks.linux_maa]
+id = "ssscopilot-reference-ssscopilot-d740beea"
+
+[tasks.linux_maa.managed_params]
+
 [[tasks]]
 name = "Reference Depot"
 type = "Depot"
+
 [tasks.params]
 enable = true
+
+[tasks.linux_maa]
+id = "depot-reference-depot-f72ebb3c"
+
+[tasks.linux_maa.managed_params]
 
 [[tasks]]
 name = "Reference OperBox"
 type = "OperBox"
+
 [tasks.params]
 enable = true
+
+[tasks.linux_maa]
+id = "operbox-reference-operbox-501a3793"
+
+[tasks.linux_maa.managed_params]
 
 [[tasks]]
 name = "Reference ReclamationAlgorithm"
 type = "ReclamationAlgorithm"
+
 [tasks.params]
 enable = true
 theme = "Fire"
 mode = 1
-tools_to_craft = ["荧光棒", "发电机"]
+tools_to_craft = "__linux_maa_runtime__:array:tools_to_craft"
 increment_mode = 0
 num_craft_batches = 12
+
+[tasks.linux_maa]
+id = "reclamationalgorithm-reference-reclamationalgorithm-b553674d"
+
+[tasks.linux_maa.managed_params.tools_to_craft]
+type = "array"
+items = [
+    { value = "荧光棒", enabled = true },
+    { value = "发电机", enabled = true },
+]
 
 [[tasks]]
 name = "Reference Custom"
 type = "Custom"
+
 [tasks.params]
 enable = true
-task_names = ["StartUp", "Infrast", "Fight"]
+task_names = "__linux_maa_runtime__:array:task_names"
+
+[tasks.linux_maa]
+id = "custom-reference-custom-bc9a1d39"
+
+[tasks.linux_maa.managed_params.task_names]
+type = "array"
+items = [
+    { value = "StartUp", enabled = true },
+    { value = "Infrast", enabled = true },
+    { value = "Fight", enabled = true },
+]
 
 [[tasks]]
 name = "Reference SingleStep"
 type = "SingleStep"
+
 [tasks.params]
 enable = true
 type = "copilot"
 subtask = "stage"
-details = { stage = "1-7" }
+
+[tasks.params.details]
+stage = "1-7"
+
+[tasks.linux_maa]
+id = "singlestep-reference-singlestep-225b5a9d"
+
+[tasks.linux_maa.managed_params]
 
 [[tasks]]
 name = "Reference VideoRecognition"
 type = "VideoRecognition"
+
 [tasks.params]
 enable = true
 filename = "videos/copilot.mp4"
+
+[tasks.linux_maa]
+id = "videorecognition-reference-videorecognition-8a6b525a"
+
+[tasks.linux_maa.managed_params]

@@ -22,7 +22,8 @@
           "type": "string"
         },
         "default": [],
-        "description": "优先购买商品名列表。"
+        "description": "优先购买商品名列表。",
+        "x-linuxMaaManaged": "array"
       },
       "blacklist": {
         "type": "array",
@@ -31,7 +32,8 @@
           "type": "string"
         },
         "default": [],
-        "description": "第二轮购物避开的商品名列表。"
+        "description": "第二轮购物避开的商品名列表。",
+        "x-linuxMaaManaged": "array"
       },
       "force_shopping_if_credit_full": {
         "type": "boolean",

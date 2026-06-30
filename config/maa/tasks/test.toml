@@ -3,13 +3,24 @@
 [[tasks]]
 name = "启动 B 服"
 type = "StartUp"
-params = { client_type = "Bilibili", start_game_enabled = true }
+
+[tasks.params]
+client_type = "Bilibili"
+start_game_enabled = true
+enable = true
+
 [tasks.linux_maa]
-id = "startup"
+id = "startup-a5ce8dac"
+unlimited_runs = true
+important = true
+retry_even_success = true
+
+[tasks.linux_maa.managed_params]
 
 [[tasks]]
 name = "领取奖励"
 type = "Award"
+
 [tasks.params]
 award = true
 mail = true
@@ -17,27 +28,54 @@ recruit = true
 orundum = true
 mining = true
 specialaccess = true
+
 [tasks.linux_maa]
-id = "award"
+id = "award-8123686a"
+
+[tasks.linux_maa.managed_params]
 
 [[tasks]]
 name = "信用商店"
 type = "Mall"
+
 [tasks.params]
 visit_friends = true
 shopping = true
-credit_fight = false
-buy_first = ["招聘许可","固源岩","装置","赤金"]
-blacklist = ["碳", "家具", "加急许可"]
+credit_fight = true
+buy_first = "__linux_maa_runtime__:array:buy_first"
+blacklist = "__linux_maa_runtime__:array:blacklist"
+reserve_max_credit = true
+formation_index = 3
+force_shopping_if_credit_full = true
+
 [tasks.linux_maa]
-id = "mall"
+id = "mall-7d4ad25c"
+unlimited_runs = false
+
+[tasks.linux_maa.managed_params.buy_first]
+type = "array"
+items = [
+    { value = "招聘许可", enabled = true },
+    { value = "固源岩", enabled = true },
+    { value = "装置", enabled = true },
+    { value = "赤金", enabled = true },
+]
+
+[tasks.linux_maa.managed_params.blacklist]
+type = "array"
+items = [
+    { value = "碳", enabled = true },
+    { value = "家具", enabled = true },
+    { value = "加急许可", enabled = true },
+]
 
 [[tasks]]
 name = "基建换班"
 type = "Infrast"
+
 [tasks.params]
 mode = 10000
-facility = ["Mfg", "Trade", "Power", "Control", "Reception", "Office", "Dorm", "Processing", "Training"]
+facility = "__linux_maa_runtime__:array:facility"
 replenish = true
 dorm_notstationed_enabled = true
 dorm_trust_enabled = true
@@ -45,18 +83,36 @@ reception_message_board = true
 reception_clue_exchange = true
 reception_send_clue = true
 filename = "排班.json"
-plan_index = 3
+plan_index = "__linux_maa_runtime__:infrast_plan_index"
+
 [tasks.linux_maa]
-id = "infrast"
+id = "infrast-37153e4c"
+
+[tasks.linux_maa.managed_params.facility]
+type = "array"
+items = [
+    { value = "Mfg", enabled = true },
+    { value = "Trade", enabled = true },
+    { value = "Power", enabled = true },
+    { value = "Control", enabled = true },
+    { value = "Reception", enabled = true },
+    { value = "Office", enabled = true },
+    { value = "Dorm", enabled = true },
+    { value = "Processing", enabled = true },
+    { value = "Training", enabled = true },
+]
+
+[tasks.linux_maa.managed_params.plan_index]
+type = "runtime"
+handler = "infrast_plan_index"
+value = "__linux_maa_runtime__:infrast_plan_index"
 
 [[tasks]]
 name = "刷理智"
 type = "Fight"
-# strategy = "first"
-# 这个参数需要搭配 [[tasks.variants]] 中的条件使用，这个条件在GUI中是通过一个可用关卡api获取的，你可以从文档找到，从而使GUI可以自动排除目前不开启的关卡，MaaCore本身是没有判断哪个关卡可以用的能力的
-# 在这里大概是需要自己写条件的，所以我改成了不需要前置条件的 1-7
+
 [tasks.params]
-stage = "1-7"
+stage = "__linux_maa_runtime__:fight_stage"
 medicine = 0
 medicine_expire_days = 2
 stone = 0
@@ -64,26 +120,74 @@ times = 2147483647
 series = 0
 server = "CN"
 client_type = "Bilibili"
-[tasks.linux_maa]
-id = "fight"
 
-# [[tasks.variants]]
-# params = { stage = "1-7" }
+[tasks.linux_maa]
+id = "fight-e6d4bc5d"
+unlimited_runs = false
+min_daily_successes = 2
+
+[tasks.linux_maa.managed_params.stage]
+type = "runtime"
+handler = "fight_stage"
+items = [
+    { value = "1-7", enabled = true },
+    { value = "__linux_maa_stage__:current_last", enabled = true },
+]
 
 [[tasks]]
 name = "自动公招"
 type = "Recruit"
+
 [tasks.params]
 refresh = true
-select = [5, 4]
-confirm = [5, 4]
-preserve_tags = ["支援机械"]
+select = "__linux_maa_runtime__:array:select"
+confirm = "__linux_maa_runtime__:array:confirm"
+preserve_tags = "__linux_maa_runtime__:array:preserve_tags"
 extra_tags_mode = 0
 times = 4
 set_time = true
 expedite = false
-# skip_robot = false
-# recruitment_time = { "3" = 540, "4" = 540, "5" = 540 }
 server = "CN"
+
 [tasks.linux_maa]
-id = "recruit"
+id = "recruit-d1901df5"
+unlimited_runs = false
+min_daily_successes = 2
+
+[tasks.linux_maa.managed_params.select]
+type = "array"
+items = [
+    { value = 5, enabled = true },
+    { value = 4, enabled = true },
+    { value = 3, enabled = true },
+]
+
+[tasks.linux_maa.managed_params.confirm]
+type = "array"
+items = [
+    { value = 5, enabled = true },
+    { value = 4, enabled = true },
+    { value = 0, enabled = true },
+]
+
+[tasks.linux_maa.managed_params.preserve_tags]
+type = "array"
+items = [
+    { value = "支援机械", enabled = true },
+]
+
+[[tasks]]
+name = "关闭游戏"
+type = "CloseDown"
+
+[tasks.params]
+client_type = "Bilibili"
+enable = true
+
+[tasks.linux_maa]
+id = "closedown-738e1424"
+unlimited_runs = true
+important = true
+retry_even_success = true
+
+[tasks.linux_maa.managed_params]

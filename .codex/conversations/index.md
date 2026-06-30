@@ -14,3 +14,10 @@
 - `2026-06-29_2232-config-editing`: Implement backend task-config validation and parsed config API; add JSON Forms based frontend task editor, metadata fields, schema-drift/fallback editing UI, and left-pane edit/drag affordance.
 
 - `2026-06-30_0014-task-editor-fixes`: Fix task editor metadata semantics, drag ordering UX, checkbox/tooltip styling, dependency logic, and enum labels.
+
+- `2026-06-30_0124-config-save-delete`: Implement backend-backed config saving/reset/delete from the main page, fix route lock/sidebar spacing, and add/refine parallel settings panels for framework timezone/theme, default Profile, maa-cli/resource settings, maintenance actions, tooltips, and resource/update-info semantics.
+- `2026-06-30_1626-maa-stage-candidates`: Implement MAA GUI-style Fight stage candidates, managed task-param placeholders, dynamic Fight/Infrast option APIs, and frontend managed array/dropdown rendering.
+- `2026-06-30_1743-fix-infrast-plan-select`: Investigate and fix Infrast plan dropdown label not updating immediately after selecting an API-provided option.
+- `2026-06-30_1752-maa-cli-sequential-analysis`: Read local runner and upstream maa-cli source to compare one full custom-task invocation with one-child-per-invocation orchestration.
+
+- `2026-06-30_1934-scheduled-retry-architecture`: Implement retry_even_success metadata support, inspect current code for scheduled execution/retry architecture, and make low-risk architecture cleanup.

@@ -1,0 +1,16 @@
+"$schema" = "./settings.schema.json"
+
+[framework.timezone]
+mode = "client"
+manual_timezone = "UTC"
+client_timezone = "Europe/London"
+auto_resolved_name = "Europe/London"
+auto_resolved_offset_minutes = 60
+auto_resolved_at = "2026-06-30T03:56:33+01:00"
+
+[framework.scheduler]
+enabled = false
+
+[theme]
+mode = "light"
+color = "cyan"

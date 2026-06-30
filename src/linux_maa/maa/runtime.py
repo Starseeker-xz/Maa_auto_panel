@@ -18,6 +18,10 @@ class MaaRuntime:
         return self.repo_root / "config" / "maa"
 
     @property
+    def framework_config_dir(self) -> Path:
+        return self.repo_root / "config" / "linux-maa"
+
+    @property
     def data_home(self) -> Path:
         return self.repo_root / "runtime" / "maa" / "data"
 

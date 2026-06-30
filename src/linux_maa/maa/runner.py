@@ -13,11 +13,10 @@ from pathlib import Path
 import tomllib
 
 from linux_maa.android import ADBDevice
-from linux_maa.maa.logs import translate_maa_cli_log
+from linux_maa.config.tasks import TASK_SUFFIXES, prepare_framework_task_config
+from linux_maa.maa.logs import MaaCliLogTranslator, translate_maa_cli_log
 from linux_maa.settings import DEFAULT_DEVICE_SERIAL, DEFAULT_TARGET_PACKAGE
 from linux_maa.maa.runtime import MaaRuntime, find_repo_root
-
-TASK_SUFFIXES = (".toml", ".json", ".yaml", ".yml")
 
 
 def recover_android(adb: ADBDevice, package_name: str, *, force_stop: bool, delay_seconds: float) -> None:
@@ -104,10 +103,10 @@ def run_maa_task(
     return 1
 
 
-def prepare_maa_cli_task(runtime: MaaRuntime, task: str, *, run_id: str, attempt: int) -> tuple[str, dict[str, str]]:
+def prepare_maa_cli_task(runtime: MaaRuntime, task: str, *, run_id: str, attempt: int, messages: list[str] | None = None) -> tuple[str, dict[str, str]]:
     source = resolve_task_file(runtime, task)
     data = load_task_file(source)
-    sanitized = strip_framework_task_metadata(data)
+    sanitized = prepare_framework_task_config(data, runtime, messages)
 
     generated_name = f"linux-maa-{run_id}-attempt-{attempt}"
     generated_root = runtime.generated_config_dir / run_id
@@ -156,22 +155,6 @@ def load_task_file(path: Path) -> dict[str, object]:
     raise ValueError(f"Cannot generate maa-cli task from {path.suffix} config yet")
 
 
-def strip_framework_task_metadata(data: dict[str, object]) -> dict[str, object]:
-    sanitized = dict(data)
-    tasks = sanitized.get("tasks")
-    if not isinstance(tasks, list):
-        return sanitized
-
-    clean_tasks: list[object] = []
-    for task in tasks:
-        if isinstance(task, dict):
-            clean_tasks.append({key: value for key, value in task.items() if key != "linux_maa"})
-        else:
-            clean_tasks.append(task)
-    sanitized["tasks"] = clean_tasks
-    return sanitized
-
-
 def ensure_generated_config_links(runtime: MaaRuntime, generated_root: Path) -> None:
     runtime.config_dir.mkdir(parents=True, exist_ok=True)
     for source in runtime.config_dir.iterdir():
@@ -187,8 +170,6 @@ def ensure_generated_config_links(runtime: MaaRuntime, generated_root: Path) -> 
 class MaaRunRequest:
     task: str
     profile: str = "default"
-    attempts: int = 1
-    timeout_seconds: int = 900
     log_level: int = 1
 
 
@@ -200,12 +181,11 @@ class MaaRunState:
     status: str
     created_at: str
     updated_at: str
-    attempts: int
-    timeout_seconds: int
     log_level: int
     return_code: int | None = None
     log_file: str | None = None
     lines: deque[str] = field(default_factory=lambda: deque(maxlen=2000))
+    log_translator: MaaCliLogTranslator = field(default_factory=MaaCliLogTranslator)
     process: subprocess.Popen[str] | None = field(default=None, repr=False)
     thread: threading.Thread | None = field(default=None, repr=False)
 
@@ -217,12 +197,12 @@ class MaaRunState:
             "status": self.status,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
-            "attempts": self.attempts,
-            "timeout_seconds": self.timeout_seconds,
             "log_level": self.log_level,
             "return_code": self.return_code,
             "log_file": self.log_file,
             "output": list(self.lines),
+            "task_results": self.log_translator.task_results(),
+            "log_entries": self.log_translator.entries(),
         }
 
 
@@ -248,8 +228,6 @@ class MaaRunManager:
                 status="running",
                 created_at=now,
                 updated_at=now,
-                attempts=request.attempts,
-                timeout_seconds=request.timeout_seconds,
                 log_level=request.log_level,
             )
             self._runs[run_id] = state
@@ -274,7 +252,13 @@ class MaaRunManager:
             raise KeyError(run_id)
         with self._lock:
             if state.process and state.process.poll() is None:
-                state.lines.append("收到停止请求，正在终止 maa-cli...\n")
+                state.lines.append(
+                    state.log_translator.add_event(
+                        "收到停止请求，正在终止 maa-cli...",
+                        time=datetime.now().strftime("%H:%M:%S"),
+                        tone="warning",
+                    )
+                )
                 state.process.terminate()
                 state.status = "stopping"
                 state.updated_at = datetime.now().isoformat(timespec="seconds")
@@ -286,7 +270,18 @@ class MaaRunManager:
             state.updated_at = datetime.now().isoformat(timespec="seconds")
 
     def _append_maa_log(self, state: MaaRunState, text: str) -> None:
-        self._append(state, translate_maa_cli_log(text))
+        translated = state.log_translator.translate(text)
+        if translated:
+            self._append(state, translated)
+
+    def _flush_maa_log(self, state: MaaRunState) -> None:
+        translated = state.log_translator.flush()
+        if translated:
+            self._append(state, translated)
+
+    def _append_framework_log(self, state: MaaRunState, text: str) -> None:
+        translated = state.log_translator.add_event(text, time=datetime.now().strftime("%H:%M:%S"), tone="info")
+        self._append(state, translated)
 
     def _set_done(self, state: MaaRunState, status: str, return_code: int | None) -> None:
         with self._lock:
@@ -299,46 +294,44 @@ class MaaRunManager:
         self.runtime.run_log_dir.mkdir(parents=True, exist_ok=True)
         started_at = datetime.now().strftime("%Y%m%d-%H%M%S")
 
-        for attempt in range(1, state.attempts + 1):
-            log_file = self.runtime.run_log_dir / f"{started_at}-{state.task}-webui-attempt-{attempt}.log"
-            with self._lock:
-                state.log_file = str(log_file.relative_to(self.runtime.repo_root)) if state.log_level > 0 else None
-            run_task, run_env = prepare_maa_cli_task(self.runtime, state.task, run_id=state.id, attempt=attempt)
-            cmd = [
-                str(self.runtime.maa_bin),
-                "run",
-                run_task,
-                "--batch",
-                "--profile",
-                state.profile,
-            ]
-            if state.log_level > 0:
-                cmd.append(f"--log-file={log_file}")
-                cmd.extend(["-v"] * state.log_level)
-            self._append(state, f"\n尝试 {attempt}/{state.attempts}\n$ {' '.join(cmd)}\n")
+        log_file = self.runtime.run_log_dir / f"{started_at}-{state.task}-webui.log"
+        with self._lock:
+            state.log_file = str(log_file.relative_to(self.runtime.repo_root)) if state.log_level > 0 else None
+        prepare_messages: list[str] = []
+        run_task, run_env = prepare_maa_cli_task(self.runtime, state.task, run_id=state.id, attempt=1, messages=prepare_messages)
+        cmd = [
+            str(self.runtime.maa_bin),
+            "run",
+            run_task,
+            "--batch",
+            "--profile",
+            state.profile,
+        ]
+        if state.log_level > 0:
+            cmd.append(f"--log-file={log_file}")
+            cmd.extend(["-v"] * state.log_level)
+        self._append(state, f"\n运行: {state.task}\n")
+        for message in prepare_messages:
+            self._append_framework_log(state, message)
 
-            try:
-                return_code = self._run_process(state, cmd, log_file if state.log_level > 0 else None, run_env)
-            except Exception as exc:
-                self._append(state, f"启动 maa-cli 失败: {exc}\n")
-                self._set_done(state, "failed", None)
-                return
+        try:
+            return_code = self._run_process(state, cmd, log_file if state.log_level > 0 else None, run_env)
+        except Exception as exc:
+            self._append(state, f"启动 maa-cli 失败: {exc}\n")
+            self._set_done(state, "failed", None)
+            return
 
-            if return_code == 0:
-                self._append(state, "\nmaa-cli 退出码: 0\n")
-                self._set_done(state, "succeeded", 0)
-                return
+        if return_code == 0:
+            self._append(state, "\nmaa-cli 退出码: 0\n")
+            self._set_done(state, "succeeded", 0)
+            return
 
-            if state.status == "timeout":
-                if attempt >= state.attempts:
-                    return
-                with self._lock:
-                    state.status = "running"
-
+        if state.status == "stopping":
             self._append(state, f"\nmaa-cli 退出码: {return_code}\n")
-            if attempt < state.attempts:
-                self._append(state, "准备下一次尝试...\n")
+            self._set_done(state, "stopped", return_code)
+            return
 
+        self._append(state, f"\nmaa-cli 退出码: {return_code}\n")
         self._set_done(state, "failed", return_code)
 
     def _run_process(self, state: MaaRunState, cmd: list[str], log_file: Path | None, env: dict[str, str]) -> int | None:
@@ -356,7 +349,6 @@ class MaaRunManager:
             state.process = proc
 
         assert proc.stdout is not None
-        deadline = time.monotonic() + state.timeout_seconds
         log_offset = 0
         while True:
             ready, _, _ = select.select([proc.stdout], [], [], 0.2)
@@ -373,20 +365,8 @@ class MaaRunManager:
                     self._append_maa_log(state, remainder)
                 if log_file is not None:
                     self._tail_file(state, log_file, log_offset)
+                self._flush_maa_log(state)
                 break
-
-            if time.monotonic() > deadline:
-                if log_file is not None:
-                    log_offset = self._tail_file(state, log_file, log_offset)
-                self._append(state, f"任务超时 {state.timeout_seconds}s，正在终止 maa-cli...\n")
-                proc.terminate()
-                try:
-                    proc.wait(timeout=10)
-                except subprocess.TimeoutExpired:
-                    proc.kill()
-                    proc.wait(timeout=10)
-                self._set_done(state, "timeout", proc.returncode)
-                return proc.returncode
 
         return proc.wait()
 

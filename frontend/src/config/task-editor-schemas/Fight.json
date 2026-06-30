@@ -4,10 +4,15 @@
     "additionalProperties": true,
     "properties": {
       "stage": {
-        "type": "string",
-        "title": "关卡",
-        "default": "",
-        "description": "MaaCore 接收的单个关卡值；GUI 的候选关卡列表需要在前端或调度层提前解析为一个值。"
+        "type": "array",
+        "title": "关卡计划",
+        "default": [],
+        "description": "按顺序配置候选关卡；运行前由框架选择第一个当前可用关卡，再写入 MaaCore 的单个 stage 参数。",
+        "x-linuxMaaManaged": "runtime-array",
+        "x-optionsSource": "fight-stages",
+        "items": {
+          "type": "string"
+        }
       },
       "medicine": {
         "type": "integer",

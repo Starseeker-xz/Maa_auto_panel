@@ -19,5 +19,8 @@ downloads/
 # Local Maa runtime: downloaded maa-cli/MaaCore/resources, logs, cache, generated config, and state
 runtime/
 
+# WebUI recycle bin for user-managed config files
+config/maa/.trash/
+
 # User-uploaded local exports and temporary inputs
 TEMP/

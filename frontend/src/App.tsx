@@ -1,3 +1,4 @@
+import React from "react";
 import { CalendarClock, Home, Settings } from "lucide-react";
 import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 
@@ -11,9 +12,13 @@ import {
   SidebarProvider
 } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { getSettings } from "@/lib/api";
+import { loadStoredTheme, setActiveTheme, syncSystemTheme, themeFromFrameworkSettings } from "@/lib/theme";
 import { MainPage } from "@/pages/MainPage";
 import { SchedulePage } from "@/pages/SchedulePage";
 import { SettingsPage } from "@/pages/SettingsPage";
+
+const LAST_MAIN_PATH_KEY = "linux-maa:last-main-path";
 
 export function App() {
   const location = useLocation();
@@ -24,6 +29,25 @@ export function App() {
       ? "settings"
       : "main";
 
+  React.useEffect(() => {
+    let cancelled = false;
+    const storedTheme = loadStoredTheme();
+    if (storedTheme) setActiveTheme(storedTheme);
+
+    getSettings()
+      .then((settings) => {
+        if (!cancelled && !storedTheme) setActiveTheme(themeFromFrameworkSettings(settings.framework.data));
+      })
+      .catch(() => undefined);
+
+    const media = window.matchMedia?.("(prefers-color-scheme: dark)");
+    media?.addEventListener("change", syncSystemTheme);
+    return () => {
+      cancelled = true;
+      media?.removeEventListener("change", syncSystemTheme);
+    };
+  }, []);
+
   return (
     <TooltipProvider>
       <SidebarProvider>
@@ -33,7 +57,7 @@ export function App() {
               <div className="font-semibold tracking-tight">Linux MAA</div>
             </SidebarHeader>
             <SidebarContent>
-              <SidebarMenuButton active={page === "main"} icon={<Home />} onClick={() => navigate("/")}>
+              <SidebarMenuButton active={page === "main"} icon={<Home />} onClick={() => navigate(window.localStorage.getItem(LAST_MAIN_PATH_KEY) || "/")}>
                 主界面
               </SidebarMenuButton>
               <SidebarMenuButton active={page === "schedule"} icon={<CalendarClock />} onClick={() => navigate("/schedule")}>

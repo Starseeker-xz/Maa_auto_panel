@@ -1,6 +1,6 @@
 import { GripVertical, PencilLine, Play, Plus, Square, Trash2 } from "lucide-react";
 import React from "react";
-import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -19,6 +19,7 @@ type TaskListPaneProps = {
   run: RunState;
   onTaskConfigChange: (name: string) => void;
   onTaskConfigCreate: (name: string) => void;
+  onTaskConfigDelete: () => void;
   onTaskItemAdd: (type: string) => void;
   onTaskItemRename: (itemId: string, name: string) => void;
   onTaskItemDelete: (itemId: string) => void;
@@ -37,6 +38,7 @@ export function TaskListPane({
   run,
   onTaskConfigChange,
   onTaskConfigCreate,
+  onTaskConfigDelete,
   onTaskItemAdd,
   onTaskItemRename,
   onTaskItemDelete,
@@ -46,6 +48,7 @@ export function TaskListPane({
   onStartRun,
   onStopRun
 }: TaskListPaneProps) {
+  const navigate = useNavigate();
   const active = run.status === "running" || run.status === "stopping";
   const [draggingId, setDraggingId] = React.useState<string>("");
   const [dropIndex, setDropIndex] = React.useState<number | null>(null);
@@ -103,11 +106,20 @@ export function TaskListPane({
     setRenameDraft("");
   }
 
+  function openTaskItem(itemId: string) {
+    if (!selectedTaskConfig) return;
+    navigate(`/tasks/${encodeURIComponent(selectedTaskConfig)}/items/${encodeURIComponent(itemId)}`);
+  }
+
+  function rowControlTarget(target: EventTarget | null) {
+    return target instanceof HTMLElement && Boolean(target.closest("[data-row-control]"));
+  }
+
   return (
     <Card className="grid h-full min-h-0 grid-rows-[auto_minmax(220px,1fr)_auto_auto] gap-3 overflow-hidden p-3">
-      <div className="grid gap-1.5 pr-2">
+      <div className="grid gap-1.5">
         <label className="text-xs font-medium text-muted-foreground">当前任务配置</label>
-        <div className="grid grid-cols-[minmax(0,1fr)_34px] gap-1.5">
+        <div className="grid grid-cols-[minmax(0,1fr)_34px_34px] gap-1.5">
           <Select value={selectedTaskConfig} onValueChange={onTaskConfigChange}>
             <SelectTrigger>
               <SelectValue placeholder="选择任务配置" />
@@ -122,6 +134,9 @@ export function TaskListPane({
           </Select>
           <Button variant="outline" size="icon" aria-label="新增任务配置" onClick={() => setCreatingConfig((value) => !value)}>
             <Plus className="size-4" />
+          </Button>
+          <Button variant="outline" size="icon" aria-label="删除当前任务配置" onClick={onTaskConfigDelete} disabled={!selectedTaskConfig}>
+            <Trash2 className="size-4" />
           </Button>
         </div>
         {creatingConfig ? (
@@ -145,7 +160,7 @@ export function TaskListPane({
 
       <ScrollArea className="min-h-0">
         <div
-          className="grid gap-1.5 pt-1 pr-2"
+          className="grid gap-1.5 pt-1"
           onDragLeave={(event) => {
             const nextTarget = event.relatedTarget as Node | null;
             if (nextTarget && event.currentTarget.contains(nextTarget)) return;
@@ -159,15 +174,29 @@ export function TaskListPane({
                 data-task-row
                 data-active={selectedTaskItemId === item.id ? "true" : undefined}
                 data-dragging={draggingId === item.id ? "true" : undefined}
-                className="group grid h-10 grid-cols-[22px_minmax(0,1fr)_86px] items-center gap-2 rounded-md border bg-card px-2 shadow-xs transition-all hover:-translate-y-px hover:border-border/80 hover:shadow-md data-[active=true]:border-cyan-500 data-[active=true]:bg-cyan-50/60 data-[dragging=true]:scale-[0.98] data-[dragging=true]:opacity-45"
+                className="group grid h-10 cursor-pointer grid-cols-[22px_minmax(0,1fr)_74px] items-center gap-1.5 rounded-md border bg-card px-2 shadow-xs transition-all hover:-translate-y-px hover:border-border/80 hover:shadow-md data-[active=true]:border-primary data-[active=true]:bg-accent/70 data-[dragging=true]:scale-[0.98] data-[dragging=true]:opacity-45"
+                role="link"
+                tabIndex={0}
+                onClick={(event) => {
+                  if (!rowControlTarget(event.target)) openTaskItem(item.id);
+                }}
+                onKeyDown={(event) => {
+                  if (rowControlTarget(event.target)) return;
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    openTaskItem(item.id);
+                  }
+                }}
               >
                 <Checkbox
+                  data-row-control
                   checked={item.enabled}
                   aria-label={`${item.name} 启用`}
                   onCheckedChange={(checked) => onTaskItemEnabledChange(item.id, checked === true)}
                 />
                 {renamingId === item.id ? (
                   <Input
+                    data-row-control
                     className="h-7 min-w-0 px-2"
                     value={renameDraft}
                     onChange={(event) => setRenameDraft(event.target.value)}
@@ -180,16 +209,13 @@ export function TaskListPane({
                     autoFocus
                   />
                 ) : (
-                  <Link
-                    className="grid min-w-0 gap-0.5"
-                    to={`/tasks/${encodeURIComponent(selectedTaskConfig)}/items/${encodeURIComponent(item.id)}`}
-                    aria-label={`编辑 ${item.name}`}
-                  >
+                  <div className="grid min-w-0 gap-0.5" aria-label={`编辑 ${item.name}`}>
                     <span className="truncate text-sm">{item.name}</span>
-                  </Link>
+                  </div>
                 )}
                 <div className="flex items-center justify-end gap-0.5">
                   <Button
+                    data-row-control
                     variant="ghost"
                     size="icon"
                     className="size-7 text-muted-foreground/70 opacity-0 transition-opacity hover:text-foreground hover:opacity-100 focus-visible:opacity-100 group-hover:opacity-70"
@@ -203,6 +229,7 @@ export function TaskListPane({
                     <PencilLine className="size-3.5" />
                   </Button>
                   <Button
+                    data-row-control
                     variant="ghost"
                     size="icon"
                     className="size-7 text-muted-foreground/70 opacity-0 transition-opacity hover:text-destructive hover:opacity-100 focus-visible:opacity-100 group-hover:opacity-70"
@@ -218,6 +245,7 @@ export function TaskListPane({
                   </Button>
                   <div
                     data-drag-handle
+                    data-row-control
                     className={buttonVariants({ variant: "ghost", size: "icon", className: "size-7 cursor-grab active:cursor-grabbing" })}
                     role="button"
                     tabIndex={0}
@@ -246,7 +274,7 @@ export function TaskListPane({
         </div>
       </ScrollArea>
 
-      <div className="grid grid-cols-[34px_1fr_1fr] gap-1 pr-2">
+      <div className="grid grid-cols-[34px_1fr_1fr] gap-1">
         <Select value="" onValueChange={onTaskItemAdd} disabled={!selectedTaskConfig}>
           <SelectTrigger hideIcon className="h-9 w-[34px] justify-center px-0" aria-label="新增子任务">
             <SelectValue
@@ -273,8 +301,8 @@ export function TaskListPane({
         </Button>
       </div>
 
-      <div className="grid gap-2 pr-2">
-        <Button className="h-11 bg-cyan-500 text-slate-950 hover:bg-cyan-400" onClick={onStartRun} disabled={active || !selectedTaskConfig}>
+      <div className="grid gap-2">
+        <Button className="h-11" onClick={onStartRun} disabled={active || !selectedTaskConfig}>
           <Play className="size-4" />
           Link Start!
         </Button>
@@ -292,7 +320,7 @@ function InsertionLine({ active, position }: { active: boolean; position: "first
   const positionClass = position === "first" ? "top-0" : position === "top" ? "-top-1" : "-bottom-1";
   return (
     <div
-      className={`pointer-events-none absolute left-1 right-1 z-10 h-0.5 rounded-full bg-cyan-500 ${positionClass}`}
+      className={`pointer-events-none absolute left-1 right-1 z-10 h-0.5 rounded-full bg-primary ${positionClass}`}
     />
   );
 }

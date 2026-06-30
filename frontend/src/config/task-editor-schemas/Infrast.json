@@ -79,7 +79,8 @@
           "Processing",
           "Training"
         ],
-        "description": "要处理的基建设施，有序列表。"
+        "description": "要处理的基建设施，有序列表。",
+        "x-linuxMaaManaged": "array"
       },
       "drones": {
         "type": "string",
@@ -177,7 +178,8 @@
         "type": "string",
         "title": "自定义排班文件",
         "default": "",
-        "description": "自定义配置文件路径，仅在 mode = 10000 时生效。",
+        "description": "自定义配置文件路径，仅在 mode = 10000 时生效；不选择时基建计划失效。",
+        "x-optionsSource": "infrast-files",
         "x-disabledWhen": [
           {
             "field": "mode",
@@ -190,11 +192,17 @@
         ]
       },
       "plan_index": {
-        "type": "integer",
-        "title": "方案序号",
-        "default": 0,
-        "description": "自定义配置中的方案序号，仅在 mode = 10000 时生效。",
+        "type": "string",
+        "title": "基建计划",
+        "default": "__linux_maa_runtime__:infrast_plan_index",
+        "description": "选择自定义排班计划；未选择自定义排班文件时失效。时间轮换会在运行前由框架根据排班 JSON 的 period 自动解析为 plan_index。",
+        "x-linuxMaaManaged": "runtime-value",
+        "x-optionsSource": "infrast-plans",
         "x-disabledWhen": [
+          {
+            "field": "filename",
+            "equals": ""
+          },
           {
             "field": "mode",
             "equals": 0
@@ -209,6 +217,8 @@
   },
   "general": [
     "mode",
+    "filename",
+    "plan_index",
     "facility",
     "drones",
     "threshold"
@@ -219,8 +229,6 @@
     "dorm_trust_enabled",
     "reception_message_board",
     "reception_clue_exchange",
-    "reception_send_clue",
-    "filename",
-    "plan_index"
+    "reception_send_clue"
   ]
 }

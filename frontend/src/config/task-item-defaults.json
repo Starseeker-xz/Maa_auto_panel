@@ -5,6 +5,11 @@
     "params": {
       "client_type": "Bilibili",
       "start_game_enabled": true
+    },
+    "linux_maa": {
+      "unlimited_runs": true,
+      "important": true,
+      "retry_even_success": true
     }
   },
   {
@@ -36,14 +41,15 @@
       "mode": 0,
       "facility": ["Mfg", "Trade", "Power", "Control", "Reception", "Office", "Dorm", "Processing", "Training"],
       "drones": "_NotUse",
-      "threshold": 0.3
+      "threshold": 0.3,
+      "plan_index": "__linux_maa_runtime__:infrast_plan_index"
     }
   },
   {
     "type": "Fight",
     "name": "刷理智",
     "params": {
-      "stage": "",
+      "stage": [],
       "medicine": 0,
       "medicine_expire_days": 2,
       "stone": 0,
@@ -68,6 +74,11 @@
     "name": "关闭游戏",
     "params": {
       "client_type": "Bilibili"
+    },
+    "linux_maa": {
+      "unlimited_runs": true,
+      "important": true,
+      "retry_even_success": true
     }
   }
 ]

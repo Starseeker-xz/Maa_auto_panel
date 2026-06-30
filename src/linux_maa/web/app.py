@@ -1,28 +1,41 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel, Field
 
-from linux_maa.config import ConfigManager
-from linux_maa.maa import MaaRunManager, MaaRunRequest, MaaRuntime, find_repo_root
+from linux_maa.config import ConfigManager, ConfigValidationFailure, FrameworkSettingsManager
+from linux_maa.maa import MaaInfrastService, MaaRunManager, MaaRunRequest, MaaRuntime, MaaStageService, MaintenanceActionManager, find_repo_root
 
 
 class StartRunPayload(BaseModel):
     task: str = Field(min_length=1)
     profile: str = Field(default="default", min_length=1)
-    attempts: Annotated[int, Field(ge=1, le=10)] = 1
-    timeout_seconds: Annotated[int, Field(ge=30, le=86400)] = 900
     log_level: Annotated[int, Field(ge=0, le=3)] = 1
 
 
+class SaveTaskConfigPayload(BaseModel):
+    data: dict[str, Any] = Field(default_factory=dict)
+    task_items: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class SaveSettingsPayload(BaseModel):
+    framework: dict[str, Any] = Field(default_factory=dict)
+    profile: dict[str, Any] = Field(default_factory=dict)
+    maa_cli: dict[str, Any] = Field(default_factory=dict)
+
+
 def create_app(repo_root: Path | None = None) -> FastAPI:
-    runtime = MaaRuntime(find_repo_root(repo_root))
+    runtime = MaaRuntime(repo_root.resolve() if repo_root is not None else find_repo_root())
     configs = ConfigManager(runtime)
+    framework_settings = FrameworkSettingsManager(runtime)
     runs = MaaRunManager(runtime)
+    maintenance = MaintenanceActionManager(runtime)
+    stages = MaaStageService(runtime)
+    infrast = MaaInfrastService(runtime)
     frontend_dist = runtime.repo_root / "frontend" / "dist"
     frontend_assets = frontend_dist / "assets"
 
@@ -53,12 +66,115 @@ def create_app(repo_root: Path | None = None) -> FastAPI:
         try:
             if kind == "tasks":
                 return configs.read_task_config(name)
+            if kind == "profiles":
+                return configs.read_profile_config(name)
             info, content = configs.read(kind, name)
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         except FileNotFoundError as exc:
             raise HTTPException(status_code=404, detail="Config not found") from exc
         return {"file": info.to_dict(), "content": content}
+
+    @app.put("/api/configs/tasks/{name}")
+    def save_task_config(name: str, payload: SaveTaskConfigPayload) -> dict[str, object]:
+        try:
+            return configs.write_task_config(name, base_data=payload.data, task_items=payload.task_items)
+        except ConfigValidationFailure as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "message": "Task config validation failed",
+                    "validation": exc.result.to_dict(),
+                },
+            ) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.get("/api/settings")
+    def read_settings() -> dict[str, object]:
+        try:
+            return _settings_response(configs, framework_settings, maintenance)
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail="Settings source not found") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.put("/api/settings")
+    def save_settings(payload: SaveSettingsPayload) -> dict[str, object]:
+        try:
+            profile_validation = configs.schema_validator.validate_profile_config(payload.profile)
+            if not profile_validation.valid:
+                raise ConfigValidationFailure(profile_validation)
+            cli_validation = configs.schema_validator.validate_cli_config(payload.maa_cli)
+            if not cli_validation.valid:
+                raise ConfigValidationFailure(cli_validation)
+            framework_settings.write(payload.framework)
+            configs.write_profile_config("default", payload.profile)
+            configs.write_cli_config(payload.maa_cli)
+            return _settings_response(configs, framework_settings, maintenance)
+        except ConfigValidationFailure as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "message": "Settings validation failed",
+                    "validation": exc.result.to_dict(),
+                },
+            ) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.get("/api/maintenance/current")
+    def current_maintenance() -> dict[str, object]:
+        state = maintenance.current()
+        return state.to_dict() if state else {"status": "idle", "output": []}
+
+    @app.get("/api/maintenance/update-info")
+    def update_info() -> dict[str, object]:
+        try:
+            cli_config = configs.read_cli_config().get("data")
+            return maintenance.inspect_update_info(cli_config if isinstance(cli_config, dict) else {})
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.get("/api/maa/stages")
+    def maa_stages(client: str = "Official", include_unavailable: bool = False) -> dict[str, object]:
+        try:
+            return stages.stage_candidates(client=client, include_unavailable=include_unavailable)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.get("/api/maa/infrast/plans")
+    def maa_infrast_plans(filename: str = "") -> dict[str, object]:
+        try:
+            return infrast.plan_options(filename=filename)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.get("/api/maa/infrast/files")
+    def maa_infrast_files() -> dict[str, object]:
+        try:
+            return infrast.file_options()
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.post("/api/maintenance/{kind}")
+    def start_maintenance(kind: str) -> dict[str, object]:
+        try:
+            return maintenance.start(kind).to_dict()
+        except RuntimeError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.delete("/api/configs/{kind}/{name}")
+    def delete_config(kind: str, name: str) -> dict[str, object]:
+        try:
+            record = configs.delete(kind, name)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail="Config not found") from exc
+        return {"deleted": record.to_dict()}
 
     @app.post("/api/runs")
     def start_run(payload: StartRunPayload) -> dict[str, object]:
@@ -69,8 +185,6 @@ def create_app(repo_root: Path | None = None) -> FastAPI:
                 MaaRunRequest(
                     task=payload.task,
                     profile=payload.profile,
-                    attempts=payload.attempts,
-                    timeout_seconds=payload.timeout_seconds,
                     log_level=payload.log_level,
                 )
             )
@@ -111,6 +225,20 @@ def create_app(repo_root: Path | None = None) -> FastAPI:
         return MISSING_FRONTEND_HTML
 
     return app
+
+
+def _settings_response(
+    configs: ConfigManager,
+    framework_settings: FrameworkSettingsManager,
+    maintenance: MaintenanceActionManager,
+) -> dict[str, object]:
+    current_maintenance = maintenance.current()
+    return {
+        "framework": framework_settings.read(),
+        "profile": configs.read_profile_config("default"),
+        "maa_cli": configs.read_cli_config(),
+        "maintenance": current_maintenance.to_dict() if current_maintenance else {"status": "idle", "output": []},
+    }
 
 
 MISSING_FRONTEND_HTML = """

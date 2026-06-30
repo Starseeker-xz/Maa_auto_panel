@@ -9,3 +9,15 @@
 - `2026-06-29_2137-project-state-docs`: The project is still early-stage. For redesigns or upgrades, prefer simplifying the architecture and deleting obsolete functionality over preserving old behavior as fallback. Keep fallback paths only when there is a concrete current operational reason.
 
 - `2026-06-30_0014-task-editor-fixes`: When splitting frontend JSON editor templates, update the template aggregation/import code and verify all schema enum forms are still routed to custom renderers. `oneOf`/`const` titled options require `isOneOfEnumControl`; otherwise the intended select renderer may not apply even though TypeScript builds.
+
+- `2026-06-30_0124-config-save-delete`: When testing FastAPI against a scratch repo, use `create_app(explicit_repo_root)` after the 2026-06-30 fix; before that fix, `create_app(repo_root)` still called `find_repo_root(repo_root)` and could climb to the real repository, causing tests to touch real `config/maa`.
+
+- `2026-06-30_0124-config-save-delete`: On the main task editor route, keep the selected task config derived from the URL as the single source of truth. A separate `taskConfig` state plus an `initialTaskConfig` ref caused route changes to be overwritten back to the initial config when effects reran, locking the UI on `/tasks/award-no-mail`.
+
+- `2026-06-30_0124-config-save-delete`: Browser-based frontend checks are now available through the project `frontend` dev dependency `playwright` and Chromium installed under `/root/.cache/ms-playwright/`. For visual/layout verification, use Playwright screenshots plus overflow checks instead of relying only on `npm run build` and `curl`.
+
+- `2026-06-30_1743-fix-infrast-plan-select`: For JSON Forms controls that manage both visible `params` and `linux_maa.managed_params`, avoid firing separate parent updates in the same UI event. The main page's draft update path can otherwise apply stale item snapshots and overwrite the visible param change. Prefer one combined callback/patch for the param value and managed metadata.
+
+- `2026-06-30_1743-fix-infrast-plan-select`: `MaaRuntime` does not have a `discover()` helper. For direct ConfigManager/runtime checks, construct it with `MaaRuntime(find_repo_root())`.
+
+- `2026-06-30_1934-scheduled-retry-architecture`: Repository tests require the uv dev dependency group; before this session `uv run pytest` failed because pytest was not installed. Keep `pytest` in `[dependency-groups].dev` and run tests with `uv run pytest`.

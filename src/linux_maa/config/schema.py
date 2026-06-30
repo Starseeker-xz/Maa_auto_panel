@@ -7,8 +7,8 @@ from typing import Any
 
 from jsonschema import Draft7Validator
 
-from linux_maa.maa.runner import strip_framework_task_metadata
 from linux_maa.maa.runtime import MaaRuntime
+from linux_maa.config.tasks import strip_framework_task_metadata
 
 
 LINUX_MAA_METADATA_SCHEMA: dict[str, Any] = {
@@ -40,6 +40,38 @@ LINUX_MAA_METADATA_SCHEMA: dict[str, Any] = {
             "type": "boolean",
             "default": False,
             "description": "Scheduled-run policy hint for future failure handling. Not enforced by the runner yet.",
+        },
+        "retry_even_success": {
+            "type": "boolean",
+            "default": False,
+            "description": (
+                "Scheduled-run retry policy hint. When true, this task item is included in retry attempts "
+                "even if it already succeeded in the current scheduled run attempt."
+            ),
+        },
+        "managed_params": {
+            "type": "object",
+            "description": "Framework-managed task params. params stores placeholders; this object stores UI/runtime state.",
+            "additionalProperties": {
+                "type": "object",
+                "additionalProperties": True,
+                "properties": {
+                    "type": {"type": "string", "enum": ["array", "runtime"]},
+                    "handler": {"type": "string"},
+                    "value": {},
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": True,
+                            "properties": {
+                                "value": {},
+                                "enabled": {"type": "boolean"},
+                            },
+                        },
+                    },
+                },
+            },
         },
     },
 }
@@ -77,12 +109,30 @@ class ConfigSchemaValidator:
         return json.loads(schema_path.read_text(encoding="utf-8"))
 
     @cached_property
+    def maa_profile_schema(self) -> dict[str, Any]:
+        schema_path = self.runtime.repo_root / "docs" / "maa-cli" / "schemas" / "asst.schema.json"
+        return json.loads(schema_path.read_text(encoding="utf-8"))
+
+    @cached_property
+    def maa_cli_schema(self) -> dict[str, Any]:
+        schema_path = self.runtime.repo_root / "docs" / "maa-cli" / "schemas" / "cli.schema.json"
+        return json.loads(schema_path.read_text(encoding="utf-8"))
+
+    @cached_property
     def maa_task_validator(self) -> Draft7Validator:
         return Draft7Validator(self.maa_task_schema)
 
     @cached_property
     def metadata_validator(self) -> Draft7Validator:
         return Draft7Validator(LINUX_MAA_METADATA_SCHEMA)
+
+    @cached_property
+    def maa_profile_validator(self) -> Draft7Validator:
+        return Draft7Validator(self.maa_profile_schema)
+
+    @cached_property
+    def maa_cli_validator(self) -> Draft7Validator:
+        return Draft7Validator(self.maa_cli_schema)
 
     def validate_task_config(self, data: dict[str, object]) -> ConfigValidationResult:
         errors: list[ConfigValidationError] = []
@@ -118,6 +168,19 @@ class ConfigSchemaValidator:
                         )
                     )
 
+        return ConfigValidationResult(valid=not errors, errors=errors)
+
+    def validate_profile_config(self, data: dict[str, object]) -> ConfigValidationResult:
+        return self._validate_with(self.maa_profile_validator, data, source="maa-cli-profile")
+
+    def validate_cli_config(self, data: dict[str, object]) -> ConfigValidationResult:
+        return self._validate_with(self.maa_cli_validator, data, source="maa-cli")
+
+    def _validate_with(self, validator: Draft7Validator, data: dict[str, object], *, source: str) -> ConfigValidationResult:
+        errors = [
+            ConfigValidationError(path=_format_json_path(error.path), message=error.message, source=source)
+            for error in sorted(validator.iter_errors(data), key=lambda item: list(item.path))
+        ]
         return ConfigValidationResult(valid=not errors, errors=errors)
 
 

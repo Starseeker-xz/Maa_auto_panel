@@ -19,7 +19,8 @@
           5,
           4
         ],
-        "description": "会点击的 Tag 等级。"
+        "description": "会点击的 Tag 等级。",
+        "x-linuxMaaManaged": "array"
       },
       "confirm": {
         "type": "array",
@@ -31,7 +32,8 @@
           5,
           4
         ],
-        "description": "会点击确认的 Tag 等级。"
+        "description": "会点击确认的 Tag 等级。",
+        "x-linuxMaaManaged": "array"
       },
       "first_tags": {
         "type": "array",
@@ -40,7 +42,8 @@
           "type": "string"
         },
         "default": [],
-        "description": "Tag 等级为 3 时优先选择的 Tags。"
+        "description": "Tag 等级为 3 时优先选择的 Tags。",
+        "x-linuxMaaManaged": "array"
       },
       "preserve_tags": {
         "type": "array",
@@ -49,7 +52,8 @@
           "type": "string"
         },
         "default": [],
-        "description": "GUI 概念，保留指定 Tags；MaaCore 集成文档未列该字段。"
+        "description": "GUI 概念，保留指定 Tags；MaaCore 集成文档未列该字段。",
+        "x-linuxMaaManaged": "array"
       },
       "extra_tags_mode": {
         "type": "integer",
