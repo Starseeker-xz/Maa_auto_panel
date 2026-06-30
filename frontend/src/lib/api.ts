@@ -2,11 +2,21 @@ import type { ConfigResponse, ConfigsResponse, RunState } from "@/lib/types";
 
 async function readJson<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, init);
-  const data = await response.json();
+  const text = await response.text();
+  const data = text ? safeJsonParse(text) : null;
   if (!response.ok) {
-    throw new Error(data.detail || `HTTP ${response.status}`);
+    const detail = data && typeof data === "object" && "detail" in data ? String(data.detail) : text;
+    throw new Error(detail || `HTTP ${response.status}`);
   }
   return data as T;
+}
+
+function safeJsonParse(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return text;
+  }
 }
 
 export function listConfigs() {

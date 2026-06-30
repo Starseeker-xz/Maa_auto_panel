@@ -1,0 +1,73 @@
+[
+  {
+    "type": "StartUp",
+    "name": "启动游戏",
+    "params": {
+      "client_type": "Bilibili",
+      "start_game_enabled": true
+    }
+  },
+  {
+    "type": "Award",
+    "name": "领取奖励",
+    "params": {
+      "award": true,
+      "mail": false,
+      "recruit": false,
+      "orundum": false,
+      "mining": false,
+      "specialaccess": false
+    }
+  },
+  {
+    "type": "Mall",
+    "name": "信用商店",
+    "params": {
+      "visit_friends": true,
+      "shopping": true,
+      "buy_first": [],
+      "blacklist": []
+    }
+  },
+  {
+    "type": "Infrast",
+    "name": "基建换班",
+    "params": {
+      "mode": 0,
+      "facility": ["Mfg", "Trade", "Power", "Control", "Reception", "Office", "Dorm", "Processing", "Training"],
+      "drones": "_NotUse",
+      "threshold": 0.3
+    }
+  },
+  {
+    "type": "Fight",
+    "name": "刷理智",
+    "params": {
+      "stage": "",
+      "medicine": 0,
+      "medicine_expire_days": 2,
+      "stone": 0,
+      "times": 2147483647,
+      "series": 0
+    }
+  },
+  {
+    "type": "Recruit",
+    "name": "公开招募",
+    "params": {
+      "refresh": false,
+      "select": [5, 4],
+      "confirm": [5, 4],
+      "preserve_tags": [],
+      "times": 0,
+      "set_time": true
+    }
+  },
+  {
+    "type": "CloseDown",
+    "name": "关闭游戏",
+    "params": {
+      "client_type": "Bilibili"
+    }
+  }
+]

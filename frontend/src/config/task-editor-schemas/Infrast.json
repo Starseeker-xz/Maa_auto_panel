@@ -1,0 +1,226 @@
+{
+  "schema": {
+    "type": "object",
+    "additionalProperties": true,
+    "properties": {
+      "mode": {
+        "type": "integer",
+        "title": "换班模式",
+        "oneOf": [
+          {
+            "const": 0,
+            "title": "默认换班模式"
+          },
+          {
+            "const": 10000,
+            "title": "自定义排班"
+          },
+          {
+            "const": 20000,
+            "title": "一键轮换"
+          }
+        ],
+        "default": 0,
+        "description": "换班工作模式。默认模式使用单设施最优解；自定义排班读取用户配置；一键轮换会跳过控制中枢、发电站、宿舍以及办公室。"
+      },
+      "facility": {
+        "type": "array",
+        "title": "换班设施",
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "oneOf": [
+            {
+              "const": "Mfg",
+              "title": "制造站"
+            },
+            {
+              "const": "Trade",
+              "title": "贸易站"
+            },
+            {
+              "const": "Power",
+              "title": "发电站"
+            },
+            {
+              "const": "Control",
+              "title": "控制中枢"
+            },
+            {
+              "const": "Reception",
+              "title": "会客室"
+            },
+            {
+              "const": "Office",
+              "title": "办公室"
+            },
+            {
+              "const": "Dorm",
+              "title": "宿舍"
+            },
+            {
+              "const": "Processing",
+              "title": "加工站"
+            },
+            {
+              "const": "Training",
+              "title": "训练室"
+            }
+          ]
+        },
+        "default": [
+          "Mfg",
+          "Trade",
+          "Power",
+          "Control",
+          "Reception",
+          "Office",
+          "Dorm",
+          "Processing",
+          "Training"
+        ],
+        "description": "要处理的基建设施，有序列表。"
+      },
+      "drones": {
+        "type": "string",
+        "title": "无人机用途",
+        "oneOf": [
+          {
+            "const": "_NotUse",
+            "title": "不使用"
+          },
+          {
+            "const": "Money",
+            "title": "龙门币"
+          },
+          {
+            "const": "SyntheticJade",
+            "title": "合成玉"
+          },
+          {
+            "const": "CombatRecord",
+            "title": "作战记录"
+          },
+          {
+            "const": "PureGold",
+            "title": "赤金"
+          },
+          {
+            "const": "OriginStone",
+            "title": "源石碎片"
+          },
+          {
+            "const": "Chip",
+            "title": "芯片"
+          }
+        ],
+        "default": "_NotUse",
+        "description": "无人机用途。mode = 10000 时该字段无效。",
+        "x-disabledWhen": [
+          {
+            "field": "mode",
+            "equals": 10000
+          }
+        ]
+      },
+      "threshold": {
+        "type": "number",
+        "title": "心情阈值",
+        "default": 0.3,
+        "minimum": 0,
+        "maximum": 1,
+        "description": "心情阈值，范围 0 到 1。mode = 10000 时仅针对 autofill 有效；mode = 20000 时无效。",
+        "x-disabledWhen": [
+          {
+            "field": "mode",
+            "equals": 20000
+          }
+        ]
+      },
+      "replenish": {
+        "type": "boolean",
+        "title": "贸易站源石碎片补货",
+        "default": false,
+        "description": "贸易站源石碎片自动补货。"
+      },
+      "dorm_notstationed_enabled": {
+        "type": "boolean",
+        "title": "宿舍未进驻筛选",
+        "default": false,
+        "description": "启用宿舍未进驻筛选。"
+      },
+      "dorm_trust_enabled": {
+        "type": "boolean",
+        "title": "宿舍填入信赖未满干员",
+        "default": false,
+        "description": "宿舍剩余位置填入信赖未满干员。"
+      },
+      "reception_message_board": {
+        "type": "boolean",
+        "title": "领取会客室信息板信用",
+        "default": true,
+        "description": "领取会客室信息板信用。"
+      },
+      "reception_clue_exchange": {
+        "type": "boolean",
+        "title": "进行线索交流",
+        "default": true,
+        "description": "进行线索交流。"
+      },
+      "reception_send_clue": {
+        "type": "boolean",
+        "title": "赠送线索",
+        "default": true,
+        "description": "赠送线索。"
+      },
+      "filename": {
+        "type": "string",
+        "title": "自定义排班文件",
+        "default": "",
+        "description": "自定义配置文件路径，仅在 mode = 10000 时生效。",
+        "x-disabledWhen": [
+          {
+            "field": "mode",
+            "equals": 0
+          },
+          {
+            "field": "mode",
+            "equals": 20000
+          }
+        ]
+      },
+      "plan_index": {
+        "type": "integer",
+        "title": "方案序号",
+        "default": 0,
+        "description": "自定义配置中的方案序号，仅在 mode = 10000 时生效。",
+        "x-disabledWhen": [
+          {
+            "field": "mode",
+            "equals": 0
+          },
+          {
+            "field": "mode",
+            "equals": 20000
+          }
+        ]
+      }
+    }
+  },
+  "general": [
+    "mode",
+    "facility",
+    "drones",
+    "threshold"
+  ],
+  "advanced": [
+    "replenish",
+    "dorm_notstationed_enabled",
+    "dorm_trust_enabled",
+    "reception_message_board",
+    "reception_clue_exchange",
+    "reception_send_clue",
+    "filename",
+    "plan_index"
+  ]
+}

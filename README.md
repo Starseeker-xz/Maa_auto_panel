@@ -2,9 +2,11 @@
 
 Linux-side automation helpers for running MaaAssistantArknights against Android containers.
 
-Current packaged feature:
+Current packaged features:
 
 - `linux-maa update-game`: fetch the latest Bilibili Arknights Android package, reuse local APK cache or Bilibili incremental patches when possible, and install the package to a target ADB device.
+- `linux-maa run-maa-task`: run a managed `maa-cli` task with coarse timeout/retry/recovery behavior.
+- `linux-maa webui`: start the local FastAPI + React WebUI.
 
 ## Development
 
@@ -43,7 +45,8 @@ uv run linux-maa run-maa-task test --attempts 3 --timeout 900
 ## WebUI
 
 The WebUI is split into a Python FastAPI backend and an independent React +
-TypeScript + Vite frontend under `frontend/`.
+TypeScript + Vite frontend under `frontend/`. The backend serves
+`frontend/dist` when the frontend has been built.
 
 Install and build the frontend:
 
@@ -65,17 +68,26 @@ From the LAN, open:
 http://192.168.5.15:8000/
 ```
 
-The first slice reads managed maa-cli config files from:
+The current slice reads managed maa-cli config files from:
 
 - `config/maa/profiles/`
 - `config/maa/tasks/`
 
-It can select a profile and task, start `maa run <task> --batch --profile <profile>`,
-show the info-level maa-cli log/status in the right pane, and stop the active
-process. The left pane lists task names from the selected task config; the center
-pane is reserved for visual config editing. Low-level MaaCore debug logs such as
-`asst.log` stay in the runtime directory for diagnosis and are not streamed in
-the WebUI.
+It can select a task config, list and locally edit task items, open a
+schema-driven visual editor for supported MaaCore task params, start
+`maa run <task> --batch --profile default`, show the info-level maa-cli
+log/status in the right pane, and stop the active process. Frontend config edits
+are currently local-only and are not saved back to disk. Low-level MaaCore debug
+logs such as `asst.log` stay in the runtime directory for diagnosis and are not
+streamed in the WebUI.
+
+Current WebUI routes:
+
+- `/`
+- `/tasks/:taskConfig`
+- `/tasks/:taskConfig/items/:taskItemId`
+- `/schedule`
+- `/settings`
 
 See [docs/maa-runtime.md](docs/maa-runtime.md) for the current layout and config notes.
 

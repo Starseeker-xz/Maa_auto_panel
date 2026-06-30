@@ -8,6 +8,7 @@ from pathlib import Path
 import re
 
 from linux_maa.maa.runtime import MaaRuntime
+from linux_maa.config.schema import ConfigSchemaValidator
 
 CONFIG_KINDS = {
     "profiles": "profiles",
@@ -35,6 +36,7 @@ class ConfigManager:
 
     def __init__(self, runtime: MaaRuntime) -> None:
         self.runtime = runtime
+        self.schema_validator = ConfigSchemaValidator(runtime)
 
     def ensure_dirs(self) -> None:
         for dirname in CONFIG_KINDS.values():
@@ -79,15 +81,22 @@ class ConfigManager:
         return info, path.read_text(encoding="utf-8")
 
     def read_task_items(self, name: str) -> list[dict[str, object]]:
-        path = self.resolve("tasks", name)
-        content = path.read_text(encoding="utf-8")
-        if path.suffix.lower() == ".toml":
-            data = tomllib.loads(content)
-        elif path.suffix.lower() == ".json":
-            data = json.loads(content)
-        else:
-            return []
+        data = self.read_structured("tasks", name)
+        return self.task_items_from_data(data)
 
+    def read_task_config(self, name: str) -> dict[str, object]:
+        info, content = self.read("tasks", name)
+        data = self.read_structured("tasks", name)
+        return {
+            "file": info.to_dict(),
+            "content": content,
+            "data": data,
+            "task_items": self.task_items_from_data(data),
+            "validation": self.schema_validator.validate_task_config(data).to_dict(),
+            "metadata_schema": self.schema_validator.metadata_validator.schema,
+        }
+
+    def task_items_from_data(self, data: dict[str, object]) -> list[dict[str, object]]:
         tasks = data.get("tasks")
         if not isinstance(tasks, list):
             return []
@@ -113,10 +122,25 @@ class ConfigManager:
                     "name": str(name_value),
                     "type": str(type_value),
                     "enabled": bool(enabled),
+                    "strategy": task.get("strategy"),
+                    "params": task.get("params") if isinstance(task.get("params"), dict) else {},
+                    "variants": task.get("variants") if isinstance(task.get("variants"), list) else [],
                     "linux_maa": framework_meta,
                 }
             )
         return items
+
+    def read_structured(self, kind: str, name: str) -> dict[str, object]:
+        path = self.resolve(kind, name)
+        content = path.read_text(encoding="utf-8")
+        if path.suffix.lower() == ".toml":
+            return tomllib.loads(content)
+        if path.suffix.lower() == ".json":
+            loaded = json.loads(content)
+            if isinstance(loaded, dict):
+                return loaded
+            raise ValueError("Config JSON root must be an object")
+        raise ValueError(f"Cannot parse {path.suffix} config yet")
 
     def _task_item_id(self, task: dict[str, object], task_type: str) -> str:
         framework = task.get("linux_maa")

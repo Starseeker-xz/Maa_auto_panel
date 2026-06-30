@@ -1,0 +1,44 @@
+{
+  "schema": {
+    "type": "object",
+    "additionalProperties": true,
+    "properties": {
+      "client_type": {
+        "type": "string",
+        "title": "客户端",
+        "default": "Bilibili",
+        "description": "客户端版本。",
+        "oneOf": [
+          {
+            "const": "Official",
+            "title": "官服"
+          },
+          {
+            "const": "Bilibili",
+            "title": "Bilibili"
+          },
+          {
+            "const": "txwy",
+            "title": "腾讯服"
+          },
+          {
+            "const": "YoStarEN",
+            "title": "YoStar EN"
+          },
+          {
+            "const": "YoStarJP",
+            "title": "YoStar JP"
+          },
+          {
+            "const": "YoStarKR",
+            "title": "YoStar KR"
+          }
+        ]
+      }
+    }
+  },
+  "general": [
+    "client_type"
+  ],
+  "advanced": []
+}

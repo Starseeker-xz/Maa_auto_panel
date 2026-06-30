@@ -1,0 +1,208 @@
+{
+  "schema": {
+    "type": "object",
+    "additionalProperties": true,
+    "properties": {
+      "refresh": {
+        "type": "boolean",
+        "title": "刷新三星 Tags",
+        "default": false,
+        "description": "是否刷新三星 Tags。"
+      },
+      "select": {
+        "type": "array",
+        "title": "会点击的 Tag 等级",
+        "items": {
+          "type": "number"
+        },
+        "default": [
+          5,
+          4
+        ],
+        "description": "会点击的 Tag 等级。"
+      },
+      "confirm": {
+        "type": "array",
+        "title": "会确认的 Tag 等级",
+        "items": {
+          "type": "number"
+        },
+        "default": [
+          5,
+          4
+        ],
+        "description": "会点击确认的 Tag 等级。"
+      },
+      "first_tags": {
+        "type": "array",
+        "title": "首选 Tags",
+        "items": {
+          "type": "string"
+        },
+        "default": [],
+        "description": "Tag 等级为 3 时优先选择的 Tags。"
+      },
+      "preserve_tags": {
+        "type": "array",
+        "title": "保留 Tags",
+        "items": {
+          "type": "string"
+        },
+        "default": [],
+        "description": "GUI 概念，保留指定 Tags；MaaCore 集成文档未列该字段。"
+      },
+      "extra_tags_mode": {
+        "type": "integer",
+        "title": "更多 Tags 模式",
+        "oneOf": [
+          {
+            "const": 0,
+            "title": "默认行为"
+          },
+          {
+            "const": 1,
+            "title": "尽量选 3 个 Tags"
+          },
+          {
+            "const": 2,
+            "title": "尽量选择更多高星 Tag 组合"
+          }
+        ],
+        "default": 0,
+        "description": "选择更多 Tags 的策略。"
+      },
+      "times": {
+        "type": "integer",
+        "title": "招募次数",
+        "default": 0,
+        "minimum": 0,
+        "description": "战斗次数上限。"
+      },
+      "set_time": {
+        "type": "boolean",
+        "title": "设置招募时限",
+        "default": true,
+        "description": "是否设置招募时限。仅在招募次数为 0 时生效。",
+        "x-enabledWhen": [
+          {
+            "field": "times",
+            "equals": 0
+          }
+        ]
+      },
+      "expedite": {
+        "type": "boolean",
+        "title": "使用加急许可",
+        "default": false,
+        "description": "是否使用加急许可。"
+      },
+      "expedite_times": {
+        "type": "integer",
+        "title": "加急次数",
+        "default": 0,
+        "minimum": 0,
+        "description": "加急次数。仅在启用加急许可时有效；不填时默认无限使用直到达到招募次数上限。",
+        "x-enabledWhen": [
+          {
+            "field": "expedite",
+            "equals": true
+          }
+        ]
+      },
+      "skip_robot": {
+        "type": "boolean",
+        "title": "识别到小车词条时跳过",
+        "default": true,
+        "description": "识别到小车词条时跳过。"
+      },
+      "recruitment_time": {
+        "type": "object",
+        "title": "各星级招募时限",
+        "additionalProperties": true,
+        "default": {},
+        "description": "各星级招募时限，单位分钟。"
+      },
+      "report_to_penguin": {
+        "type": "boolean",
+        "title": "汇报企鹅物流",
+        "default": false,
+        "description": "是否汇报企鹅物流数据。"
+      },
+      "penguin_id": {
+        "type": "string",
+        "title": "企鹅物流 ID",
+        "default": "",
+        "description": "企鹅物流用户 ID，留空则匿名。仅在启用企鹅物流汇报时有效。",
+        "x-enabledWhen": [
+          {
+            "field": "report_to_penguin",
+            "equals": true
+          }
+        ]
+      },
+      "report_to_yituliu": {
+        "type": "boolean",
+        "title": "汇报一图流",
+        "default": false,
+        "description": "是否汇报一图流数据。"
+      },
+      "yituliu_id": {
+        "type": "string",
+        "title": "一图流 ID",
+        "default": "",
+        "description": "一图流用户 ID，留空则匿名。仅在启用一图流汇报时有效。",
+        "x-enabledWhen": [
+          {
+            "field": "report_to_yituliu",
+            "equals": true
+          }
+        ]
+      },
+      "server": {
+        "type": "string",
+        "title": "服务器",
+        "default": "CN",
+        "description": "服务器，会影响掉落识别及上传。",
+        "oneOf": [
+          {
+            "const": "CN",
+            "title": "国服"
+          },
+          {
+            "const": "US",
+            "title": "国际服"
+          },
+          {
+            "const": "JP",
+            "title": "日服"
+          },
+          {
+            "const": "KR",
+            "title": "韩服"
+          }
+        ]
+      }
+    }
+  },
+  "general": [
+    "refresh",
+    "select",
+    "confirm",
+    "preserve_tags",
+    "times",
+    "set_time"
+  ],
+  "advanced": [
+    "first_tags",
+    "extra_tags_mode",
+    "expedite",
+    "expedite_times",
+    "skip_robot",
+    "recruitment_time",
+    "report_to_penguin",
+    "penguin_id",
+    "report_to_yituliu",
+    "yituliu_id",
+    "server"
+  ]
+}

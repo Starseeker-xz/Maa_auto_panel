@@ -1,0 +1,59 @@
+{
+  "schema": {
+    "type": "object",
+    "additionalProperties": true,
+    "properties": {
+      "client_type": {
+        "type": "string",
+        "title": "客户端",
+        "default": "Bilibili",
+        "description": "客户端版本。",
+        "oneOf": [
+          {
+            "const": "Official",
+            "title": "官服"
+          },
+          {
+            "const": "Bilibili",
+            "title": "Bilibili"
+          },
+          {
+            "const": "txwy",
+            "title": "腾讯服"
+          },
+          {
+            "const": "YoStarEN",
+            "title": "YoStar EN"
+          },
+          {
+            "const": "YoStarJP",
+            "title": "YoStar JP"
+          },
+          {
+            "const": "YoStarKR",
+            "title": "YoStar KR"
+          }
+        ]
+      },
+      "start_game_enabled": {
+        "type": "boolean",
+        "title": "自动启动客户端",
+        "default": false,
+        "description": "是否自动启动游戏客户端。"
+      },
+      "account_name": {
+        "type": "string",
+        "title": "切换账号",
+        "default": "",
+        "description": "切换到已登录账号；留空则不切换。"
+      }
+    }
+  },
+  "general": [
+    "client_type",
+    "start_game_enabled"
+  ],
+  "advanced": [
+    "account_name"
+  ]
+}

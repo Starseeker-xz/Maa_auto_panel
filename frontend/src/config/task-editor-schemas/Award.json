@@ -1,0 +1,53 @@
+{
+  "schema": {
+    "type": "object",
+    "additionalProperties": true,
+    "properties": {
+      "award": {
+        "type": "boolean",
+        "title": "领取每日/每周任务奖励",
+        "default": true,
+        "description": "领取每日/每周任务奖励。"
+      },
+      "mail": {
+        "type": "boolean",
+        "title": "领取邮件奖励",
+        "default": false,
+        "description": "领取邮件奖励。"
+      },
+      "recruit": {
+        "type": "boolean",
+        "title": "领取限定池每日免费单抽",
+        "default": false,
+        "description": "领取限定池每日免费单抽。"
+      },
+      "orundum": {
+        "type": "boolean",
+        "title": "领取幸运墙合成玉",
+        "default": false,
+        "description": "领取幸运墙合成玉奖励。"
+      },
+      "mining": {
+        "type": "boolean",
+        "title": "领取限时开采许可",
+        "default": false,
+        "description": "领取限时开采许可奖励。"
+      },
+      "specialaccess": {
+        "type": "boolean",
+        "title": "领取月卡奖励",
+        "default": false,
+        "description": "领取特殊活动或月卡奖励。"
+      }
+    }
+  },
+  "general": [
+    "award",
+    "mail",
+    "recruit",
+    "orundum",
+    "mining",
+    "specialaccess"
+  ],
+  "advanced": []
+}

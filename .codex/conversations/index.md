@@ -8,3 +8,9 @@
 - `2026-06-26_2030-separate-frontend`: Separate the simple WebUI into the planned React/Vite frontend and reshape the UI around task list, config center, and maa-cli info logs.
 
 - `2026-06-29_1929-shadcn-sidebar`: Replace the Mantine frontend pass with shadcn-style local components and clean Mantine out fully.
+
+- `2026-06-29_2137-project-state-docs`: Inspect current repository state and refresh concise project history/documentation handoff records.
+
+- `2026-06-29_2232-config-editing`: Implement backend task-config validation and parsed config API; add JSON Forms based frontend task editor, metadata fields, schema-drift/fallback editing UI, and left-pane edit/drag affordance.
+
+- `2026-06-30_0014-task-editor-fixes`: Fix task editor metadata semantics, drag ordering UX, checkbox/tooltip styling, dependency logic, and enum labels.

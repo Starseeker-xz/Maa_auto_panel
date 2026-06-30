@@ -51,15 +51,14 @@ def create_app(repo_root: Path | None = None) -> FastAPI:
     @app.get("/api/configs/{kind}/{name}")
     def read_config(kind: str, name: str) -> dict[str, object]:
         try:
+            if kind == "tasks":
+                return configs.read_task_config(name)
             info, content = configs.read(kind, name)
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         except FileNotFoundError as exc:
             raise HTTPException(status_code=404, detail="Config not found") from exc
-        result: dict[str, object] = {"file": info.to_dict(), "content": content}
-        if kind == "tasks":
-            result["task_items"] = configs.read_task_items(name)
-        return result
+        return {"file": info.to_dict(), "content": content}
 
     @app.post("/api/runs")
     def start_run(payload: StartRunPayload) -> dict[str, object]:

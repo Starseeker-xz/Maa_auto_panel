@@ -8,7 +8,12 @@ function Select({ ...props }: React.ComponentProps<typeof SelectPrimitive.Root>)
   return <SelectPrimitive.Root data-slot="select" {...props} />;
 }
 
-function SelectTrigger({ className, children, ...props }: React.ComponentProps<typeof SelectPrimitive.Trigger>) {
+function SelectTrigger({
+  className,
+  children,
+  hideIcon = false,
+  ...props
+}: React.ComponentProps<typeof SelectPrimitive.Trigger> & { hideIcon?: boolean }) {
   return (
     <SelectPrimitive.Trigger
       data-slot="select-trigger"
@@ -19,9 +24,11 @@ function SelectTrigger({ className, children, ...props }: React.ComponentProps<t
       {...props}
     >
       {children}
-      <SelectPrimitive.Icon asChild>
-        <ChevronDownIcon className="size-4 opacity-50" />
-      </SelectPrimitive.Icon>
+      {hideIcon ? null : (
+        <SelectPrimitive.Icon asChild>
+          <ChevronDownIcon className="size-4 opacity-50" />
+        </SelectPrimitive.Icon>
+      )}
     </SelectPrimitive.Trigger>
   );
 }

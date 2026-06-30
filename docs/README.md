@@ -11,6 +11,15 @@ This directory keeps both mirrored upstream references and project-owned notes/d
 
 - `maa-reading-notes.md`: first-pass reading notes for the MAA/maa-cli integration model, focused on this project's planned retry/fallback/scheduling wrapper.
 - `architecture-direction.md`: handoff-oriented direction notes for the planned Web UI orchestration framework.
+- `maa-runtime.md`: current project-local `maa-cli`/MaaCore runtime, managed config layout, WebUI runner behavior, and operational notes.
+
+## Current Project Shape
+
+- Python backend/control plane: `src/linux_maa/`.
+- Managed MAA/framework config: `config/maa/`.
+- Ignored local runtime, generated config, logs, and cache: `runtime/maa/`.
+- React/Vite frontend: `frontend/`.
+- FastAPI serves `frontend/dist` and exposes config/run APIs under `/api/`.
 
 ## High-Value Upstream Files
 
@@ -23,4 +32,4 @@ This directory keeps both mirrored upstream references and project-owned notes/d
 - `maa-upstream/zh-cn/manual/connection.md`: ADB address/config/touch mode notes.
 - `maa-upstream/zh-cn/manual/device/linux.md`: Linux/container support, including redroid.
 - `maa-cli/schemas/*.json`: JSON schemas for generated maa-cli config validation.
-- `maa-cli/config_examples/`: reference TOML/YAML/JSON examples.
+- `maa-cli/config_examples/`: reference TOML/YAML/JSON examples, including `tasks/full-current.toml` as the broad current task-param reference.

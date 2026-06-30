@@ -109,13 +109,17 @@ State/config separation:
 
 ## Backend Technology Direction
 
-Recommended first backend stack:
+Current backend stack:
 
 - FastAPI for HTTP/WebSocket API.
 - Pydantic v2 for config/domain models and JSON Schema generation.
+- A synchronous `subprocess.Popen`-based run manager in a background thread for the first WebUI slice.
+
+Still recommended:
+
 - SQLite plus SQLModel or SQLAlchemy for persistent run history.
 - APScheduler for the first scheduling implementation.
-- Async subprocess execution for `maa-cli` and external scripts.
+- Async subprocess execution once concurrent process control, log streaming, or cancellation grows beyond the current single-run model.
 - `tomlkit` if preserving comments/formatting in TOML becomes important.
 
 Important rule: treat `maa-cli` as an external process with uncertain behavior. Every invocation must capture:
@@ -131,12 +135,20 @@ Important rule: treat `maa-cli` as an external process with uncertain behavior. 
 
 ## Frontend Direction
 
-Two plausible UI paths:
+Current frontend stack:
 
-- Simple first UI: FastAPI templates plus HTMX/Alpine.js.
-- Strong interactive config UI: React or Vue plus a JSON Schema form renderer.
+- React + TypeScript + Vite under `frontend/`.
+- React Router routes: `/`, `/tasks/:taskConfig`, `/tasks/:taskConfig/items/:taskItemId`, `/schedule`, and `/settings`.
+- Local shadcn-style components with Radix primitives, lucide icons, Tailwind CSS v4, `@tailwindcss/vite`, and `tw-animate-css`.
 
-Recommendation: do not build the full config editor first. Build workflow execution, run history, log viewing, and retry/fallback engine first. Add schema-driven config editing after the model stabilizes.
+Current UI shape:
+
+- Persistent sidebar for `主界面`, `定时执行`, and `设置`.
+- Main page uses a three-column operational layout: task list, future config editor, and info-level log/status panel.
+- Profile selection is hidden from the main page for now and defaults to `default`.
+- Schedule/settings pages are placeholders.
+
+Recommendation remains: do not build the full config editor first. Build workflow execution, run history, log viewing, and retry/fallback engine first. Add schema-driven config editing after the model stabilizes.
 
 ## Testing Direction
 
@@ -150,4 +162,3 @@ Create fake runners that emit predefined outcomes such as:
 - `maa-cli` exits 0 but logs contain a known failure marker.
 
 This is the safest way to make the high-availability behavior reliable.
-

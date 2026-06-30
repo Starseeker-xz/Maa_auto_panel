@@ -8,6 +8,7 @@ dependencies = [
     "beautifulsoup4>=4.14.3",
     "fastapi>=0.116.0",
     "hdiffpatch>=1.0.0",
+    "jsonschema>=4.26.0",
     "lxml>=6.0.2",
     "pydantic>=2.11.0",
     "requests>=2.32.5",
