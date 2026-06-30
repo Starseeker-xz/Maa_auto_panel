@@ -1,0 +1,110 @@
+id = "daily-test"
+name = "daily-test"
+enabled = true
+task_config = "General"
+profile_name = "daily-test-profile"
+log_level = 1
+
+[profile]
+"$schema" = "../../../docs/maa-cli/schemas/asst.schema.json"
+
+[profile.connection]
+type = "ADB"
+adb_path = "adb"
+address = "192.168.5.151:5555"
+config = "CompatPOSIXShell"
+
+[profile.resource]
+user_resource = false
+
+[profile.static_options]
+cpu_ocr = true
+
+[profile.instance_options]
+touch_mode = "MaaTouch"
+deployment_with_pause = false
+adb_lite_enabled = false
+kill_adb_on_exit = false
+
+[retry]
+max_attempts_per_group = 5
+group_buffer_seconds = 300
+max_groups = 3
+
+[timeouts]
+child_warning_seconds = 900
+child_danger_seconds = 1200
+child_kill_seconds = 1800
+run_warning_seconds = 1800
+run_danger_seconds = 2400
+run_kill_seconds = 3600
+
+[restart]
+mode = "none"
+script = ""
+
+[restart.variables]
+
+[[entries]]
+id = "t0400"
+name = "休息 1"
+time = "05:00"
+enabled = true
+task_ids = [
+    "startup-a5ce8dac",
+    "award-8123686a",
+    "mall-7d4ad25c",
+    "infrast-37153e4c",
+    "fight--2-1b5fc18a",
+    "fight-e6d4bc5d",
+    "recruit-d1901df5",
+    "closedown-738e1424",
+]
+
+[[entries]]
+id = "t0800"
+name = "常态搓玉组"
+time = "12:30"
+enabled = true
+task_ids = [
+    "startup-a5ce8dac",
+    "award-8123686a",
+    "mall-7d4ad25c",
+    "infrast-37153e4c",
+    "fight--2-1b5fc18a",
+    "fight-e6d4bc5d",
+    "recruit-d1901df5",
+    "closedown-738e1424",
+]
+
+[[entries]]
+id = "t1600"
+name = "中途切换"
+time = "19:00"
+enabled = true
+task_ids = [
+    "startup-a5ce8dac",
+    "award-8123686a",
+    "fight--2-1b5fc18a",
+    "fight-e6d4bc5d",
+    "recruit-d1901df5",
+    "closedown-738e1424",
+    "mall-7d4ad25c",
+    "infrast-37153e4c",
+]
+
+[[entries]]
+id = "t2200"
+name = "休息 2"
+time = "09:00"
+enabled = true
+task_ids = [
+    "startup-a5ce8dac",
+    "award-8123686a",
+    "mall-7d4ad25c",
+    "infrast-37153e4c",
+    "fight--2-1b5fc18a",
+    "fight-e6d4bc5d",
+    "recruit-d1901df5",
+    "closedown-738e1424",
+]

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import time
 from dataclasses import dataclass, field
 from typing import ClassVar, Literal
 
@@ -17,6 +18,14 @@ _TASK_EVENT_RE = re.compile(
     r"^(?P<task>[A-Za-z][A-Za-z0-9_]*?)\s+"
     r"(?P<event>Start|Completed|Error|Stopped)\s*$"
 )
+_SUMMARY_TASK_RE = re.compile(
+    r"^\[(?P<task>.+?)\]\s+"
+    r"(?P<started>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+-\s+"
+    r"(?P<ended>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+"
+    r"\((?P<elapsed>[^)]*)\)\s+"
+    r"(?P<status>Completed|Error|Stopped|Unknown)\s*$"
+)
+_SUMMARY_FIGHT_DROPS_RE = re.compile(r"^Fight\s+(?P<stage>\S+)\s+(?P<times>\d+)\s+times,\s+drops:\s*$")
 
 _EVENT_STATUS: dict[str, TaskStatus] = {
     "Start": "running",
@@ -115,6 +124,8 @@ DEFAULT_PANEL_RULES: tuple[MaaLogPanelRule, ...] = (
 class MaaTaskLogRecord:
     name: str
     status: TaskStatus
+    task_id: str | None = None
+    source_name: str | None = None
     rule_id: str = "maa-task-lifecycle"
     panel_kind: str = "task"
     started_at: str | None = None
@@ -123,7 +134,7 @@ class MaaTaskLogRecord:
     lines: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, object]:
-        return {
+        data: dict[str, object] = {
             "type": "task",
             "name": self.name,
             "status": self.status,
@@ -131,6 +142,28 @@ class MaaTaskLogRecord:
             "panel_kind": self.panel_kind,
             "started_at": self.started_at,
             "ended_at": self.ended_at,
+            "messages": [message.to_dict() for message in self.messages],
+            "lines": list(self.lines),
+        }
+        if self.source_name and self.source_name != self.name:
+            data["source_name"] = self.source_name
+        if self.task_id:
+            data["task_id"] = self.task_id
+        return data
+
+
+@dataclass
+class MaaSummaryLogRecord:
+    status: TaskStatus = "succeeded"
+    title: str = "运行摘要"
+    messages: list[MaaLogMessage] = field(default_factory=list)
+    lines: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "type": "summary",
+            "title": self.title,
+            "status": self.status,
             "messages": [message.to_dict() for message in self.messages],
             "lines": list(self.lines),
         }
@@ -143,8 +176,12 @@ class MaaCliLogTranslator:
     panel_rules: ClassVar[tuple[MaaLogPanelRule, ...]] = DEFAULT_PANEL_RULES
 
     task_records: list[MaaTaskLogRecord] = field(default_factory=list)
-    log_entries: list[MaaTaskLogRecord | MaaLogMessage] = field(default_factory=list)
+    log_entries: list[MaaTaskLogRecord | MaaSummaryLogRecord | MaaLogMessage] = field(default_factory=list)
     _current: MaaTaskLogRecord | None = None
+    _current_summary: MaaSummaryLogRecord | None = None
+    _current_started_monotonic: float | None = None
+    _expected_tasks: list[dict[str, str]] = field(default_factory=list)
+    _expected_task_index: int = 0
     _partial: str = ""
 
     def translate(self, text: str) -> str:
@@ -167,6 +204,7 @@ class MaaCliLogTranslator:
             self._partial = ""
         if self._current is not None:
             output += self._close_current("unknown")
+        self._current_summary = None
         return output
 
     def task_results(self) -> list[dict[str, object]]:
@@ -176,6 +214,8 @@ class MaaCliLogTranslator:
         entries: list[dict[str, object]] = []
         for entry in self.log_entries:
             if isinstance(entry, MaaTaskLogRecord):
+                entries.append(entry.to_dict())
+            elif isinstance(entry, MaaSummaryLogRecord):
                 entries.append(entry.to_dict())
             else:
                 entries.append(entry.to_line_entry())
@@ -193,10 +233,52 @@ class MaaCliLogTranslator:
         self.log_entries.append(message)
         return f"{_format_time_prefix(time)}{text}\n"
 
+    def begin_task_sequence(self, tasks: list[dict[str, str]]) -> None:
+        self._expected_tasks = [
+            {
+                "task_id": str(task.get("task_id") or ""),
+                "source_name": str(task.get("source_name") or task.get("type") or task.get("name") or ""),
+                "name": str(task.get("name") or task.get("source_name") or task.get("type") or ""),
+            }
+            for task in tasks
+            if task.get("source_name") or task.get("type") or task.get("name")
+        ]
+        self._expected_task_index = 0
+
+    def current_task_elapsed_seconds(self) -> tuple[str, float] | None:
+        if self._current is None or self._current_started_monotonic is None:
+            return None
+        return self._current.name, time.monotonic() - self._current_started_monotonic
+
     def _translate_line(self, line: str) -> str:
         raw = line.rstrip("\r\n")
         parsed = _parse_log_line(raw)
         body = parsed["body"]
+
+        if parsed["time"] is not None and self._current_summary is not None:
+            self._current_summary = None
+
+        if body == "Summary":
+            output = ""
+            if self._current is not None:
+                output += self._close_current("unknown")
+            record = MaaSummaryLogRecord(lines=[raw])
+            self.log_entries.append(record)
+            self._current_summary = record
+            return f"{output}运行摘要\n"
+
+        if self._current_summary is not None and parsed["time"] is None:
+            message = _translate_summary_message(body)
+            self._current_summary.lines.append(raw)
+            if message is None:
+                return ""
+            self._current_summary.messages.append(message)
+            if message.tone == "danger":
+                self._current_summary.status = "failed"
+            elif message.tone == "warning" and self._current_summary.status != "failed":
+                self._current_summary.status = "stopped"
+            return f"{message.text}\n"
+
         panel_event = self._match_panel_event(body)
         if panel_event is None:
             if self._current is None:
@@ -226,9 +308,13 @@ class MaaCliLogTranslator:
             output = ""
             if self._current is not None:
                 output += self._close_current("unknown")
+            expected_task = self._next_expected_task(task_name)
+            display_name = expected_task.get("name") or task_name
             record = MaaTaskLogRecord(
-                name=task_name,
+                name=display_name,
                 status="running",
+                task_id=expected_task.get("task_id") or None,
+                source_name=task_name,
                 rule_id=rule.id,
                 panel_kind=rule.panel_kind,
                 started_at=parsed["time"],
@@ -237,15 +323,20 @@ class MaaCliLogTranslator:
             self.task_records.append(record)
             self.log_entries.append(record)
             self._current = record
-            return f"{output}{_format_time_prefix(parsed['time'])}已开始任务: {task_name}\n"
+            self._current_started_monotonic = time.monotonic()
+            return f"{output}{_format_time_prefix(parsed['time'])}已开始任务: {display_name}\n"
 
-        if self._current is None or self._current.name != task_name:
+        if self._current is None or (self._current.source_name or self._current.name) != task_name:
             output = ""
             if self._current is not None:
                 output += self._close_current("unknown")
+            expected_task = self._next_expected_task(task_name)
+            display_name = expected_task.get("name") or task_name
             record = MaaTaskLogRecord(
-                name=task_name,
+                name=display_name,
                 status=status,
+                task_id=expected_task.get("task_id") or None,
+                source_name=task_name,
                 rule_id=rule.id,
                 panel_kind=rule.panel_kind,
                 ended_at=parsed["time"],
@@ -253,7 +344,7 @@ class MaaCliLogTranslator:
             )
             self.task_records.append(record)
             self.log_entries.append(record)
-            return f"{output}{_format_time_prefix(parsed['time'])}任务 {task_name} {_STATUS_LABEL[status]}\n"
+            return f"{output}{_format_time_prefix(parsed['time'])}任务 {display_name} {_STATUS_LABEL[status]}\n"
 
         self._current.lines.append(raw)
         self._current.status = status
@@ -275,7 +366,17 @@ class MaaCliLogTranslator:
         task_name = self._current.name
         ended_at = self._current.ended_at or self._current.started_at
         self._current = None
+        self._current_started_monotonic = None
         return f"{_format_time_prefix(ended_at)}任务 {task_name} {_STATUS_LABEL[status]}\n"
+
+    def _next_expected_task(self, source_name: str) -> dict[str, str]:
+        for index in range(self._expected_task_index, len(self._expected_tasks)):
+            task = self._expected_tasks[index]
+            if task.get("source_name") != source_name:
+                continue
+            self._expected_task_index = index + 1
+            return task
+        return {"task_id": "", "source_name": source_name, "name": source_name}
 
 
 def translate_maa_cli_log(text: str) -> str:
@@ -362,6 +463,63 @@ def _translate_task_line(body: str) -> str:
     if body.startswith("RecruitResult "):
         return body.replace("RecruitResult", "招募结果", 1)
     return translations.get(body, body)
+
+
+def _translate_summary_message(body: str) -> MaaLogMessage | None:
+    if not body or body == "----------------------------------------":
+        return None
+
+    task_match = _SUMMARY_TASK_RE.match(body)
+    if task_match is not None:
+        task_name = task_match.group("task")
+        elapsed = task_match.group("elapsed")
+        status = task_match.group("status")
+        status_label, tone = _summary_status(status)
+        text = f"{task_name}: {status_label}, 用时 {elapsed}"
+        return MaaLogMessage(
+            text=text,
+            tone=tone,
+            raw=body,
+            segments=[
+                {"text": task_name, "strong": True},
+                {"text": ": "},
+                {"text": status_label, "tone": tone, "strong": True},
+                {"text": f", 用时 {elapsed}"},
+            ],
+        )
+
+    fight_match = _SUMMARY_FIGHT_DROPS_RE.match(body)
+    if fight_match is not None:
+        stage = fight_match.group("stage")
+        times = fight_match.group("times")
+        return MaaLogMessage(
+            text=f"作战 {stage} {times} 次，掉落：",
+            tone="info",
+            raw=body,
+            segments=[
+                {"text": "作战 "},
+                {"text": stage, "tone": "info", "strong": True},
+                {"text": f" {times} 次，掉落："},
+            ],
+        )
+
+    if body == "total drops:":
+        return MaaLogMessage(text="合计掉落：", tone="info", raw=body)
+    if body.startswith("Error:"):
+        return MaaLogMessage(text="存在失败任务，maa-cli 返回错误。", tone="danger", raw=body)
+    if body.startswith("Warning:"):
+        return MaaLogMessage(text=body.replace("Warning:", "警告:", 1), tone="warning", raw=body)
+    return MaaLogMessage(text=body, tone="default")
+
+
+def _summary_status(status: str) -> tuple[str, LogTone]:
+    if status == "Completed":
+        return "完成", "success"
+    if status == "Error":
+        return "失败", "danger"
+    if status == "Stopped":
+        return "已停止", "warning"
+    return "未确认结束", "warning"
 
 
 def _is_global_line_translated(body: str) -> bool:

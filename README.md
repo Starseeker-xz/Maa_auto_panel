@@ -7,6 +7,7 @@ Current packaged features:
 - `linux-maa update-game`: fetch the latest Bilibili Arknights Android package, reuse local APK cache or Bilibili incremental patches when possible, and install the package to a target ADB device.
 - `linux-maa run-maa-task`: run a managed `maa-cli` task with coarse timeout/retry/recovery behavior.
 - `linux-maa webui`: start the local FastAPI + React WebUI.
+- WebUI scheduled execution: define per-schedule task/profile bindings, game-day-aware time entries, child-task enable sets, retry limits, timeout settings, restart-script hooks, and recent run statistics.
 
 ## Development
 
@@ -72,14 +73,17 @@ The current slice reads managed maa-cli config files from:
 
 - `config/maa/profiles/`
 - `config/maa/tasks/`
+- `config/linux-maa/schedules/`
 
 It can select a task config, list and edit task items, open a
 schema-driven visual editor for supported MaaCore task params, save task
 config changes back through the backend, move deleted task config files to a
 local recycle folder, edit default Profile/framework/maa-cli settings, trigger
 manual resource or maa-cli updates, start `maa run <task> --batch --profile
-default`, show the info-level maa-cli log/status in the right pane, and stop the
-active process. Low-level MaaCore debug logs such as `asst.log` stay in the
+default`, define scheduled execution configs under `/schedule`, show the
+info-level maa-cli log/status in the right pane, and stop the active process.
+Scheduled run history and same-day child-task counters are stored under
+`runtime/linux-maa/scheduler.sqlite3`. Low-level MaaCore debug logs such as `asst.log` stay in the
 runtime directory for diagnosis and are not streamed in the WebUI.
 
 Current WebUI routes:
@@ -88,6 +92,8 @@ Current WebUI routes:
 - `/tasks/:taskConfig`
 - `/tasks/:taskConfig/items/:taskItemId`
 - `/schedule`
+- `/schedule/:scheduleId`
+- `/tools`
 - `/settings`
 
 See [docs/maa-runtime.md](docs/maa-runtime.md) for the current layout and config notes.

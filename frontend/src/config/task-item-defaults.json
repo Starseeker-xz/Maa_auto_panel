@@ -31,7 +31,12 @@
       "visit_friends": true,
       "shopping": true,
       "buy_first": [],
-      "blacklist": []
+      "blacklist": [],
+      "force_shopping_if_credit_full": false,
+      "only_buy_discount": false,
+      "reserve_max_credit": false,
+      "credit_fight": false,
+      "formation_index": 0
     }
   },
   {
@@ -42,6 +47,12 @@
       "facility": ["Mfg", "Trade", "Power", "Control", "Reception", "Office", "Dorm", "Processing", "Training"],
       "drones": "_NotUse",
       "threshold": 0.3,
+      "replenish": false,
+      "dorm_notstationed_enabled": false,
+      "dorm_trust_enabled": false,
+      "reception_message_board": true,
+      "reception_clue_exchange": true,
+      "reception_send_clue": true,
       "plan_index": "__linux_maa_runtime__:infrast_plan_index"
     }
   },

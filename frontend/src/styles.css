@@ -208,6 +208,11 @@
   @apply bg-red-50 text-red-700;
 }
 
+.status-pill.soft_failed,
+.status-pill.skipped {
+  @apply bg-amber-50 text-amber-700;
+}
+
 .break-anywhere {
   overflow-wrap: anywhere;
 }

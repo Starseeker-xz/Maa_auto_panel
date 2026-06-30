@@ -10,15 +10,13 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { getCurrentMaintenanceAction, getSettings, getUpdateInfo, saveSettings, startMaintenanceAction } from "@/lib/api";
+import { DELETE_VALUE, booleanAt, isRecord, optionalNumberAt, setNestedValue, stringAt, valueAt, type DeleteValue } from "@/lib/objectPath";
 import { loadStoredTheme, saveActiveTheme, setActiveTheme, themeColors, themeFromFrameworkSettings, themeModes, type ThemeColor, type ThemeMode } from "@/lib/theme";
 import type { ConfigValidation, MaintenanceActionState, SaveSettingsPayload, SettingsResponse, UpdateInfoResponse } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-const DELETE_VALUE = Symbol("delete-value");
-
 type SettingsDraft = SaveSettingsPayload;
 type DraftSection = keyof SettingsDraft;
-type DeleteValue = typeof DELETE_VALUE;
 
 const CHANNELS = ["Stable", "Beta", "Alpha"];
 const CONNECTION_TYPES = ["ADB", "PlayCover", "MuMuPro", "Waydroid"];
@@ -254,9 +252,8 @@ export function SettingsPage() {
           />
           <CheckboxField
             label="定时执行"
-            help="定时执行还没接入，这里只是预留位置。"
+            help="启用后，后端会按定时配置扫描并触发到期任务。"
             checked={booleanAt(framework, ["framework", "scheduler", "enabled"], false)}
-            disabled
             onChange={(value) => updateDraft("framework", ["framework", "scheduler", "enabled"], value)}
           />
           <SectionTitle label="主题" help="主题会立即应用并保存在浏览器本地，不需要点右下角保存。" />
@@ -817,51 +814,4 @@ function cloneDraft(value: SettingsDraft): SettingsDraft {
 
 function cloneRecord(value: Record<string, unknown>): Record<string, unknown> {
   return JSON.parse(JSON.stringify(value)) as Record<string, unknown>;
-}
-
-function stringAt(data: Record<string, unknown>, path: string[], fallback: string) {
-  const value = valueAt(data, path);
-  return typeof value === "string" ? value : fallback;
-}
-
-function optionalNumberAt(data: Record<string, unknown>, path: string[]) {
-  const value = valueAt(data, path);
-  return typeof value === "number" ? value : "";
-}
-
-function booleanAt(data: Record<string, unknown>, path: string[], fallback: boolean) {
-  const value = valueAt(data, path);
-  return typeof value === "boolean" ? value : fallback;
-}
-
-function valueAt(data: Record<string, unknown>, path: string[]) {
-  let current: unknown = data;
-  for (const key of path) {
-    if (!isRecord(current)) return undefined;
-    current = current[key];
-  }
-  return current;
-}
-
-function setNestedValue(data: Record<string, unknown>, path: string[], value: unknown | DeleteValue): Record<string, unknown> {
-  const next = { ...data };
-  let current: Record<string, unknown> = next;
-  for (let index = 0; index < path.length - 1; index += 1) {
-    const key = path[index];
-    const existing = current[key];
-    const child = isRecord(existing) ? { ...existing } : {};
-    current[key] = child;
-    current = child;
-  }
-  const lastKey = path[path.length - 1];
-  if (value === DELETE_VALUE) {
-    delete current[lastKey];
-  } else {
-    current[lastKey] = value;
-  }
-  return next;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value && typeof value === "object" && !Array.isArray(value));
 }

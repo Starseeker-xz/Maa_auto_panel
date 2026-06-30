@@ -1,0 +1,1124 @@
+[2026-06-30 23:21:14 INFO ] Updating hot update files...
+[2026-06-30 23:21:14 DEBUG] Call<Prepare>
+[2026-06-30 23:21:14 DEBUG] Call<Prepare>
+[2026-06-30 23:21:14 DEBUG] GET https://api.maa.plus/MaaAssistantArknights/api/resource/tasks.json
+[2026-06-30 23:21:14 DEBUG] Call<Prepare>
+[2026-06-30 23:21:14 TRACE] Resolve: api.maa.plus:443
+[2026-06-30 23:21:14 DEBUG] GET https://api.maa.plus/MaaAssistantArknights/api/gui/StageActivityV2.json
+[2026-06-30 23:21:14 DEBUG] Call<Prepare>
+[2026-06-30 23:21:14 DEBUG] GET https://api.maa.plus/MaaAssistantArknights/api/resource/global/YoStarJP/resource/tasks.json
+[2026-06-30 23:21:14 TRACE] Resolve: api.maa.plus:443
+[2026-06-30 23:21:14 TRACE] Resolve: api.maa.plus:443
+[2026-06-30 23:21:14 DEBUG] Call<Prepare>
+[2026-06-30 23:21:14 DEBUG] GET https://api.maa.plus/MaaAssistantArknights/api/resource/global/txwy/resource/tasks.json
+[2026-06-30 23:21:14 TRACE] Resolve: api.maa.plus:443
+[2026-06-30 23:21:14 DEBUG] Call<Prepare>
+[2026-06-30 23:21:14 DEBUG] GET https://api.maa.plus/MaaAssistantArknights/api/resource/global/YoStarKR/resource/tasks.json
+[2026-06-30 23:21:14 TRACE] Resolve: api.maa.plus:443
+[2026-06-30 23:21:14 DEBUG] Call<Prepare>
+[2026-06-30 23:21:14 DEBUG] GET https://api.maa.plus/MaaAssistantArknights/api/resource/global/YoStarEN/resource/tasks.json
+[2026-06-30 23:21:14 DEBUG] GET https://api.maa.plus/MaaAssistantArknights/api/resource/platform_diff/iOS/resource/tasks.json
+[2026-06-30 23:21:14 TRACE] Resolve: api.maa.plus:443
+[2026-06-30 23:21:14 TRACE] Resolve: api.maa.plus:443
+[2026-06-30 23:21:14 DEBUG] Resolved: ArrayVec { len: 8, arr: [38.55.195.22:443, 152.53.84.240:443, 152.53.87.169:443, 155.117.85.132:443, 155.117.85.135:443, 155.117.85.136:443, 155.117.85.137:443, 155.117.85.138:443] }
+[2026-06-30 23:21:14 TRACE] Try connect TcpStream to 38.55.195.22:443
+[2026-06-30 23:21:14 DEBUG] Resolved: ArrayVec { len: 8, arr: [38.55.195.22:443, 152.53.84.240:443, 152.53.87.169:443, 155.117.85.132:443, 155.117.85.135:443, 155.117.85.136:443, 155.117.85.137:443, 155.117.85.138:443] }
+[2026-06-30 23:21:14 TRACE] Try connect TcpStream to 38.55.195.22:443
+[2026-06-30 23:21:14 DEBUG] Resolved: ArrayVec { len: 8, arr: [38.55.195.22:443, 152.53.84.240:443, 152.53.87.169:443, 155.117.85.132:443, 155.117.85.135:443, 155.117.85.136:443, 155.117.85.137:443, 155.117.85.138:443] }
+[2026-06-30 23:21:14 TRACE] Try connect TcpStream to 38.55.195.22:443
+[2026-06-30 23:21:14 DEBUG] Resolved: ArrayVec { len: 8, arr: [38.55.195.22:443, 152.53.84.240:443, 152.53.87.169:443, 155.117.85.132:443, 155.117.85.135:443, 155.117.85.136:443, 155.117.85.137:443, 155.117.85.138:443] }
+[2026-06-30 23:21:14 TRACE] Try connect TcpStream to 38.55.195.22:443
+[2026-06-30 23:21:14 DEBUG] Resolved: ArrayVec { len: 8, arr: [38.55.195.22:443, 152.53.84.240:443, 152.53.87.169:443, 155.117.85.132:443, 155.117.85.135:443, 155.117.85.136:443, 155.117.85.137:443, 155.117.85.138:443] }
+[2026-06-30 23:21:14 TRACE] Try connect TcpStream to 38.55.195.22:443
+[2026-06-30 23:21:14 DEBUG] Resolved: ArrayVec { len: 8, arr: [38.55.195.22:443, 152.53.84.240:443, 152.53.87.169:443, 155.117.85.132:443, 155.117.85.135:443, 155.117.85.136:443, 155.117.85.137:443, 155.117.85.138:443] }
+[2026-06-30 23:21:14 TRACE] Try connect TcpStream to 38.55.195.22:443
+[2026-06-30 23:21:14 DEBUG] Connected TcpStream to 38.55.195.22:443
+[2026-06-30 23:21:14 DEBUG] Resolved: ArrayVec { len: 8, arr: [38.55.195.22:443, 152.53.84.240:443, 152.53.87.169:443, 155.117.85.132:443, 155.117.85.135:443, 155.117.85.136:443, 155.117.85.137:443, 155.117.85.138:443] }
+[2026-06-30 23:21:14 TRACE] Try wrap in TLS
+[2026-06-30 23:21:14 TRACE] Try connect TcpStream to 38.55.195.22:443
+[2026-06-30 23:21:14 DEBUG] Connected TcpStream to 38.55.195.22:443
+[2026-06-30 23:21:14 TRACE] Try wrap in TLS
+[2026-06-30 23:21:14 DEBUG] Connected TcpStream to 38.55.195.22:443
+[2026-06-30 23:21:14 TRACE] Try wrap in TLS
+[2026-06-30 23:21:14 DEBUG] Connected TcpStream to 38.55.195.22:443
+[2026-06-30 23:21:14 DEBUG] Connected TcpStream to 38.55.195.22:443
+[2026-06-30 23:21:14 TRACE] Try wrap in TLS
+[2026-06-30 23:21:14 TRACE] Try wrap in TLS
+[2026-06-30 23:21:14 DEBUG] Connected TcpStream to 38.55.195.22:443
+[2026-06-30 23:21:14 TRACE] Try wrap in TLS
+[2026-06-30 23:21:14 DEBUG] Connected TcpStream to 38.55.195.22:443
+[2026-06-30 23:21:14 TRACE] Try wrap in TLS
+[2026-06-30 23:21:14 DEBUG] add_parsable_certificates processed 143 valid and 0 invalid certs
+[2026-06-30 23:21:14 DEBUG] Loaded 143 CA root certificates from the system
+[2026-06-30 23:21:14 DEBUG] No cached session for DnsName("api.maa.plus")
+[2026-06-30 23:21:14 DEBUG] Not resuming any session
+[2026-06-30 23:21:14 TRACE] Sending ClientHello Message {
+    version: TLSv1_0,
+    payload: Handshake {
+        parsed: HandshakeMessagePayload(
+            ClientHello(
+                ClientHelloPayload {
+                    client_version: TLSv1_2,
+                    random: 98555b0510fb9575bf7bf79453919f38cde28cb10048232245a054b7d0ad3029,
+                    session_id: 2da93c9adad0e53d4a61b8fc1795fc2bcd23b2ee6fb6fe48ef4c317f71418186,
+                    cipher_suites: [
+                        TLS13_AES_256_GCM_SHA384,
+                        TLS13_AES_128_GCM_SHA256,
+                        TLS13_CHACHA20_POLY1305_SHA256,
+                        TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+                        TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+                        TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,
+                        TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+                        TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+                        TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
+                        TLS_EMPTY_RENEGOTIATION_INFO_SCSV,
+                    ],
+                    compression_methods: [
+                        Null,
+                    ],
+                    extensions: ClientExtensions {
+                        server_name: SingleDnsName(
+                            DnsName(
+                                "api.maa.plus",
+                            ),
+                        ),
+                        certificate_status_request: Ocsp(
+                            OcspCertificateStatusRequest {
+                                responder_ids: [],
+                                extensions: ,
+                            },
+                        ),
+                        named_groups: [
+                            X25519,
+                            secp256r1,
+                            secp384r1,
+                        ],
+                        ec_point_formats: SupportedEcPointFormats {
+                            uncompressed: true,
+                        },
+                        signature_schemes: [
+                            ECDSA_NISTP384_SHA384,
+                            ECDSA_NISTP256_SHA256,
+                            ED25519,
+                            RSA_PSS_SHA512,
+                            RSA_PSS_SHA384,
+                            RSA_PSS_SHA256,
+                            RSA_PKCS1_SHA512,
+                            RSA_PKCS1_SHA384,
+                            RSA_PKCS1_SHA256,
+                        ],
+                        extended_master_secret_request: (),
+                        session_ticket: Request,
+                        supported_versions: SupportedProtocolVersions {
+                            tls13: true,
+                            tls12: true,
+                        },
+                        preshared_key_modes: PskKeyExchangeModes {
+                            psk_dhe: true,
+                            psk: false,
+                        },
+                        key_shares: [
+                            KeyShareEntry {
+                                group: X25519,
+                                payload: 19d563114d863d31e800b91587e514e08a12b3d5d1916283e491f7e538a07b4b,
+                            },
+                        ],
+                        order_seed: 27188,
+                        contiguous_extensions: [],
+                        ..
+                    },
+                },
+            ),
+        ),
+        encoded: 010000e6030398555b0510fb9575bf7bf79453919f38cde28cb10048232245a054b7d0ad3029202da93c9adad0e53d4a61b8fc1795fc2bcd23b2ee6fb6fe48ef4c317f714181860014130213011303c02cc02bcca9c030c02fcca800ff01000089000a00080006001d00170018000d0014001205030403080708060805080406010501040100170000002d0002010100050005010000000000000011000f00000c6170692e6d61612e706c7573003300260024001d002019d563114d863d31e800b91587e514e08a12b3d5d1916283e491f7e538a07b4b00230000000b00020100002b00050403040303,
+    },
+}
+[2026-06-30 23:21:14 DEBUG] Wrapped TLS
+[2026-06-30 23:21:14 DEBUG] Call<SendRequest>
+[2026-06-30 23:21:14 DEBUG] Request { method: GET, uri: https://api.maa.plus/MaaAssistantArknights/api/resource/global/YoStarJP/resource/tasks.json, version: HTTP/1.1, headers: {"accept-encoding": "gzip", "user-agent": "maa-cli/0.7.5", "accept": "*/*", "host": "api.maa.plus", "<NOTICE>": "1 HEADERS ARE REDACTED"} }
+[2026-06-30 23:21:14 TRACE] 4745 5420 2f4d 6161 4173 7369 7374 616e  GET./MaaAssistan
+[2026-06-30 23:21:14 TRACE] 7441 726b 6e69 6768 7473 2f61 7069 2f72  tArknights/api/r
+[2026-06-30 23:21:14 TRACE] 6573 6f75 7263 652f 676c 6f62 616c 2f59  esource/global/Y
+[2026-06-30 23:21:14 TRACE] 6f53 7461 724a 502f 7265 736f 7572 6365  oStarJP/resource
+[2026-06-30 23:21:14 TRACE] 2f74 6173 6b73 2e6a 736f 6e20 4854 5450  /tasks.json.HTTP
+[2026-06-30 23:21:14 TRACE] 2f31 2e31 0d0a 6163 6365 7074 2d65 6e63  /1.1..accept-enc
+[2026-06-30 23:21:14 TRACE] 6f64 696e 673a 2067 7a69 700d 0a75 7365  oding:.gzip..use
+[2026-06-30 23:21:14 TRACE] 722d 6167 656e 743a 206d 6161 2d63 6c69  r-agent:.maa-cli
+[2026-06-30 23:21:14 TRACE] 2f30 2e37 2e35 0d0a 6163 6365 7074 3a20  /0.7.5..accept:.
+[2026-06-30 23:21:14 TRACE] 2a2f 2a0d 0a68 6f73 743a 2061 7069 2e6d  */*..host:.api.m
+[2026-06-30 23:21:14 TRACE] 6161 2e70 6c75 730d 0a69 662d 6e6f 6e65  aa.plus..if-none
+[2026-06-30 23:21:14 TRACE] 2d6d 6174 6368 3a20 572f 2236 6133 6262  -match:.W/"6a3bb
+[2026-06-30 23:21:14 TRACE] 6434 312d 3538 3322 0d0a 0d0a ---- ----  d41-583"........
+[2026-06-30 23:21:14 DEBUG] add_parsable_certificates processed 143 valid and 0 invalid certs
+[2026-06-30 23:21:14 DEBUG] Loaded 143 CA root certificates from the system
+[2026-06-30 23:21:14 DEBUG] No cached session for DnsName("api.maa.plus")
+[2026-06-30 23:21:14 DEBUG] Not resuming any session
+[2026-06-30 23:21:14 DEBUG] add_parsable_certificates processed 143 valid and 0 invalid certs
+[2026-06-30 23:21:14 DEBUG] Loaded 143 CA root certificates from the system
+[2026-06-30 23:21:14 DEBUG] No cached session for DnsName("api.maa.plus")
+[2026-06-30 23:21:14 DEBUG] Not resuming any session
+[2026-06-30 23:21:14 TRACE] Sending ClientHello Message {
+    version: TLSv1_0,
+    payload: Handshake {
+        parsed: HandshakeMessagePayload(
+            ClientHello(
+                ClientHelloPayload {
+                    client_version: TLSv1_2,
+                    random: 028764bc5412fc8f3f51cd16fd4f5f4a4f6becc4c5e96cb895769f4984a0b3af,
+                    session_id: f20244b029230535d5782539d3d93cf2bec2a7ecc47c854542c8ae8bceac4e6b,
+                    cipher_suites: [
+                        TLS13_AES_256_GCM_SHA384,
+                        TLS13_AES_128_GCM_SHA256,
+                        TLS13_CHACHA20_POLY1305_SHA256,
+                        TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+                        TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+                        TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,
+                        TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+                        TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+                        TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
+                        TLS_EMPTY_RENEGOTIATION_INFO_SCSV,
+                    ],
+                    compression_methods: [
+                        Null,
+                    ],
+                    extensions: ClientExtensions {
+                        server_name: SingleDnsName(
+                            DnsName(
+                                "api.maa.plus",
+                            ),
+                        ),
+                        certificate_status_request: Ocsp(
+                            OcspCertificateStatusRequest {
+                                responder_ids: [],
+                                extensions: ,
+                            },
+                        ),
+                        named_groups: [
+                            X25519,
+                            secp256r1,
+                            secp384r1,
+                        ],
+                        ec_point_formats: SupportedEcPointFormats {
+                            uncompressed: true,
+                        },
+                        signature_schemes: [
+                            ECDSA_NISTP384_SHA384,
+                            ECDSA_NISTP256_SHA256,
+                            ED25519,
+                            RSA_PSS_SHA512,
+                            RSA_PSS_SHA384,
+                            RSA_PSS_SHA256,
+                            RSA_PKCS1_SHA512,
+                            RSA_PKCS1_SHA384,
+                            RSA_PKCS1_SHA256,
+                        ],
+                        extended_master_secret_request: (),
+                        session_ticket: Request,
+                        supported_versions: SupportedProtocolVersions {
+                            tls13: true,
+                            tls12: true,
+                        },
+                        preshared_key_modes: PskKeyExchangeModes {
+                            psk_dhe: true,
+                            psk: false,
+                        },
+                        key_shares: [
+                            KeyShareEntry {
+                                group: X25519,
+                                payload: ae5230dc79ad252b3516f83d706786df416b47cdab644288269f0557d97dba47,
+                            },
+                        ],
+                        order_seed: 14701,
+                        contiguous_extensions: [],
+                        ..
+                    },
+                },
+            ),
+        ),
+        encoded: 010000e60303028764bc5412fc8f3f51cd16fd4f5f4a4f6becc4c5e96cb895769f4984a0b3af20f20244b029230535d5782539d3d93cf2bec2a7ecc47c854542c8ae8bceac4e6b0014130213011303c02cc02bcca9c030c02fcca800ff01000089000a00080006001d0017001800170000003300260024001d0020ae5230dc79ad252b3516f83d706786df416b47cdab644288269f0557d97dba47002d0002010100230000002b00050403040303000d0014001205030403080708060805080406010501040100000011000f00000c6170692e6d61612e706c7573000b00020100000500050100000000,
+    },
+}
+[2026-06-30 23:21:14 DEBUG] Wrapped TLS
+[2026-06-30 23:21:14 DEBUG] Call<SendRequest>
+[2026-06-30 23:21:14 DEBUG] Request { method: GET, uri: https://api.maa.plus/MaaAssistantArknights/api/resource/global/YoStarEN/resource/tasks.json, version: HTTP/1.1, headers: {"accept-encoding": "gzip", "user-agent": "maa-cli/0.7.5", "accept": "*/*", "host": "api.maa.plus", "<NOTICE>": "1 HEADERS ARE REDACTED"} }
+[2026-06-30 23:21:14 TRACE] Sending ClientHello Message {
+    version: TLSv1_0,
+    payload: Handshake {
+        parsed: HandshakeMessagePayload(
+            ClientHello(
+                ClientHelloPayload {
+                    client_version: TLSv1_2,
+                    random: 74b7b3835e8e788acabbe3e695ef21bc76ade11f66f070ba1ef851c4a22aae20,
+                    session_id: 47fa2b8d2dee4c4dcc4138b81f2cc4e5f57b28c7ae5a59d16116a5a8b1a3b6c6,
+                    cipher_suites: [
+                        TLS13_AES_256_GCM_SHA384,
+                        TLS13_AES_128_GCM_SHA256,
+                        TLS13_CHACHA20_POLY1305_SHA256,
+                        TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+                        TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+                        TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,
+                        TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+                        TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+                        TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
+                        TLS_EMPTY_RENEGOTIATION_INFO_SCSV,
+                    ],
+                    compression_methods: [
+                        Null,
+                    ],
+                    extensions: ClientExtensions {
+                        server_name: SingleDnsName(
+                            DnsName(
+                                "api.maa.plus",
+                            ),
+                        ),
+                        certificate_status_request: Ocsp(
+                            OcspCertificateStatusRequest {
+                                responder_ids: [],
+                                extensions: ,
+                            },
+                        ),
+                        named_groups: [
+                            X25519,
+                            secp256r1,
+                            secp384r1,
+                        ],
+                        ec_point_formats: SupportedEcPointFormats {
+                            uncompressed: true,
+                        },
+                        signature_schemes: [
+                            ECDSA_NISTP384_SHA384,
+                            ECDSA_NISTP256_SHA256,
+                            ED25519,
+                            RSA_PSS_SHA512,
+                            RSA_PSS_SHA384,
+                            RSA_PSS_SHA256,
+                            RSA_PKCS1_SHA512,
+                            RSA_PKCS1_SHA384,
+                            RSA_PKCS1_SHA256,
+                        ],
+                        extended_master_secret_request: (),
+                        session_ticket: Request,
+                        supported_versions: SupportedProtocolVersions {
+                            tls13: true,
+                            tls12: true,
+                        },
+                        preshared_key_modes: PskKeyExchangeModes {
+                            psk_dhe: true,
+                            psk: false,
+                        },
+                        key_shares: [
+                            KeyShareEntry {
+                                group: X25519,
+                                payload: 3da46c36446b6180fb27ae0f287d9096fb8283c884eaa239157d0644aa457c37,
+                            },
+                        ],
+                        order_seed: 6972,
+                        contiguous_extensions: [],
+                        ..
+                    },
+                },
+            ),
+        ),
+        encoded: 010000e6030374b7b3835e8e788acabbe3e695ef21bc76ade11f66f070ba1ef851c4a22aae202047fa2b8d2dee4c4dcc4138b81f2cc4e5f57b28c7ae5a59d16116a5a8b1a3b6c60014130213011303c02cc02bcca9c030c02fcca800ff0100008900000011000f00000c6170692e6d61612e706c75730017000000230000003300260024001d00203da46c36446b6180fb27ae0f287d9096fb8283c884eaa239157d0644aa457c37002b00050403040303000b00020100000a00080006001d00170018000500050100000000000d00140012050304030807080608050804060105010401002d00020101,
+    },
+}
+[2026-06-30 23:21:14 DEBUG] Wrapped TLS
+[2026-06-30 23:21:14 DEBUG] Call<SendRequest>
+[2026-06-30 23:21:14 DEBUG] Request { method: GET, uri: https://api.maa.plus/MaaAssistantArknights/api/gui/StageActivityV2.json, version: HTTP/1.1, headers: {"accept-encoding": "gzip", "user-agent": "maa-cli/0.7.5", "accept": "*/*", "host": "api.maa.plus", "<NOTICE>": "1 HEADERS ARE REDACTED"} }
+[2026-06-30 23:21:14 TRACE] 4745 5420 2f4d 6161 4173 7369 7374 616e  GET./MaaAssistan
+[2026-06-30 23:21:14 TRACE] 7441 726b 6e69 6768 7473 2f61 7069 2f72  tArknights/api/r
+[2026-06-30 23:21:14 TRACE] 6573 6f75 7263 652f 676c 6f62 616c 2f59  esource/global/Y
+[2026-06-30 23:21:14 TRACE] 6f53 7461 7245 4e2f 7265 736f 7572 6365  oStarEN/resource
+[2026-06-30 23:21:14 TRACE] 2f74 6173 6b73 2e6a 736f 6e20 4854 5450  /tasks.json.HTTP
+[2026-06-30 23:21:14 TRACE] 2f31 2e31 0d0a 6163 6365 7074 2d65 6e63  /1.1..accept-enc
+[2026-06-30 23:21:14 TRACE] 6f64 696e 673a 2067 7a69 700d 0a75 7365  oding:.gzip..use
+[2026-06-30 23:21:14 TRACE] 722d 6167 656e 743a 206d 6161 2d63 6c69  r-agent:.maa-cli
+[2026-06-30 23:21:14 TRACE] 2f30 2e37 2e35 0d0a 6163 6365 7074 3a20  /0.7.5..accept:.
+[2026-06-30 23:21:14 TRACE] 2a2f 2a0d 0a68 6f73 743a 2061 7069 2e6d  */*..host:.api.m
+[2026-06-30 23:21:14 TRACE] 6161 2e70 6c75 730d 0a69 662d 6e6f 6e65  aa.plus..if-none
+[2026-06-30 23:21:14 TRACE] 2d6d 6174 6368 3a20 572f 2236 6133 6262  -match:.W/"6a3bb
+[2026-06-30 23:21:14 TRACE] 6434 312d 3136 3922 0d0a 0d0a ---- ----  d41-169"........
+[2026-06-30 23:21:14 TRACE] 4745 5420 2f4d 6161 4173 7369 7374 616e  GET./MaaAssistan
+[2026-06-30 23:21:14 TRACE] 7441 726b 6e69 6768 7473 2f61 7069 2f67  tArknights/api/g
+[2026-06-30 23:21:14 TRACE] 7569 2f53 7461 6765 4163 7469 7669 7479  ui/StageActivity
+[2026-06-30 23:21:14 TRACE] 5632 2e6a 736f 6e20 4854 5450 2f31 2e31  V2.json.HTTP/1.1
+[2026-06-30 23:21:14 TRACE] 0d0a 6163 6365 7074 2d65 6e63 6f64 696e  ..accept-encodin
+[2026-06-30 23:21:14 TRACE] 673a 2067 7a69 700d 0a75 7365 722d 6167  g:.gzip..user-ag
+[2026-06-30 23:21:14 TRACE] 656e 743a 206d 6161 2d63 6c69 2f30 2e37  ent:.maa-cli/0.7
+[2026-06-30 23:21:14 TRACE] 2e35 0d0a 6163 6365 7074 3a20 2a2f 2a0d  .5..accept:.*/*.
+[2026-06-30 23:21:14 TRACE] 0a68 6f73 743a 2061 7069 2e6d 6161 2e70  .host:.api.maa.p
+[2026-06-30 23:21:14 TRACE] 6c75 730d 0a69 662d 6e6f 6e65 2d6d 6174  lus..if-none-mat
+[2026-06-30 23:21:14 TRACE] 6368 3a20 572f 2236 6133 6535 3635 612d  ch:.W/"6a3e565a-
+[2026-06-30 23:21:14 TRACE] 3236 3461 220d 0a0d 0a-- ---- ---- ----  264a"...........
+[2026-06-30 23:21:14 DEBUG] add_parsable_certificates processed 143 valid and 0 invalid certs
+[2026-06-30 23:21:14 DEBUG] add_parsable_certificates processed 143 valid and 0 invalid certs
+[2026-06-30 23:21:14 DEBUG] Loaded 143 CA root certificates from the system
+[2026-06-30 23:21:14 DEBUG] Loaded 143 CA root certificates from the system
+[2026-06-30 23:21:14 DEBUG] No cached session for DnsName("api.maa.plus")
+[2026-06-30 23:21:14 DEBUG] Not resuming any session
+[2026-06-30 23:21:14 DEBUG] No cached session for DnsName("api.maa.plus")
+[2026-06-30 23:21:14 DEBUG] Not resuming any session
+[2026-06-30 23:21:14 DEBUG] add_parsable_certificates processed 143 valid and 0 invalid certs
+[2026-06-30 23:21:14 TRACE] Sending ClientHello Message {
+    version: TLSv1_0,
+    payload: Handshake {
+        parsed: HandshakeMessagePayload(
+            ClientHello(
+                ClientHelloPayload {
+                    client_version: TLSv1_2,
+                    random: 1ffed2b6b6216d3a6154b686ff571864ab7c7e470f38a7e9d6c841e0ef41761d,
+                    session_id: 08fd27870e0e567a9d64262b7fb5413007cc998983c739399d143e71bf519c9e,
+                    cipher_suites: [
+                        TLS13_AES_256_GCM_SHA384,
+                        TLS13_AES_128_GCM_SHA256,
+                        TLS13_CHACHA20_POLY1305_SHA256,
+                        TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+                        TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+                        TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,
+                        TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+                        TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+                        TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
+                        TLS_EMPTY_RENEGOTIATION_INFO_SCSV,
+                    ],
+                    compression_methods: [
+                        Null,
+                    ],
+                    extensions: ClientExtensions {
+                        server_name: SingleDnsName(
+                            DnsName(
+                                "api.maa.plus",
+                            ),
+                        ),
+                        certificate_status_request: Ocsp(
+                            OcspCertificateStatusRequest {
+                                responder_ids: [],
+                                extensions: ,
+                            },
+                        ),
+                        named_groups: [
+                            X25519,
+                            secp256r1,
+                            secp384r1,
+                        ],
+                        ec_point_formats: SupportedEcPointFormats {
+                            uncompressed: true,
+                        },
+                        signature_schemes: [
+                            ECDSA_NISTP384_SHA384,
+                            ECDSA_NISTP256_SHA256,
+                            ED25519,
+                            RSA_PSS_SHA512,
+                            RSA_PSS_SHA384,
+                            RSA_PSS_SHA256,
+                            RSA_PKCS1_SHA512,
+                            RSA_PKCS1_SHA384,
+                            RSA_PKCS1_SHA256,
+                        ],
+                        extended_master_secret_request: (),
+                        session_ticket: Request,
+                        supported_versions: SupportedProtocolVersions {
+                            tls13: true,
+                            tls12: true,
+                        },
+                        preshared_key_modes: PskKeyExchangeModes {
+                            psk_dhe: true,
+                            psk: false,
+                        },
+                        key_shares: [
+                            KeyShareEntry {
+                                group: X25519,
+                                payload: 16ce34c5249a2f54a435fd9917544053064eb75b418fe23f1b6de0fff10cb52d,
+                            },
+                        ],
+                        order_seed: 41320,
+                        contiguous_extensions: [],
+                        ..
+                    },
+                },
+            ),
+        ),
+        encoded: 010000e603031ffed2b6b6216d3a6154b686ff571864ab7c7e470f38a7e9d6c841e0ef41761d2008fd27870e0e567a9d64262b7fb5413007cc998983c739399d143e71bf519c9e0014130213011303c02cc02bcca9c030c02fcca800ff01000089002b00050403040303000a00080006001d00170018002d0002010100230000003300260024001d002016ce34c5249a2f54a435fd9917544053064eb75b418fe23f1b6de0fff10cb52d000d001400120503040308070806080508040601050104010017000000050005010000000000000011000f00000c6170692e6d61612e706c7573000b00020100,
+    },
+}
+[2026-06-30 23:21:14 DEBUG] Wrapped TLS
+[2026-06-30 23:21:14 DEBUG] add_parsable_certificates processed 143 valid and 0 invalid certs
+[2026-06-30 23:21:14 DEBUG] Loaded 143 CA root certificates from the system
+[2026-06-30 23:21:14 DEBUG] Loaded 143 CA root certificates from the system
+[2026-06-30 23:21:14 TRACE] Sending ClientHello Message {
+    version: TLSv1_0,
+    payload: Handshake {
+        parsed: HandshakeMessagePayload(
+            ClientHello(
+                ClientHelloPayload {
+                    client_version: TLSv1_2,
+                    random: fc5cb28f70ec9d66b600575094b2636307883b480a9bce922d2d7c9dac2643ef,
+                    session_id: f6f01af5809610ee9346a0f39aa197f003e0880ef746f8b6e5f10b28e2a3e976,
+                    cipher_suites: [
+                        TLS13_AES_256_GCM_SHA384,
+                        TLS13_AES_128_GCM_SHA256,
+                        TLS13_CHACHA20_POLY1305_SHA256,
+                        TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+                        TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+                        TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,
+                        TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+                        TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+                        TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
+                        TLS_EMPTY_RENEGOTIATION_INFO_SCSV,
+                    ],
+                    compression_methods: [
+                        Null,
+                    ],
+                    extensions: ClientExtensions {
+                        server_name: SingleDnsName(
+                            DnsName(
+                                "api.maa.plus",
+                            ),
+                        ),
+                        certificate_status_request: Ocsp(
+                            OcspCertificateStatusRequest {
+                                responder_ids: [],
+                                extensions: ,
+                            },
+                        ),
+                        named_groups: [
+                            X25519,
+                            secp256r1,
+                            secp384r1,
+                        ],
+                        ec_point_formats: SupportedEcPointFormats {
+                            uncompressed: true,
+                        },
+                        signature_schemes: [
+                            ECDSA_NISTP384_SHA384,
+                            ECDSA_NISTP256_SHA256,
+                            ED25519,
+                            RSA_PSS_SHA512,
+                            RSA_PSS_SHA384,
+                            RSA_PSS_SHA256,
+                            RSA_PKCS1_SHA512,
+                            RSA_PKCS1_SHA384,
+                            RSA_PKCS1_SHA256,
+                        ],
+                        extended_master_secret_request: (),
+                        session_ticket: Request,
+                        supported_versions: SupportedProtocolVersions {
+                            tls13: true,
+                            tls12: true,
+                        },
+                        preshared_key_modes: PskKeyExchangeModes {
+                            psk_dhe: true,
+                            psk: false,
+                        },
+                        key_shares: [
+                            KeyShareEntry {
+                                group: X25519,
+                                payload: 5005b0dec552b1d2d17b15bd7c63cbdaa686ddb3b75dba4346ed258da62a0a73,
+                            },
+                        ],
+                        order_seed: 65399,
+                        contiguous_extensions: [],
+                        ..
+                    },
+                },
+            ),
+        ),
+        encoded: 010000e60303fc5cb28f70ec9d66b600575094b2636307883b480a9bce922d2d7c9dac2643ef20f6f01af5809610ee9346a0f39aa197f003e0880ef746f8b6e5f10b28e2a3e9760014130213011303c02cc02bcca9c030c02fcca800ff01000089002b000504030403030017000000230000002d0002010100000011000f00000c6170692e6d61612e706c7573003300260024001d00205005b0dec552b1d2d17b15bd7c63cbdaa686ddb3b75dba4346ed258da62a0a73000500050100000000000a00080006001d00170018000b00020100000d00140012050304030807080608050804060105010401,
+    },
+}
+[2026-06-30 23:21:14 DEBUG] No cached session for DnsName("api.maa.plus")
+[2026-06-30 23:21:14 DEBUG] Not resuming any session
+[2026-06-30 23:21:14 DEBUG] Call<SendRequest>
+[2026-06-30 23:21:14 DEBUG] No cached session for DnsName("api.maa.plus")
+[2026-06-30 23:21:14 DEBUG] Request { method: GET, uri: https://api.maa.plus/MaaAssistantArknights/api/resource/tasks.json, version: HTTP/1.1, headers: {"accept-encoding": "gzip", "user-agent": "maa-cli/0.7.5", "accept": "*/*", "host": "api.maa.plus", "<NOTICE>": "1 HEADERS ARE REDACTED"} }
+[2026-06-30 23:21:14 DEBUG] Not resuming any session
+[2026-06-30 23:21:14 DEBUG] Wrapped TLS
+[2026-06-30 23:21:14 DEBUG] Call<SendRequest>
+[2026-06-30 23:21:14 DEBUG] Request { method: GET, uri: https://api.maa.plus/MaaAssistantArknights/api/resource/global/txwy/resource/tasks.json, version: HTTP/1.1, headers: {"accept-encoding": "gzip", "user-agent": "maa-cli/0.7.5", "accept": "*/*", "host": "api.maa.plus", "<NOTICE>": "1 HEADERS ARE REDACTED"} }
+[2026-06-30 23:21:14 TRACE] Sending ClientHello Message {
+    version: TLSv1_0,
+    payload: Handshake {
+        parsed: HandshakeMessagePayload(
+            ClientHello(
+                ClientHelloPayload {
+                    client_version: TLSv1_2,
+                    random: 78378a546d1dd2cc65154ab04bef033516a89ffe2d8eff30a03be4ac50e97120,
+                    session_id: 06a57931805408eb8d17ed749bcf9915c6c03770a3c684c4fc2fb2869451ceea,
+                    cipher_suites: [
+                        TLS13_AES_256_GCM_SHA384,
+                        TLS13_AES_128_GCM_SHA256,
+                        TLS13_CHACHA20_POLY1305_SHA256,
+                        TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+                        TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+                        TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,
+                        TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+                        TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+                        TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
+                        TLS_EMPTY_RENEGOTIATION_INFO_SCSV,
+                    ],
+                    compression_methods: [
+                        Null,
+                    ],
+                    extensions: ClientExtensions {
+                        server_name: SingleDnsName(
+                            DnsName(
+                                "api.maa.plus",
+                            ),
+                        ),
+                        certificate_status_request: Ocsp(
+                            OcspCertificateStatusRequest {
+                                responder_ids: [],
+                                extensions: ,
+                            },
+                        ),
+                        named_groups: [
+                            X25519,
+                            secp256r1,
+                            secp384r1,
+                        ],
+                        ec_point_formats: SupportedEcPointFormats {
+                            uncompressed: true,
+                        },
+                        signature_schemes: [
+                            ECDSA_NISTP384_SHA384,
+                            ECDSA_NISTP256_SHA256,
+                            ED25519,
+                            RSA_PSS_SHA512,
+                            RSA_PSS_SHA384,
+                            RSA_PSS_SHA256,
+                            RSA_PKCS1_SHA512,
+                            RSA_PKCS1_SHA384,
+                            RSA_PKCS1_SHA256,
+                        ],
+                        extended_master_secret_request: (),
+                        session_ticket: Request,
+                        supported_versions: SupportedProtocolVersions {
+                            tls13: true,
+                            tls12: true,
+                        },
+                        preshared_key_modes: PskKeyExchangeModes {
+                            psk_dhe: true,
+                            psk: false,
+                        },
+                        key_shares: [
+                            KeyShareEntry {
+                                group: X25519,
+                                payload: 8a51065443e34b1213243c7ce208a46a4b50848e5bec811d5ee483ac942ecf15,
+                            },
+                        ],
+                        order_seed: 12681,
+                        contiguous_extensions: [],
+                        ..
+                    },
+                },
+            ),
+        ),
+        encoded: 010000e6030378378a546d1dd2cc65154ab04bef033516a89ffe2d8eff30a03be4ac50e971202006a57931805408eb8d17ed749bcf9915c6c03770a3c684c4fc2fb2869451ceea0014130213011303c02cc02bcca9c030c02fcca800ff01000089000d00140012050304030807080608050804060105010401000b00020100000a00080006001d00170018002d000201010017000000000011000f00000c6170692e6d61612e706c757300230000002b00050403040303000500050100000000003300260024001d00208a51065443e34b1213243c7ce208a46a4b50848e5bec811d5ee483ac942ecf15,
+    },
+}
+[2026-06-30 23:21:14 DEBUG] Wrapped TLS
+[2026-06-30 23:21:14 TRACE] Sending ClientHello Message {
+    version: TLSv1_0,
+    payload: Handshake {
+        parsed: HandshakeMessagePayload(
+            ClientHello(
+                ClientHelloPayload {
+                    client_version: TLSv1_2,
+                    random: 3d7b8b7c9a4d7702802787d3565b734c349b7836038cc20e68bae6df81498d5d,
+                    session_id: ae57e367ca62181c3edfa2a6b3567c64274ff2aa0347b875758098732f2d0d8e,
+                    cipher_suites: [
+                        TLS13_AES_256_GCM_SHA384,
+                        TLS13_AES_128_GCM_SHA256,
+                        TLS13_CHACHA20_POLY1305_SHA256,
+                        TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+                        TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+                        TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,
+                        TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+                        TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+                        TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
+                        TLS_EMPTY_RENEGOTIATION_INFO_SCSV,
+                    ],
+                    compression_methods: [
+                        Null,
+                    ],
+                    extensions: ClientExtensions {
+                        server_name: SingleDnsName(
+                            DnsName(
+                                "api.maa.plus",
+                            ),
+                        ),
+                        certificate_status_request: Ocsp(
+                            OcspCertificateStatusRequest {
+                                responder_ids: [],
+                                extensions: ,
+                            },
+                        ),
+                        named_groups: [
+                            X25519,
+                            secp256r1,
+                            secp384r1,
+                        ],
+                        ec_point_formats: SupportedEcPointFormats {
+                            uncompressed: true,
+                        },
+                        signature_schemes: [
+                            ECDSA_NISTP384_SHA384,
+                            ECDSA_NISTP256_SHA256,
+                            ED25519,
+                            RSA_PSS_SHA512,
+                            RSA_PSS_SHA384,
+                            RSA_PSS_SHA256,
+                            RSA_PKCS1_SHA512,
+                            RSA_PKCS1_SHA384,
+                            RSA_PKCS1_SHA256,
+                        ],
+                        extended_master_secret_request: (),
+                        session_ticket: Request,
+                        supported_versions: SupportedProtocolVersions {
+                            tls13: true,
+                            tls12: true,
+                        },
+                        preshared_key_modes: PskKeyExchangeModes {
+                            psk_dhe: true,
+                            psk: false,
+                        },
+                        key_shares: [
+                            KeyShareEntry {
+                                group: X25519,
+                                payload: b12ab52b50d620cc1664cb48778d21bd0dd9c46cfd1f1f247e2510d14217bc71,
+                            },
+                        ],
+                        order_seed: 16527,
+                        contiguous_extensions: [],
+                        ..
+                    },
+                },
+            ),
+        ),
+        encoded: 010000e603033d7b8b7c9a4d7702802787d3565b734c349b7836038cc20e68bae6df81498d5d20ae57e367ca62181c3edfa2a6b3567c64274ff2aa0347b875758098732f2d0d8e0014130213011303c02cc02bcca9c030c02fcca800ff01000089000b0002010000000011000f00000c6170692e6d61612e706c7573002d00020101000a00080006001d00170018000d001400120503040308070806080508040601050104010023000000170000003300260024001d0020b12ab52b50d620cc1664cb48778d21bd0dd9c46cfd1f1f247e2510d14217bc71000500050100000000002b00050403040303,
+    },
+}
+[2026-06-30 23:21:14 DEBUG] Wrapped TLS
+[2026-06-30 23:21:14 DEBUG] Call<SendRequest>
+[2026-06-30 23:21:14 DEBUG] Call<SendRequest>
+[2026-06-30 23:21:14 TRACE] 4745 5420 2f4d 6161 4173 7369 7374 616e  GET./MaaAssistan
+[2026-06-30 23:21:14 DEBUG] Request { method: GET, uri: https://api.maa.plus/MaaAssistantArknights/api/resource/global/YoStarKR/resource/tasks.json, version: HTTP/1.1, headers: {"accept-encoding": "gzip", "user-agent": "maa-cli/0.7.5", "accept": "*/*", "host": "api.maa.plus", "<NOTICE>": "1 HEADERS ARE REDACTED"} }
+[2026-06-30 23:21:14 DEBUG] Request { method: GET, uri: https://api.maa.plus/MaaAssistantArknights/api/resource/platform_diff/iOS/resource/tasks.json, version: HTTP/1.1, headers: {"accept-encoding": "gzip", "user-agent": "maa-cli/0.7.5", "accept": "*/*", "host": "api.maa.plus", "<NOTICE>": "1 HEADERS ARE REDACTED"} }
+[2026-06-30 23:21:14 TRACE] 7441 726b 6e69 6768 7473 2f61 7069 2f72  tArknights/api/r
+[2026-06-30 23:21:14 TRACE] 6573 6f75 7263 652f 7461 736b 732e 6a73  esource/tasks.js
+[2026-06-30 23:21:14 TRACE] 4745 5420 2f4d 6161 4173 7369 7374 616e  GET./MaaAssistan
+[2026-06-30 23:21:14 TRACE] 7441 726b 6e69 6768 7473 2f61 7069 2f72  tArknights/api/r
+[2026-06-30 23:21:14 TRACE] 6f6e 2048 5454 502f 312e 310d 0a61 6363  on.HTTP/1.1..acc
+[2026-06-30 23:21:14 TRACE] 6573 6f75 7263 652f 676c 6f62 616c 2f74  esource/global/t
+[2026-06-30 23:21:14 TRACE] 6570 742d 656e 636f 6469 6e67 3a20 677a  ept-encoding:.gz
+[2026-06-30 23:21:14 TRACE] 6970 0d0a 7573 6572 2d61 6765 6e74 3a20  ip..user-agent:.
+[2026-06-30 23:21:14 TRACE] 7877 792f 7265 736f 7572 6365 2f74 6173  xwy/resource/tas
+[2026-06-30 23:21:14 TRACE] 6b73 2e6a 736f 6e20 4854 5450 2f31 2e31  ks.json.HTTP/1.1
+[2026-06-30 23:21:14 TRACE] 6d61 612d 636c 692f 302e 372e 350d 0a61  maa-cli/0.7.5..a
+[2026-06-30 23:21:14 TRACE] 0d0a 6163 6365 7074 2d65 6e63 6f64 696e  ..accept-encodin
+[2026-06-30 23:21:14 TRACE] 6363 6570 743a 202a 2f2a 0d0a 686f 7374  ccept:.*/*..host
+[2026-06-30 23:21:14 TRACE] 673a 2067 7a69 700d 0a75 7365 722d 6167  g:.gzip..user-ag
+[2026-06-30 23:21:14 TRACE] 3a20 6170 692e 6d61 612e 706c 7573 0d0a  :.api.maa.plus..
+[2026-06-30 23:21:14 TRACE] 656e 743a 206d 6161 2d63 6c69 2f30 2e37  ent:.maa-cli/0.7
+[2026-06-30 23:21:14 TRACE] 6966 2d6e 6f6e 652d 6d61 7463 683a 2057  if-none-match:.W
+[2026-06-30 23:21:14 TRACE] 2e35 0d0a 6163 6365 7074 3a20 2a2f 2a0d  .5..accept:.*/*.
+[2026-06-30 23:21:14 TRACE] 2f22 3661 3266 6433 3836 2d33 3962 220d  /"6a2fd386-39b".
+[2026-06-30 23:21:14 TRACE] 0a68 6f73 743a 2061 7069 2e6d 6161 2e70  .host:.api.maa.p
+[2026-06-30 23:21:14 TRACE] 0a0d 0a-- ---- ---- ---- ---- ---- ----  ................
+[2026-06-30 23:21:14 TRACE] 6c75 730d 0a69 662d 6e6f 6e65 2d6d 6174  lus..if-none-mat
+[2026-06-30 23:21:14 TRACE] 6368 3a20 572f 2236 6132 6663 3738 622d  ch:.W/"6a2fc78b-
+[2026-06-30 23:21:14 TRACE] 3162 6222 0d0a 0d0a ---- ---- ---- ----  1bb"............
+[2026-06-30 23:21:14 TRACE] 4745 5420 2f4d 6161 4173 7369 7374 616e  GET./MaaAssistan
+[2026-06-30 23:21:14 TRACE] 7441 726b 6e69 6768 7473 2f61 7069 2f72  tArknights/api/r
+[2026-06-30 23:21:14 TRACE] 6573 6f75 7263 652f 676c 6f62 616c 2f59  esource/global/Y
+[2026-06-30 23:21:14 TRACE] 6f53 7461 724b 522f 7265 736f 7572 6365  oStarKR/resource
+[2026-06-30 23:21:14 TRACE] 2f74 6173 6b73 2e6a 736f 6e20 4854 5450  /tasks.json.HTTP
+[2026-06-30 23:21:14 TRACE] 2f31 2e31 0d0a 6163 6365 7074 2d65 6e63  /1.1..accept-enc
+[2026-06-30 23:21:14 TRACE] 4745 5420 2f4d 6161 4173 7369 7374 616e  GET./MaaAssistan
+[2026-06-30 23:21:14 TRACE] 6f64 696e 673a 2067 7a69 700d 0a75 7365  oding:.gzip..use
+[2026-06-30 23:21:14 TRACE] 7441 726b 6e69 6768 7473 2f61 7069 2f72  tArknights/api/r
+[2026-06-30 23:21:14 TRACE] 722d 6167 656e 743a 206d 6161 2d63 6c69  r-agent:.maa-cli
+[2026-06-30 23:21:14 TRACE] 6573 6f75 7263 652f 706c 6174 666f 726d  esource/platform
+[2026-06-30 23:21:14 TRACE] 2f30 2e37 2e35 0d0a 6163 6365 7074 3a20  /0.7.5..accept:.
+[2026-06-30 23:21:14 TRACE] 5f64 6966 662f 694f 532f 7265 736f 7572  _diff/iOS/resour
+[2026-06-30 23:21:14 TRACE] 2a2f 2a0d 0a68 6f73 743a 2061 7069 2e6d  */*..host:.api.m
+[2026-06-30 23:21:14 TRACE] 6365 2f74 6173 6b73 2e6a 736f 6e20 4854  ce/tasks.json.HT
+[2026-06-30 23:21:14 TRACE] 6161 2e70 6c75 730d 0a69 662d 6e6f 6e65  aa.plus..if-none
+[2026-06-30 23:21:14 TRACE] 5450 2f31 2e31 0d0a 6163 6365 7074 2d65  TP/1.1..accept-e
+[2026-06-30 23:21:14 TRACE] 2d6d 6174 6368 3a20 572f 2236 6133 6262  -match:.W/"6a3bb
+[2026-06-30 23:21:14 TRACE] 6e63 6f64 696e 673a 2067 7a69 700d 0a75  ncoding:.gzip..u
+[2026-06-30 23:21:14 TRACE] 6434 312d 3132 3922 0d0a 0d0a ---- ----  d41-129"........
+[2026-06-30 23:21:14 TRACE] 7365 722d 6167 656e 743a 206d 6161 2d63  ser-agent:.maa-c
+[2026-06-30 23:21:14 TRACE] 6c69 2f30 2e37 2e35 0d0a 6163 6365 7074  li/0.7.5..accept
+[2026-06-30 23:21:14 TRACE] 3a20 2a2f 2a0d 0a68 6f73 743a 2061 7069  :.*/*..host:.api
+[2026-06-30 23:21:14 TRACE] 2e6d 6161 2e70 6c75 730d 0a69 662d 6e6f  .maa.plus..if-no
+[2026-06-30 23:21:14 TRACE] 6e65 2d6d 6174 6368 3a20 572f 2236 3832  ne-match:.W/"682
+[2026-06-30 23:21:14 TRACE] 3630 3064 662d 3566 220d 0a0d 0a-- ----  600df-5f".......
+[2026-06-30 23:21:14 TRACE] We got ServerHello ServerHelloPayload {
+    legacy_version: TLSv1_2,
+    random: 3907942108ccc1240a5728d54eb96313d99f1b13b7bff0588d10ed9a4409f1e3,
+    session_id: 2da93c9adad0e53d4a61b8fc1795fc2bcd23b2ee6fb6fe48ef4c317f71418186,
+    cipher_suite: TLS13_AES_256_GCM_SHA384,
+    compression_method: Null,
+    extensions: ServerExtensions {
+        key_share: KeyShareEntry {
+            group: X25519,
+            payload: 79d2e86c426f29415f661c1658375ff0b9e1faa2f797210e8bd22fe06a82e578,
+        },
+        selected_version: TLSv1_3,
+        unknown_extensions: {},
+        ..
+    },
+}
+[2026-06-30 23:21:14 DEBUG] Using ciphersuite TLS13_AES_256_GCM_SHA384
+[2026-06-30 23:21:14 DEBUG] Not resuming
+[2026-06-30 23:21:14 TRACE] EarlyData rejected
+[2026-06-30 23:21:14 TRACE] Dropping CCS
+[2026-06-30 23:21:14 DEBUG] TLS1.3 encrypted extensions: ServerExtensions { server_name_ack: (), unknown_extensions: {}, .. }
+[2026-06-30 23:21:14 DEBUG] ALPN protocol is None
+[2026-06-30 23:21:14 TRACE] We got ServerHello ServerHelloPayload {
+    legacy_version: TLSv1_2,
+    random: 27ee30dc387011f33be7cdfa2a418005c903fed64bc11796707118a30143b913,
+    session_id: f6f01af5809610ee9346a0f39aa197f003e0880ef746f8b6e5f10b28e2a3e976,
+    cipher_suite: TLS13_AES_256_GCM_SHA384,
+    compression_method: Null,
+    extensions: ServerExtensions {
+        key_share: KeyShareEntry {
+            group: X25519,
+            payload: 97b0c42cd063736e1400512082c6d82d3a1a28ab38ea5b5b7babccf8bcd8cc19,
+        },
+        selected_version: TLSv1_3,
+        unknown_extensions: {},
+        ..
+    },
+}
+[2026-06-30 23:21:14 DEBUG] Using ciphersuite TLS13_AES_256_GCM_SHA384
+[2026-06-30 23:21:14 DEBUG] Not resuming
+[2026-06-30 23:21:14 TRACE] EarlyData rejected
+[2026-06-30 23:21:14 TRACE] Dropping CCS
+[2026-06-30 23:21:14 DEBUG] TLS1.3 encrypted extensions: ServerExtensions { server_name_ack: (), unknown_extensions: {}, .. }
+[2026-06-30 23:21:14 DEBUG] ALPN protocol is None
+[2026-06-30 23:21:14 TRACE] Server cert is CertificateChain([CertificateDer(0x3082058b308203f3a003020102021100eb45a2d6bfc61a153a2c439b880b1663300d06092a864886f70d01010b05003046310b300906035504061302415431153013060355040a130c5a65726f53534c20476d62483120301e060355040313175a65726f53534c205253412044562053534c2043412032301e170d3236303532353030303030305a170d3236303832333233353935395a30133111300f060355040313086d61612e706c757330820122300d06092a864886f70d01010105000382010f003082010a0282010100a270a26a34e69d9e035e4db7613604de0907ef08fa16e5903bf5e5e8c77135bb675cea7438435c52ad1778705aabb74948f146eeb41ff77db2866a6b28bccc47afe52b27e0f14aec5b4c4743002098a18ef546ed7f293170095c91a9ae1ec8c055f9bb9e6209a4bf0e9364a69f33e305686650f93d1028ac7b661da6e2fb1ab9c9b95fcd77c6f869316479a1565db7f7c609c3740a57f87902c61675c2dc6b8a69e91217e5c9b50af734e21a94c13d84d5d97a43a2eb2431c3f323c0edc4281952bf2478810bc1ecfc3145cb5c24169378a0e98c231bddc3bd49ad9f9fb1aeeabfbbd0a164b723684aed0605abfa1c58ab585e8d23a25786122049fed4b1da790203010001a382022530820221301f0603551d230418301680144bbefa7684234404b9cebe316fe9f53206ff0c57301d0603551d0e0416041486addf7d584d5448a771a3892ff89369d82ddda8300e0603551d0f0101ff0404030205a0300c0603551d130101ff0402300030130603551d25040c300a06082b0601050507030130130603551d20040c300a3008060667810c010201306e06082b0601050507010104623060303906082b06010505073002862d687474703a2f2f6372742e7365637469676f2e636f6d2f5a65726f53534c525341445653534c4341322e637274302306082b060105050730018617687474703a2f2f6f6373702e7365637469676f2e636f6d30820104060a2b06010401d6790204020481f50481f200f0007600d76d7d10d1a7f577c2c7e95fd700bff982c9335a65e1d0b3017317c0c8c569770000019e5c80f2cf0000040300473045022100b3af2af4c3deb523c2a572c08540db058b1e7af93ccd6a6ad6bd7912124a00c602206005c6ee993a9e1e16ca1e1d3553a1ddb2a4e59d09b861552f551e0a2868164e007600c8a3c47fc7b3adb9356b013f6a7a126de33a4e43a5c646f997ad3975991dcf9a0000019e5c80f377000004030047304502206028797bab421f18a0455efa3d3442a25aa16a94c45a29fda859acc0e43bd9d9022100c63ffdcf99203fa21a81f6c45c5210d03d84ecba6f4b7453f4746a57bdd795a2301f0603551d110418301682086d61612e706c7573820a2a2e6d61612e706c7573300d06092a864886f70d01010b050003820181002d7bbf88e2141d534b4a1b4ea0f850d30de74b5009d6c9cced0693cc8b210c82b5c1d855a178f82d795b8257413906118d8e373d059ca7b9ca1c606ee244e39220a4329b5238aec29c1976440699d346f51b48b6125f279156a16d75b8ff12d2b580184007b629b4568a1984f1ca9ed5814968bb1cbc6bdd79ccab8d7532c655bb5ddd05fdbf1b390cf182d4069a6aeff332b1fdd6721f239f8680fc27756ec1fcdf438195ea511e10b3da40edd0d8d340b13309f396de60d7dad719b1e2d12d8dd2d1bd4d53b7a4a6aa7b22823e496a34d53e71bc8c8826379dee76ec3767de0ea173766c6e532f63929e4050b25724095471b3c0cfe2424c9ec8953b2a2d1cf186df729542281cd6effb6a5f8772aed3c825ccb04625fc8cf8f6f94d027369ab4ea6de4d509502d65228624fcce87d64e2b2e6852ddf4835b67dc9d2c1dd8c25cc34fdc79ca736edb6471302d252186456deb2efdba2eed6d629a93cfb4dcfe366bb2e1eb870760932f664ba3cda0a55d0341c99704b49a1142d10d26fb3aa), CertificateDer(0x3082062130820409a003020102021100d0a908255f8e50e5f3396d1114702a37300d06092a864886f70d01010c0500305f310b300906035504061302474231183016060355040a130f5365637469676f204c696d69746564313630340603550403132d5365637469676f205075626c6963205365727665722041757468656e7469636174696f6e20526f6f7420523436301e170d3235303932343030303030305a170d3335303932333233353935395a3046310b300906035504061302415431153013060355040a130c5a65726f53534c20476d62483120301e060355040313175a65726f53534c205253412044562053534c2043412032308201a2300d06092a864886f70d01010105000382018f003082018a0282018100a75d7dd09bf1beba3ca5bd8224849e77659ed7334def5d8d37b029cef555a3c0cb15d2a090325be1b91889c2b9b83398e019e871222091d6a4f40322f6ac74d6251d3bbe3273b8d9a9eeea0abb71cac22c4193d42e5c3e5a9623bcfc40dbcdd643706fc79b9a4298e7aeb0bb5db3f504fc8ab6e27c395a9720644e4bcbe17fc82603b846bb8572c900f33949e70921b946d4e437ba43251c73416c3c41a46593c83b9d7740d379dd0d4e008fb35b7c4593e15bd1adffc9c3c055f4a50e1e1df3c407c73a78d976b11af601fa75604ada911fb9df2117d925dcd8acf47db4e551cf93a3450b19c26258dc99c23fff0d367e338c71b13d93aa34385dfbe6d84513ca6ad70eb8753e6ff0901a2ebbceb473a79e41f3652a571c5321ce49e282b4f216ade32f1f705e61d7aedc3c08f2579f9ff55485207605bcfb857deacf7a0c9ad4939968539e86f22a5c752f66ffa25a1aaa9cb570173f4222d148ea6d6063e366d5f4a51ad354a41778fdab3d4934cb9abfe34591a6e812947097e9a71e5a7b0203010001a382016f3082016b301f0603551d230418301680145673586495f9921ab0122a046279a14015882149301d0603551d0e041604144bbefa7684234404b9cebe316fe9f53206ff0c57300e0603551d0f0101ff04040302018630120603551d130101ff040830060101ff02010030130603551d25040c300a06082b0601050507030130130603551d20040c300a3008060667810c01020130540603551d1f044d304b3049a047a0458643687474703a2f2f63726c2e7365637469676f2e636f6d2f5365637469676f5075626c696353657276657241757468656e7469636174696f6e526f6f745234362e63726c30818406082b0601050507010104783076304f06082b060105050730028643687474703a2f2f6372742e7365637469676f2e636f6d2f5365637469676f5075626c696353657276657241757468656e7469636174696f6e526f6f745234362e703763302306082b060105050730018617687474703a2f2f6f6373702e7365637469676f2e636f6d300d06092a864886f70d01010c0500038202010089ff7bf6fef75ec47b1d5725cbf5a093404d35617976dfceba4d533f2e0469456fa49de6575d9c4fd21cb81a7be5a947314eaf7b07aa8f750710c50c691a77bb0919f49d66aecea89e31c273625ddf0c2d90fc03723e1cab6f0088cf1f44b11ae07e3bee24269432d95f6292aa0546223ce08f00dd0776b2c3e6153aa15d6dbd656c5334c0e37b240b7b87c1033960f224d0d0c9170dcd8503ce20ec1bab4f53f92612119bec277b78b00e07de0874dd111335a0304dc4cd4bffaed6d01e41465998a4322d660bca8c6f6c84a9fcc16bf71aa10eaae902ead854d7a22c9e7ee3f5993e6976d323598dcc5528aa9161d12eae5f2b988dada029c20d68847130efa181adcfad1e608b7b549203e03ac28d3c405935a1d93e5a836a4aaf23491adf011462ed8de0fbef84b10059f930660156f10ae0b5e60a3557efca5bebfd0371ea3bd5d95050aebcc9fb5bfb24deca8aa3c209362fcbcd4ab923e944e4befa9748e345b9553b6ef0b43bff5b8b931706fed0522bcc3710ec4ed6932193bb3ec4824662eb69033610f0606cd2fd951484622e078fe362713fdef3ba5b86ff3c934a1e73dc4672791cbd9a4db09073efc9a465f7852088e1d367b6cbd91efc5ab0d456dd847b54da6c9a1675f4b11c862e623fbf35d2c32bd3f8ac655b1f0557ae33d8f05dc1dd2f5d1680317a26182d0cd6f41ae5f0439f87629b37b0b128a985), CertificateDer(0x308206953082047da003020102021100d27fbbc1de359e5216ad6149586099c4300d06092a864886f70d01010c0500308188310b3009060355040613025553311330110603550408130a4e6577204a6572736579311430120603550407130b4a65727365792043697479311e301c060355040a131554686520555345525452555354204e6574776f726b312e302c06035504031325555345525472757374205253412043657274696669636174696f6e20417574686f72697479301e170d3231303332323030303030305a170d3338303131383233353935395a305f310b300906035504061302474231183016060355040a130f5365637469676f204c696d69746564313630340603550403132d5365637469676f205075626c6963205365727665722041757468656e7469636174696f6e20526f6f742052343630820222300d06092a864886f70d01010105000382020f003082020a028202010093bed5365275d80123a01c474249ee63b6b721fdc495d5482b267c145310da79fd2bb72da4d42cfaea32dd49c2b9bd0f483d7b5a9854af9e5d31744f07fc5021dda4cf684f1b12636d25994c2a99f3483061fa817c1ea7084adc3e2b1c1f184c71aa358cadf86ee83b4ad9e59402d6898413aa6dc84f33cc5096379233dc5f88e79f54d948f09843d666fd9f173843c501510bd7e3230f145d5b14e74bbeddf4c8da0337d1d639a121513083b06dd7304e965b91f07024abbf458164430dbd213a2f3ce99e0dcb20b54227ccda6f9bee64309039cd9365812131b52350333722e338edf83130cc45fe62f9d15d32794287df6acc5619404dceaabbf9b5764994f127f891a583e506b3630e80dce0125580a63b66b439872dc8f0d0d114e9e40d4d0ef65d5772c53b1c47569de2d5fb81618ccc4d8090345bb7d71475dcd804489fc0c12888b4e91ccaa7b1f156b77b494c59e52015a8840229fa3894699a49068fcd1f791417120c837ade1fb197eef9977828a4c84492e97d2605a658729b7913d8115faec538623468b286308ef890619e326cf50736cda24c6eec8a36edf2e699154470c37cbc9c39c0b4e16bf783252357d91280e549f0750fef8deb1c9b5428b4213cfc7c0affef7b6b75ff8b1da01905abfaf82b8142e838babbfbaafd3de0f3cadf4e979729edf31856e9a596acbdc39098b2e0f9a2d4a647437c6dcf0203010001a38201203082011c301f0603551d230418301680145379bf5aaa2b4acf5480e1d89bc09df2b20366cb301d0603551d0e041604145673586495f9921ab0122a046279a14015882149300e0603551d0f0101ff040403020186300f0603551d130101ff040530030101ff301d0603551d250416301406082b0601050507030106082b0601050507030230110603551d20040a300830060604551d200030500603551d1f044930473045a043a041863f687474703a2f2f63726c2e7573657274727573742e636f6d2f55534552547275737452534143657274696669636174696f6e417574686f726974792e63726c303506082b0601050507010104293027302506082b060105050730018619687474703a2f2f6f6373702e7573657274727573742e636f6d300d06092a864886f70d01010c050003820201003a6f04896aedb314d1c1434fff4ff7e06c802911810b344ba05feef252956307c1bcb4546bf1092d21adb8b42b60483596c46ec56c82942ad38e37d72ca8567dc795da2b82adb84657510ce3a2a446434c507dc02f4762dd6d847174d17786d82f0a0b5a65c281332802213ef79f23f0b7713d027d35c9b858d46ca2204b08cd8f0e981ed2e0a32fe1779f892d494b728fe0cc55ffa966d3eed12ab8e318a6c34a5998fc4cba8fabaccc886e0d6ba7de119b5ee983d71ab31695358ddf8d6f0de75cfb2c50a92ba0efd1c951070e66cecac835b3b6669e431b0f138f5457ff17c2b7d9b59698cabb381690fde19e10f1dcd718bf3ea84263c607336bb5ba3d139a0a5b9b6af77554a3e6f3e6825bbeeeed2c694764c518bea43ddc6c2b21628e972e9d1e55efdb14c9139f35dce3ac07055995caf2c6dbf45967c2e546ebbec92eff995535f90312ef5b9381e33b79b92fb307adb027f5affa35c602db5201c25e73888580258746f762fe32684b344b6b79c4cf1ea9148cdc9520a7874bb5c4278b714072a5288f81af16fba3e4ba8c90abc53daacf44a311b936faef972b21c144bdcaf719446c3b2e3971e23247fc18483d1f242010908f5be76bd4f38993abc3539ff210d46c72851bd3e6f03a76bdb8f3ff6247dfdaafc6c84f29596519fabee6494f9bbc994546138823006eac0d74bfe7b2a1764679f2a79f17452b49)])
+[2026-06-30 23:21:14 TRACE] Unvalidated OCSP response: [48, 130, 2, 84, 10, 1, 0, 160, 130, 2, 77, 48, 130, 2, 73, 6, 9, 43, 6, 1, 5, 5, 7, 48, 1, 1, 4, 130, 2, 58, 48, 130, 2, 54, 48, 129, 159, 162, 22, 4, 20, 75, 190, 250, 118, 132, 35, 68, 4, 185, 206, 190, 49, 111, 233, 245, 50, 6, 255, 12, 87, 24, 15, 50, 48, 50, 54, 48, 54, 50, 56, 48, 50, 49, 50, 50, 49, 90, 48, 116, 48, 114, 48, 74, 48, 9, 6, 5, 43, 14, 3, 2, 26, 5, 0, 4, 20, 71, 22, 6, 248, 107, 253, 87, 117, 45, 32, 139, 130, 76, 199, 76, 209, 98, 202, 129, 100, 4, 20, 75, 190, 250, 118, 132, 35, 68, 4, 185, 206, 190, 49, 111, 233, 245, 50, 6, 255, 12, 87, 2, 17, 0, 235, 69, 162, 214, 191, 198, 26, 21, 58, 44, 67, 155, 136, 11, 22, 99, 128, 0, 24, 15, 50, 48, 50, 54, 48, 54, 50, 56, 48, 50, 49, 50, 50, 49, 90, 160, 17, 24, 15, 50, 48, 50, 54, 48, 55, 48, 53, 48, 50, 49, 50, 50, 48, 90, 48, 13, 6, 9, 42, 134, 72, 134, 247, 13, 1, 1, 11, 5, 0, 3, 130, 1, 129, 0, 65, 189, 239, 182, 85, 41, 252, 78, 205, 240, 124, 113, 0, 150, 174, 218, 42, 81, 19, 100, 221, 99, 239, 251, 88, 100, 114, 121, 17, 147, 27, 161, 47, 178, 227, 156, 206, 157, 230, 44, 11, 101, 151, 38, 9, 215, 227, 238, 188, 65, 4, 107, 114, 163, 167, 231, 52, 114, 66, 101, 146, 30, 60, 80, 242, 114, 253, 254, 163, 81, 21, 90, 168, 100, 17, 220, 9, 140, 157, 90, 43, 166, 153, 8, 212, 119, 253, 43, 215, 6, 25, 242, 203, 62, 65, 165, 171, 33, 158, 41, 30, 20, 115, 183, 46, 168, 150, 215, 151, 172, 177, 173, 182, 196, 130, 73, 232, 180, 88, 231, 139, 206, 28, 33, 134, 83, 19, 94, 90, 163, 154, 85, 129, 65, 92, 63, 246, 249, 215, 23, 148, 68, 86, 42, 212, 93, 136, 145, 119, 123, 130, 170, 162, 239, 149, 146, 165, 48, 48, 80, 94, 36, 136, 83, 99, 178, 132, 152, 101, 116, 126, 98, 16, 121, 49, 94, 54, 154, 178, 1, 165, 161, 230, 178, 56, 239, 194, 93, 249, 128, 22, 32, 153, 73, 142, 194, 5, 22, 3, 147, 107, 84, 195, 186, 138, 236, 211, 179, 129, 160, 228, 157, 5, 214, 194, 167, 168, 169, 113, 170, 112, 154, 188, 222, 139, 13, 248, 134, 10, 246, 104, 131, 182, 230, 157, 0, 85, 196, 221, 211, 190, 128, 166, 123, 128, 51, 5, 45, 201, 161, 232, 157, 130, 149, 177, 180, 90, 239, 145, 157, 23, 90, 174, 145, 213, 140, 120, 36, 90, 172, 181, 253, 123, 85, 195, 71, 29, 191, 49, 165, 224, 248, 96, 86, 40, 192, 78, 39, 55, 149, 37, 75, 200, 108, 221, 73, 166, 89, 176, 130, 220, 205, 61, 254, 195, 96, 62, 214, 178, 255, 106, 207, 252, 203, 79, 213, 74, 172, 16, 92, 47, 84, 72, 171, 111, 113, 183, 170, 36, 149, 183, 156, 31, 126, 50, 251, 13, 213, 214, 165, 91, 82, 69, 37, 208, 7, 40, 125, 166, 228, 217, 193, 134, 189, 119, 166, 170, 93, 8, 176, 185, 108, 103, 177, 115, 70, 92, 161, 45, 36, 173, 115, 63, 28, 125, 71, 57, 63, 173, 203, 236, 229, 154, 88]
+[2026-06-30 23:21:14 DEBUG] Call<RecvResponse>
+[2026-06-30 23:21:14 TRACE] We got ServerHello ServerHelloPayload {
+    legacy_version: TLSv1_2,
+    random: 6cabd5fe049d5d43c274c242a71e27ec53afd24a736a1b5becbf5207fad68d81,
+    session_id: f20244b029230535d5782539d3d93cf2bec2a7ecc47c854542c8ae8bceac4e6b,
+    cipher_suite: TLS13_AES_256_GCM_SHA384,
+    compression_method: Null,
+    extensions: ServerExtensions {
+        key_share: KeyShareEntry {
+            group: X25519,
+            payload: 1102c9b2b95476036b8d91047dac84bef36746ac41d2839acd019153fd36f93a,
+        },
+        selected_version: TLSv1_3,
+        unknown_extensions: {},
+        ..
+    },
+}
+[2026-06-30 23:21:14 DEBUG] Using ciphersuite TLS13_AES_256_GCM_SHA384
+[2026-06-30 23:21:14 DEBUG] Not resuming
+[2026-06-30 23:21:14 TRACE] EarlyData rejected
+[2026-06-30 23:21:14 TRACE] Dropping CCS
+[2026-06-30 23:21:14 DEBUG] TLS1.3 encrypted extensions: ServerExtensions { server_name_ack: (), unknown_extensions: {}, .. }
+[2026-06-30 23:21:14 DEBUG] ALPN protocol is None
+[2026-06-30 23:21:14 TRACE] Server cert is CertificateChain([CertificateDer(0x3082058b308203f3a003020102021100eb45a2d6bfc61a153a2c439b880b1663300d06092a864886f70d01010b05003046310b300906035504061302415431153013060355040a130c5a65726f53534c20476d62483120301e060355040313175a65726f53534c205253412044562053534c2043412032301e170d3236303532353030303030305a170d3236303832333233353935395a30133111300f060355040313086d61612e706c757330820122300d06092a864886f70d01010105000382010f003082010a0282010100a270a26a34e69d9e035e4db7613604de0907ef08fa16e5903bf5e5e8c77135bb675cea7438435c52ad1778705aabb74948f146eeb41ff77db2866a6b28bccc47afe52b27e0f14aec5b4c4743002098a18ef546ed7f293170095c91a9ae1ec8c055f9bb9e6209a4bf0e9364a69f33e305686650f93d1028ac7b661da6e2fb1ab9c9b95fcd77c6f869316479a1565db7f7c609c3740a57f87902c61675c2dc6b8a69e91217e5c9b50af734e21a94c13d84d5d97a43a2eb2431c3f323c0edc4281952bf2478810bc1ecfc3145cb5c24169378a0e98c231bddc3bd49ad9f9fb1aeeabfbbd0a164b723684aed0605abfa1c58ab585e8d23a25786122049fed4b1da790203010001a382022530820221301f0603551d230418301680144bbefa7684234404b9cebe316fe9f53206ff0c57301d0603551d0e0416041486addf7d584d5448a771a3892ff89369d82ddda8300e0603551d0f0101ff0404030205a0300c0603551d130101ff0402300030130603551d25040c300a06082b0601050507030130130603551d20040c300a3008060667810c010201306e06082b0601050507010104623060303906082b06010505073002862d687474703a2f2f6372742e7365637469676f2e636f6d2f5a65726f53534c525341445653534c4341322e637274302306082b060105050730018617687474703a2f2f6f6373702e7365637469676f2e636f6d30820104060a2b06010401d6790204020481f50481f200f0007600d76d7d10d1a7f577c2c7e95fd700bff982c9335a65e1d0b3017317c0c8c569770000019e5c80f2cf0000040300473045022100b3af2af4c3deb523c2a572c08540db058b1e7af93ccd6a6ad6bd7912124a00c602206005c6ee993a9e1e16ca1e1d3553a1ddb2a4e59d09b861552f551e0a2868164e007600c8a3c47fc7b3adb9356b013f6a7a126de33a4e43a5c646f997ad3975991dcf9a0000019e5c80f377000004030047304502206028797bab421f18a0455efa3d3442a25aa16a94c45a29fda859acc0e43bd9d9022100c63ffdcf99203fa21a81f6c45c5210d03d84ecba6f4b7453f4746a57bdd795a2301f0603551d110418301682086d61612e706c7573820a2a2e6d61612e706c7573300d06092a864886f70d01010b050003820181002d7bbf88e2141d534b4a1b4ea0f850d30de74b5009d6c9cced0693cc8b210c82b5c1d855a178f82d795b8257413906118d8e373d059ca7b9ca1c606ee244e39220a4329b5238aec29c1976440699d346f51b48b6125f279156a16d75b8ff12d2b580184007b629b4568a1984f1ca9ed5814968bb1cbc6bdd79ccab8d7532c655bb5ddd05fdbf1b390cf182d4069a6aeff332b1fdd6721f239f8680fc27756ec1fcdf438195ea511e10b3da40edd0d8d340b13309f396de60d7dad719b1e2d12d8dd2d1bd4d53b7a4a6aa7b22823e496a34d53e71bc8c8826379dee76ec3767de0ea173766c6e532f63929e4050b25724095471b3c0cfe2424c9ec8953b2a2d1cf186df729542281cd6effb6a5f8772aed3c825ccb04625fc8cf8f6f94d027369ab4ea6de4d509502d65228624fcce87d64e2b2e6852ddf4835b67dc9d2c1dd8c25cc34fdc79ca736edb6471302d252186456deb2efdba2eed6d629a93cfb4dcfe366bb2e1eb870760932f664ba3cda0a55d0341c99704b49a1142d10d26fb3aa), CertificateDer(0x3082062130820409a003020102021100d0a908255f8e50e5f3396d1114702a37300d06092a864886f70d01010c0500305f310b300906035504061302474231183016060355040a130f5365637469676f204c696d69746564313630340603550403132d5365637469676f205075626c6963205365727665722041757468656e7469636174696f6e20526f6f7420523436301e170d3235303932343030303030305a170d3335303932333233353935395a3046310b300906035504061302415431153013060355040a130c5a65726f53534c20476d62483120301e060355040313175a65726f53534c205253412044562053534c2043412032308201a2300d06092a864886f70d01010105000382018f003082018a0282018100a75d7dd09bf1beba3ca5bd8224849e77659ed7334def5d8d37b029cef555a3c0cb15d2a090325be1b91889c2b9b83398e019e871222091d6a4f40322f6ac74d6251d3bbe3273b8d9a9eeea0abb71cac22c4193d42e5c3e5a9623bcfc40dbcdd643706fc79b9a4298e7aeb0bb5db3f504fc8ab6e27c395a9720644e4bcbe17fc82603b846bb8572c900f33949e70921b946d4e437ba43251c73416c3c41a46593c83b9d7740d379dd0d4e008fb35b7c4593e15bd1adffc9c3c055f4a50e1e1df3c407c73a78d976b11af601fa75604ada911fb9df2117d925dcd8acf47db4e551cf93a3450b19c26258dc99c23fff0d367e338c71b13d93aa34385dfbe6d84513ca6ad70eb8753e6ff0901a2ebbceb473a79e41f3652a571c5321ce49e282b4f216ade32f1f705e61d7aedc3c08f2579f9ff55485207605bcfb857deacf7a0c9ad4939968539e86f22a5c752f66ffa25a1aaa9cb570173f4222d148ea6d6063e366d5f4a51ad354a41778fdab3d4934cb9abfe34591a6e812947097e9a71e5a7b0203010001a382016f3082016b301f0603551d230418301680145673586495f9921ab0122a046279a14015882149301d0603551d0e041604144bbefa7684234404b9cebe316fe9f53206ff0c57300e0603551d0f0101ff04040302018630120603551d130101ff040830060101ff02010030130603551d25040c300a06082b0601050507030130130603551d20040c300a3008060667810c01020130540603551d1f044d304b3049a047a0458643687474703a2f2f63726c2e7365637469676f2e636f6d2f5365637469676f5075626c696353657276657241757468656e7469636174696f6e526f6f745234362e63726c30818406082b0601050507010104783076304f06082b060105050730028643687474703a2f2f6372742e7365637469676f2e636f6d2f5365637469676f5075626c696353657276657241757468656e7469636174696f6e526f6f745234362e703763302306082b060105050730018617687474703a2f2f6f6373702e7365637469676f2e636f6d300d06092a864886f70d01010c0500038202010089ff7bf6fef75ec47b1d5725cbf5a093404d35617976dfceba4d533f2e0469456fa49de6575d9c4fd21cb81a7be5a947314eaf7b07aa8f750710c50c691a77bb0919f49d66aecea89e31c273625ddf0c2d90fc03723e1cab6f0088cf1f44b11ae07e3bee24269432d95f6292aa0546223ce08f00dd0776b2c3e6153aa15d6dbd656c5334c0e37b240b7b87c1033960f224d0d0c9170dcd8503ce20ec1bab4f53f92612119bec277b78b00e07de0874dd111335a0304dc4cd4bffaed6d01e41465998a4322d660bca8c6f6c84a9fcc16bf71aa10eaae902ead854d7a22c9e7ee3f5993e6976d323598dcc5528aa9161d12eae5f2b988dada029c20d68847130efa181adcfad1e608b7b549203e03ac28d3c405935a1d93e5a836a4aaf23491adf011462ed8de0fbef84b10059f930660156f10ae0b5e60a3557efca5bebfd0371ea3bd5d95050aebcc9fb5bfb24deca8aa3c209362fcbcd4ab923e944e4befa9748e345b9553b6ef0b43bff5b8b931706fed0522bcc3710ec4ed6932193bb3ec4824662eb69033610f0606cd2fd951484622e078fe362713fdef3ba5b86ff3c934a1e73dc4672791cbd9a4db09073efc9a465f7852088e1d367b6cbd91efc5ab0d456dd847b54da6c9a1675f4b11c862e623fbf35d2c32bd3f8ac655b1f0557ae33d8f05dc1dd2f5d1680317a26182d0cd6f41ae5f0439f87629b37b0b128a985), CertificateDer(0x308206953082047da003020102021100d27fbbc1de359e5216ad6149586099c4300d06092a864886f70d01010c0500308188310b3009060355040613025553311330110603550408130a4e6577204a6572736579311430120603550407130b4a65727365792043697479311e301c060355040a131554686520555345525452555354204e6574776f726b312e302c06035504031325555345525472757374205253412043657274696669636174696f6e20417574686f72697479301e170d3231303332323030303030305a170d3338303131383233353935395a305f310b300906035504061302474231183016060355040a130f5365637469676f204c696d69746564313630340603550403132d5365637469676f205075626c6963205365727665722041757468656e7469636174696f6e20526f6f742052343630820222300d06092a864886f70d01010105000382020f003082020a028202010093bed5365275d80123a01c474249ee63b6b721fdc495d5482b267c145310da79fd2bb72da4d42cfaea32dd49c2b9bd0f483d7b5a9854af9e5d31744f07fc5021dda4cf684f1b12636d25994c2a99f3483061fa817c1ea7084adc3e2b1c1f184c71aa358cadf86ee83b4ad9e59402d6898413aa6dc84f33cc5096379233dc5f88e79f54d948f09843d666fd9f173843c501510bd7e3230f145d5b14e74bbeddf4c8da0337d1d639a121513083b06dd7304e965b91f07024abbf458164430dbd213a2f3ce99e0dcb20b54227ccda6f9bee64309039cd9365812131b52350333722e338edf83130cc45fe62f9d15d32794287df6acc5619404dceaabbf9b5764994f127f891a583e506b3630e80dce0125580a63b66b439872dc8f0d0d114e9e40d4d0ef65d5772c53b1c47569de2d5fb81618ccc4d8090345bb7d71475dcd804489fc0c12888b4e91ccaa7b1f156b77b494c59e52015a8840229fa3894699a49068fcd1f791417120c837ade1fb197eef9977828a4c84492e97d2605a658729b7913d8115faec538623468b286308ef890619e326cf50736cda24c6eec8a36edf2e699154470c37cbc9c39c0b4e16bf783252357d91280e549f0750fef8deb1c9b5428b4213cfc7c0affef7b6b75ff8b1da01905abfaf82b8142e838babbfbaafd3de0f3cadf4e979729edf31856e9a596acbdc39098b2e0f9a2d4a647437c6dcf0203010001a38201203082011c301f0603551d230418301680145379bf5aaa2b4acf5480e1d89bc09df2b20366cb301d0603551d0e041604145673586495f9921ab0122a046279a14015882149300e0603551d0f0101ff040403020186300f0603551d130101ff040530030101ff301d0603551d250416301406082b0601050507030106082b0601050507030230110603551d20040a300830060604551d200030500603551d1f044930473045a043a041863f687474703a2f2f63726c2e7573657274727573742e636f6d2f55534552547275737452534143657274696669636174696f6e417574686f726974792e63726c303506082b0601050507010104293027302506082b060105050730018619687474703a2f2f6f6373702e7573657274727573742e636f6d300d06092a864886f70d01010c050003820201003a6f04896aedb314d1c1434fff4ff7e06c802911810b344ba05feef252956307c1bcb4546bf1092d21adb8b42b60483596c46ec56c82942ad38e37d72ca8567dc795da2b82adb84657510ce3a2a446434c507dc02f4762dd6d847174d17786d82f0a0b5a65c281332802213ef79f23f0b7713d027d35c9b858d46ca2204b08cd8f0e981ed2e0a32fe1779f892d494b728fe0cc55ffa966d3eed12ab8e318a6c34a5998fc4cba8fabaccc886e0d6ba7de119b5ee983d71ab31695358ddf8d6f0de75cfb2c50a92ba0efd1c951070e66cecac835b3b6669e431b0f138f5457ff17c2b7d9b59698cabb381690fde19e10f1dcd718bf3ea84263c607336bb5ba3d139a0a5b9b6af77554a3e6f3e6825bbeeeed2c694764c518bea43ddc6c2b21628e972e9d1e55efdb14c9139f35dce3ac07055995caf2c6dbf45967c2e546ebbec92eff995535f90312ef5b9381e33b79b92fb307adb027f5affa35c602db5201c25e73888580258746f762fe32684b344b6b79c4cf1ea9148cdc9520a7874bb5c4278b714072a5288f81af16fba3e4ba8c90abc53daacf44a311b936faef972b21c144bdcaf719446c3b2e3971e23247fc18483d1f242010908f5be76bd4f38993abc3539ff210d46c72851bd3e6f03a76bdb8f3ff6247dfdaafc6c84f29596519fabee6494f9bbc994546138823006eac0d74bfe7b2a1764679f2a79f17452b49)])
+[2026-06-30 23:21:14 TRACE] We got ServerHello ServerHelloPayload {
+    legacy_version: TLSv1_2,
+    random: 6fdfecfc6a942d67741bf8817d4f53125510e90db9a9a49fcc285b1268f289ab,
+    session_id: ae57e367ca62181c3edfa2a6b3567c64274ff2aa0347b875758098732f2d0d8e,
+    cipher_suite: TLS13_AES_256_GCM_SHA384,
+    compression_method: Null,
+    extensions: ServerExtensions {
+        key_share: KeyShareEntry {
+            group: X25519,
+            payload: 72e924fb7d8f28b6498634a83e8601074b1300f01c29ef90ead69d68b8846f20,
+        },
+        selected_version: TLSv1_3,
+        unknown_extensions: {},
+        ..
+    },
+}
+[2026-06-30 23:21:14 DEBUG] Using ciphersuite TLS13_AES_256_GCM_SHA384
+[2026-06-30 23:21:14 DEBUG] Not resuming
+[2026-06-30 23:21:14 TRACE] EarlyData rejected
+[2026-06-30 23:21:14 TRACE] Dropping CCS
+[2026-06-30 23:21:14 DEBUG] TLS1.3 encrypted extensions: ServerExtensions { server_name_ack: (), unknown_extensions: {}, .. }
+[2026-06-30 23:21:14 DEBUG] ALPN protocol is None
+[2026-06-30 23:21:14 TRACE] Unvalidated OCSP response: [48, 130, 2, 84, 10, 1, 0, 160, 130, 2, 77, 48, 130, 2, 73, 6, 9, 43, 6, 1, 5, 5, 7, 48, 1, 1, 4, 130, 2, 58, 48, 130, 2, 54, 48, 129, 159, 162, 22, 4, 20, 75, 190, 250, 118, 132, 35, 68, 4, 185, 206, 190, 49, 111, 233, 245, 50, 6, 255, 12, 87, 24, 15, 50, 48, 50, 54, 48, 54, 50, 56, 48, 50, 49, 50, 50, 49, 90, 48, 116, 48, 114, 48, 74, 48, 9, 6, 5, 43, 14, 3, 2, 26, 5, 0, 4, 20, 71, 22, 6, 248, 107, 253, 87, 117, 45, 32, 139, 130, 76, 199, 76, 209, 98, 202, 129, 100, 4, 20, 75, 190, 250, 118, 132, 35, 68, 4, 185, 206, 190, 49, 111, 233, 245, 50, 6, 255, 12, 87, 2, 17, 0, 235, 69, 162, 214, 191, 198, 26, 21, 58, 44, 67, 155, 136, 11, 22, 99, 128, 0, 24, 15, 50, 48, 50, 54, 48, 54, 50, 56, 48, 50, 49, 50, 50, 49, 90, 160, 17, 24, 15, 50, 48, 50, 54, 48, 55, 48, 53, 48, 50, 49, 50, 50, 48, 90, 48, 13, 6, 9, 42, 134, 72, 134, 247, 13, 1, 1, 11, 5, 0, 3, 130, 1, 129, 0, 65, 189, 239, 182, 85, 41, 252, 78, 205, 240, 124, 113, 0, 150, 174, 218, 42, 81, 19, 100, 221, 99, 239, 251, 88, 100, 114, 121, 17, 147, 27, 161, 47, 178, 227, 156, 206, 157, 230, 44, 11, 101, 151, 38, 9, 215, 227, 238, 188, 65, 4, 107, 114, 163, 167, 231, 52, 114, 66, 101, 146, 30, 60, 80, 242, 114, 253, 254, 163, 81, 21, 90, 168, 100, 17, 220, 9, 140, 157, 90, 43, 166, 153, 8, 212, 119, 253, 43, 215, 6, 25, 242, 203, 62, 65, 165, 171, 33, 158, 41, 30, 20, 115, 183, 46, 168, 150, 215, 151, 172, 177, 173, 182, 196, 130, 73, 232, 180, 88, 231, 139, 206, 28, 33, 134, 83, 19, 94, 90, 163, 154, 85, 129, 65, 92, 63, 246, 249, 215, 23, 148, 68, 86, 42, 212, 93, 136, 145, 119, 123, 130, 170, 162, 239, 149, 146, 165, 48, 48, 80, 94, 36, 136, 83, 99, 178, 132, 152, 101, 116, 126, 98, 16, 121, 49, 94, 54, 154, 178, 1, 165, 161, 230, 178, 56, 239, 194, 93, 249, 128, 22, 32, 153, 73, 142, 194, 5, 22, 3, 147, 107, 84, 195, 186, 138, 236, 211, 179, 129, 160, 228, 157, 5, 214, 194, 167, 168, 169, 113, 170, 112, 154, 188, 222, 139, 13, 248, 134, 10, 246, 104, 131, 182, 230, 157, 0, 85, 196, 221, 211, 190, 128, 166, 123, 128, 51, 5, 45, 201, 161, 232, 157, 130, 149, 177, 180, 90, 239, 145, 157, 23, 90, 174, 145, 213, 140, 120, 36, 90, 172, 181, 253, 123, 85, 195, 71, 29, 191, 49, 165, 224, 248, 96, 86, 40, 192, 78, 39, 55, 149, 37, 75, 200, 108, 221, 73, 166, 89, 176, 130, 220, 205, 61, 254, 195, 96, 62, 214, 178, 255, 106, 207, 252, 203, 79, 213, 74, 172, 16, 92, 47, 84, 72, 171, 111, 113, 183, 170, 36, 149, 183, 156, 31, 126, 50, 251, 13, 213, 214, 165, 91, 82, 69, 37, 208, 7, 40, 125, 166, 228, 217, 193, 134, 189, 119, 166, 170, 93, 8, 176, 185, 108, 103, 177, 115, 70, 92, 161, 45, 36, 173, 115, 63, 28, 125, 71, 57, 63, 173, 203, 236, 229, 154, 88]
+[2026-06-30 23:21:14 DEBUG] Call<RecvResponse>
+[2026-06-30 23:21:14 TRACE] Server cert is CertificateChain([CertificateDer(0x3082058b308203f3a003020102021100eb45a2d6bfc61a153a2c439b880b1663300d06092a864886f70d01010b05003046310b300906035504061302415431153013060355040a130c5a65726f53534c20476d62483120301e060355040313175a65726f53534c205253412044562053534c2043412032301e170d3236303532353030303030305a170d3236303832333233353935395a30133111300f060355040313086d61612e706c757330820122300d06092a864886f70d01010105000382010f003082010a0282010100a270a26a34e69d9e035e4db7613604de0907ef08fa16e5903bf5e5e8c77135bb675cea7438435c52ad1778705aabb74948f146eeb41ff77db2866a6b28bccc47afe52b27e0f14aec5b4c4743002098a18ef546ed7f293170095c91a9ae1ec8c055f9bb9e6209a4bf0e9364a69f33e305686650f93d1028ac7b661da6e2fb1ab9c9b95fcd77c6f869316479a1565db7f7c609c3740a57f87902c61675c2dc6b8a69e91217e5c9b50af734e21a94c13d84d5d97a43a2eb2431c3f323c0edc4281952bf2478810bc1ecfc3145cb5c24169378a0e98c231bddc3bd49ad9f9fb1aeeabfbbd0a164b723684aed0605abfa1c58ab585e8d23a25786122049fed4b1da790203010001a382022530820221301f0603551d230418301680144bbefa7684234404b9cebe316fe9f53206ff0c57301d0603551d0e0416041486addf7d584d5448a771a3892ff89369d82ddda8300e0603551d0f0101ff0404030205a0300c0603551d130101ff0402300030130603551d25040c300a06082b0601050507030130130603551d20040c300a3008060667810c010201306e06082b0601050507010104623060303906082b06010505073002862d687474703a2f2f6372742e7365637469676f2e636f6d2f5a65726f53534c525341445653534c4341322e637274302306082b060105050730018617687474703a2f2f6f6373702e7365637469676f2e636f6d30820104060a2b06010401d6790204020481f50481f200f0007600d76d7d10d1a7f577c2c7e95fd700bff982c9335a65e1d0b3017317c0c8c569770000019e5c80f2cf0000040300473045022100b3af2af4c3deb523c2a572c08540db058b1e7af93ccd6a6ad6bd7912124a00c602206005c6ee993a9e1e16ca1e1d3553a1ddb2a4e59d09b861552f551e0a2868164e007600c8a3c47fc7b3adb9356b013f6a7a126de33a4e43a5c646f997ad3975991dcf9a0000019e5c80f377000004030047304502206028797bab421f18a0455efa3d3442a25aa16a94c45a29fda859acc0e43bd9d9022100c63ffdcf99203fa21a81f6c45c5210d03d84ecba6f4b7453f4746a57bdd795a2301f0603551d110418301682086d61612e706c7573820a2a2e6d61612e706c7573300d06092a864886f70d01010b050003820181002d7bbf88e2141d534b4a1b4ea0f850d30de74b5009d6c9cced0693cc8b210c82b5c1d855a178f82d795b8257413906118d8e373d059ca7b9ca1c606ee244e39220a4329b5238aec29c1976440699d346f51b48b6125f279156a16d75b8ff12d2b580184007b629b4568a1984f1ca9ed5814968bb1cbc6bdd79ccab8d7532c655bb5ddd05fdbf1b390cf182d4069a6aeff332b1fdd6721f239f8680fc27756ec1fcdf438195ea511e10b3da40edd0d8d340b13309f396de60d7dad719b1e2d12d8dd2d1bd4d53b7a4a6aa7b22823e496a34d53e71bc8c8826379dee76ec3767de0ea173766c6e532f63929e4050b25724095471b3c0cfe2424c9ec8953b2a2d1cf186df729542281cd6effb6a5f8772aed3c825ccb04625fc8cf8f6f94d027369ab4ea6de4d509502d65228624fcce87d64e2b2e6852ddf4835b67dc9d2c1dd8c25cc34fdc79ca736edb6471302d252186456deb2efdba2eed6d629a93cfb4dcfe366bb2e1eb870760932f664ba3cda0a55d0341c99704b49a1142d10d26fb3aa), CertificateDer(0x3082062130820409a003020102021100d0a908255f8e50e5f3396d1114702a37300d06092a864886f70d01010c0500305f310b300906035504061302474231183016060355040a130f5365637469676f204c696d69746564313630340603550403132d5365637469676f205075626c6963205365727665722041757468656e7469636174696f6e20526f6f7420523436301e170d3235303932343030303030305a170d3335303932333233353935395a3046310b300906035504061302415431153013060355040a130c5a65726f53534c20476d62483120301e060355040313175a65726f53534c205253412044562053534c2043412032308201a2300d06092a864886f70d01010105000382018f003082018a0282018100a75d7dd09bf1beba3ca5bd8224849e77659ed7334def5d8d37b029cef555a3c0cb15d2a090325be1b91889c2b9b83398e019e871222091d6a4f40322f6ac74d6251d3bbe3273b8d9a9eeea0abb71cac22c4193d42e5c3e5a9623bcfc40dbcdd643706fc79b9a4298e7aeb0bb5db3f504fc8ab6e27c395a9720644e4bcbe17fc82603b846bb8572c900f33949e70921b946d4e437ba43251c73416c3c41a46593c83b9d7740d379dd0d4e008fb35b7c4593e15bd1adffc9c3c055f4a50e1e1df3c407c73a78d976b11af601fa75604ada911fb9df2117d925dcd8acf47db4e551cf93a3450b19c26258dc99c23fff0d367e338c71b13d93aa34385dfbe6d84513ca6ad70eb8753e6ff0901a2ebbceb473a79e41f3652a571c5321ce49e282b4f216ade32f1f705e61d7aedc3c08f2579f9ff55485207605bcfb857deacf7a0c9ad4939968539e86f22a5c752f66ffa25a1aaa9cb570173f4222d148ea6d6063e366d5f4a51ad354a41778fdab3d4934cb9abfe34591a6e812947097e9a71e5a7b0203010001a382016f3082016b301f0603551d230418301680145673586495f9921ab0122a046279a14015882149301d0603551d0e041604144bbefa7684234404b9cebe316fe9f53206ff0c57300e0603551d0f0101ff04040302018630120603551d130101ff040830060101ff02010030130603551d25040c300a06082b0601050507030130130603551d20040c300a3008060667810c01020130540603551d1f044d304b3049a047a0458643687474703a2f2f63726c2e7365637469676f2e636f6d2f5365637469676f5075626c696353657276657241757468656e7469636174696f6e526f6f745234362e63726c30818406082b0601050507010104783076304f06082b060105050730028643687474703a2f2f6372742e7365637469676f2e636f6d2f5365637469676f5075626c696353657276657241757468656e7469636174696f6e526f6f745234362e703763302306082b060105050730018617687474703a2f2f6f6373702e7365637469676f2e636f6d300d06092a864886f70d01010c0500038202010089ff7bf6fef75ec47b1d5725cbf5a093404d35617976dfceba4d533f2e0469456fa49de6575d9c4fd21cb81a7be5a947314eaf7b07aa8f750710c50c691a77bb0919f49d66aecea89e31c273625ddf0c2d90fc03723e1cab6f0088cf1f44b11ae07e3bee24269432d95f6292aa0546223ce08f00dd0776b2c3e6153aa15d6dbd656c5334c0e37b240b7b87c1033960f224d0d0c9170dcd8503ce20ec1bab4f53f92612119bec277b78b00e07de0874dd111335a0304dc4cd4bffaed6d01e41465998a4322d660bca8c6f6c84a9fcc16bf71aa10eaae902ead854d7a22c9e7ee3f5993e6976d323598dcc5528aa9161d12eae5f2b988dada029c20d68847130efa181adcfad1e608b7b549203e03ac28d3c405935a1d93e5a836a4aaf23491adf011462ed8de0fbef84b10059f930660156f10ae0b5e60a3557efca5bebfd0371ea3bd5d95050aebcc9fb5bfb24deca8aa3c209362fcbcd4ab923e944e4befa9748e345b9553b6ef0b43bff5b8b931706fed0522bcc3710ec4ed6932193bb3ec4824662eb69033610f0606cd2fd951484622e078fe362713fdef3ba5b86ff3c934a1e73dc4672791cbd9a4db09073efc9a465f7852088e1d367b6cbd91efc5ab0d456dd847b54da6c9a1675f4b11c862e623fbf35d2c32bd3f8ac655b1f0557ae33d8f05dc1dd2f5d1680317a26182d0cd6f41ae5f0439f87629b37b0b128a985), CertificateDer(0x308206953082047da003020102021100d27fbbc1de359e5216ad6149586099c4300d06092a864886f70d01010c0500308188310b3009060355040613025553311330110603550408130a4e6577204a6572736579311430120603550407130b4a65727365792043697479311e301c060355040a131554686520555345525452555354204e6574776f726b312e302c06035504031325555345525472757374205253412043657274696669636174696f6e20417574686f72697479301e170d3231303332323030303030305a170d3338303131383233353935395a305f310b300906035504061302474231183016060355040a130f5365637469676f204c696d69746564313630340603550403132d5365637469676f205075626c6963205365727665722041757468656e7469636174696f6e20526f6f742052343630820222300d06092a864886f70d01010105000382020f003082020a028202010093bed5365275d80123a01c474249ee63b6b721fdc495d5482b267c145310da79fd2bb72da4d42cfaea32dd49c2b9bd0f483d7b5a9854af9e5d31744f07fc5021dda4cf684f1b12636d25994c2a99f3483061fa817c1ea7084adc3e2b1c1f184c71aa358cadf86ee83b4ad9e59402d6898413aa6dc84f33cc5096379233dc5f88e79f54d948f09843d666fd9f173843c501510bd7e3230f145d5b14e74bbeddf4c8da0337d1d639a121513083b06dd7304e965b91f07024abbf458164430dbd213a2f3ce99e0dcb20b54227ccda6f9bee64309039cd9365812131b52350333722e338edf83130cc45fe62f9d15d32794287df6acc5619404dceaabbf9b5764994f127f891a583e506b3630e80dce0125580a63b66b439872dc8f0d0d114e9e40d4d0ef65d5772c53b1c47569de2d5fb81618ccc4d8090345bb7d71475dcd804489fc0c12888b4e91ccaa7b1f156b77b494c59e52015a8840229fa3894699a49068fcd1f791417120c837ade1fb197eef9977828a4c84492e97d2605a658729b7913d8115faec538623468b286308ef890619e326cf50736cda24c6eec8a36edf2e699154470c37cbc9c39c0b4e16bf783252357d91280e549f0750fef8deb1c9b5428b4213cfc7c0affef7b6b75ff8b1da01905abfaf82b8142e838babbfbaafd3de0f3cadf4e979729edf31856e9a596acbdc39098b2e0f9a2d4a647437c6dcf0203010001a38201203082011c301f0603551d230418301680145379bf5aaa2b4acf5480e1d89bc09df2b20366cb301d0603551d0e041604145673586495f9921ab0122a046279a14015882149300e0603551d0f0101ff040403020186300f0603551d130101ff040530030101ff301d0603551d250416301406082b0601050507030106082b0601050507030230110603551d20040a300830060604551d200030500603551d1f044930473045a043a041863f687474703a2f2f63726c2e7573657274727573742e636f6d2f55534552547275737452534143657274696669636174696f6e417574686f726974792e63726c303506082b0601050507010104293027302506082b060105050730018619687474703a2f2f6f6373702e7573657274727573742e636f6d300d06092a864886f70d01010c050003820201003a6f04896aedb314d1c1434fff4ff7e06c802911810b344ba05feef252956307c1bcb4546bf1092d21adb8b42b60483596c46ec56c82942ad38e37d72ca8567dc795da2b82adb84657510ce3a2a446434c507dc02f4762dd6d847174d17786d82f0a0b5a65c281332802213ef79f23f0b7713d027d35c9b858d46ca2204b08cd8f0e981ed2e0a32fe1779f892d494b728fe0cc55ffa966d3eed12ab8e318a6c34a5998fc4cba8fabaccc886e0d6ba7de119b5ee983d71ab31695358ddf8d6f0de75cfb2c50a92ba0efd1c951070e66cecac835b3b6669e431b0f138f5457ff17c2b7d9b59698cabb381690fde19e10f1dcd718bf3ea84263c607336bb5ba3d139a0a5b9b6af77554a3e6f3e6825bbeeeed2c694764c518bea43ddc6c2b21628e972e9d1e55efdb14c9139f35dce3ac07055995caf2c6dbf45967c2e546ebbec92eff995535f90312ef5b9381e33b79b92fb307adb027f5affa35c602db5201c25e73888580258746f762fe32684b344b6b79c4cf1ea9148cdc9520a7874bb5c4278b714072a5288f81af16fba3e4ba8c90abc53daacf44a311b936faef972b21c144bdcaf719446c3b2e3971e23247fc18483d1f242010908f5be76bd4f38993abc3539ff210d46c72851bd3e6f03a76bdb8f3ff6247dfdaafc6c84f29596519fabee6494f9bbc994546138823006eac0d74bfe7b2a1764679f2a79f17452b49)])
+[2026-06-30 23:21:14 TRACE] Unvalidated OCSP response: [48, 130, 2, 84, 10, 1, 0, 160, 130, 2, 77, 48, 130, 2, 73, 6, 9, 43, 6, 1, 5, 5, 7, 48, 1, 1, 4, 130, 2, 58, 48, 130, 2, 54, 48, 129, 159, 162, 22, 4, 20, 75, 190, 250, 118, 132, 35, 68, 4, 185, 206, 190, 49, 111, 233, 245, 50, 6, 255, 12, 87, 24, 15, 50, 48, 50, 54, 48, 54, 50, 56, 48, 50, 49, 50, 50, 49, 90, 48, 116, 48, 114, 48, 74, 48, 9, 6, 5, 43, 14, 3, 2, 26, 5, 0, 4, 20, 71, 22, 6, 248, 107, 253, 87, 117, 45, 32, 139, 130, 76, 199, 76, 209, 98, 202, 129, 100, 4, 20, 75, 190, 250, 118, 132, 35, 68, 4, 185, 206, 190, 49, 111, 233, 245, 50, 6, 255, 12, 87, 2, 17, 0, 235, 69, 162, 214, 191, 198, 26, 21, 58, 44, 67, 155, 136, 11, 22, 99, 128, 0, 24, 15, 50, 48, 50, 54, 48, 54, 50, 56, 48, 50, 49, 50, 50, 49, 90, 160, 17, 24, 15, 50, 48, 50, 54, 48, 55, 48, 53, 48, 50, 49, 50, 50, 48, 90, 48, 13, 6, 9, 42, 134, 72, 134, 247, 13, 1, 1, 11, 5, 0, 3, 130, 1, 129, 0, 65, 189, 239, 182, 85, 41, 252, 78, 205, 240, 124, 113, 0, 150, 174, 218, 42, 81, 19, 100, 221, 99, 239, 251, 88, 100, 114, 121, 17, 147, 27, 161, 47, 178, 227, 156, 206, 157, 230, 44, 11, 101, 151, 38, 9, 215, 227, 238, 188, 65, 4, 107, 114, 163, 167, 231, 52, 114, 66, 101, 146, 30, 60, 80, 242, 114, 253, 254, 163, 81, 21, 90, 168, 100, 17, 220, 9, 140, 157, 90, 43, 166, 153, 8, 212, 119, 253, 43, 215, 6, 25, 242, 203, 62, 65, 165, 171, 33, 158, 41, 30, 20, 115, 183, 46, 168, 150, 215, 151, 172, 177, 173, 182, 196, 130, 73, 232, 180, 88, 231, 139, 206, 28, 33, 134, 83, 19, 94, 90, 163, 154, 85, 129, 65, 92, 63, 246, 249, 215, 23, 148, 68, 86, 42, 212, 93, 136, 145, 119, 123, 130, 170, 162, 239, 149, 146, 165, 48, 48, 80, 94, 36, 136, 83, 99, 178, 132, 152, 101, 116, 126, 98, 16, 121, 49, 94, 54, 154, 178, 1, 165, 161, 230, 178, 56, 239, 194, 93, 249, 128, 22, 32, 153, 73, 142, 194, 5, 22, 3, 147, 107, 84, 195, 186, 138, 236, 211, 179, 129, 160, 228, 157, 5, 214, 194, 167, 168, 169, 113, 170, 112, 154, 188, 222, 139, 13, 248, 134, 10, 246, 104, 131, 182, 230, 157, 0, 85, 196, 221, 211, 190, 128, 166, 123, 128, 51, 5, 45, 201, 161, 232, 157, 130, 149, 177, 180, 90, 239, 145, 157, 23, 90, 174, 145, 213, 140, 120, 36, 90, 172, 181, 253, 123, 85, 195, 71, 29, 191, 49, 165, 224, 248, 96, 86, 40, 192, 78, 39, 55, 149, 37, 75, 200, 108, 221, 73, 166, 89, 176, 130, 220, 205, 61, 254, 195, 96, 62, 214, 178, 255, 106, 207, 252, 203, 79, 213, 74, 172, 16, 92, 47, 84, 72, 171, 111, 113, 183, 170, 36, 149, 183, 156, 31, 126, 50, 251, 13, 213, 214, 165, 91, 82, 69, 37, 208, 7, 40, 125, 166, 228, 217, 193, 134, 189, 119, 166, 170, 93, 8, 176, 185, 108, 103, 177, 115, 70, 92, 161, 45, 36, 173, 115, 63, 28, 125, 71, 57, 63, 173, 203, 236, 229, 154, 88]
+[2026-06-30 23:21:14 DEBUG] Call<RecvResponse>
+[2026-06-30 23:21:14 TRACE] We got ServerHello ServerHelloPayload {
+    legacy_version: TLSv1_2,
+    random: 86ebd7cb11eba7763b124ca5c4ba8f65562c8e3086e8e3dd823a59fbfe2ac517,
+    session_id: 47fa2b8d2dee4c4dcc4138b81f2cc4e5f57b28c7ae5a59d16116a5a8b1a3b6c6,
+    cipher_suite: TLS13_AES_256_GCM_SHA384,
+    compression_method: Null,
+    extensions: ServerExtensions {
+        key_share: KeyShareEntry {
+            group: X25519,
+            payload: ae389f316173ef6387282c509beda8d1956ae011ba779c33c3357c885cca4921,
+        },
+        selected_version: TLSv1_3,
+        unknown_extensions: {},
+        ..
+    },
+}
+[2026-06-30 23:21:14 DEBUG] Using ciphersuite TLS13_AES_256_GCM_SHA384
+[2026-06-30 23:21:14 DEBUG] Not resuming
+[2026-06-30 23:21:14 TRACE] EarlyData rejected
+[2026-06-30 23:21:14 TRACE] Dropping CCS
+[2026-06-30 23:21:14 DEBUG] TLS1.3 encrypted extensions: ServerExtensions { server_name_ack: (), unknown_extensions: {}, .. }
+[2026-06-30 23:21:14 DEBUG] ALPN protocol is None
+[2026-06-30 23:21:14 TRACE] Server cert is CertificateChain([CertificateDer(0x3082058b308203f3a003020102021100eb45a2d6bfc61a153a2c439b880b1663300d06092a864886f70d01010b05003046310b300906035504061302415431153013060355040a130c5a65726f53534c20476d62483120301e060355040313175a65726f53534c205253412044562053534c2043412032301e170d3236303532353030303030305a170d3236303832333233353935395a30133111300f060355040313086d61612e706c757330820122300d06092a864886f70d01010105000382010f003082010a0282010100a270a26a34e69d9e035e4db7613604de0907ef08fa16e5903bf5e5e8c77135bb675cea7438435c52ad1778705aabb74948f146eeb41ff77db2866a6b28bccc47afe52b27e0f14aec5b4c4743002098a18ef546ed7f293170095c91a9ae1ec8c055f9bb9e6209a4bf0e9364a69f33e305686650f93d1028ac7b661da6e2fb1ab9c9b95fcd77c6f869316479a1565db7f7c609c3740a57f87902c61675c2dc6b8a69e91217e5c9b50af734e21a94c13d84d5d97a43a2eb2431c3f323c0edc4281952bf2478810bc1ecfc3145cb5c24169378a0e98c231bddc3bd49ad9f9fb1aeeabfbbd0a164b723684aed0605abfa1c58ab585e8d23a25786122049fed4b1da790203010001a382022530820221301f0603551d230418301680144bbefa7684234404b9cebe316fe9f53206ff0c57301d0603551d0e0416041486addf7d584d5448a771a3892ff89369d82ddda8300e0603551d0f0101ff0404030205a0300c0603551d130101ff0402300030130603551d25040c300a06082b0601050507030130130603551d20040c300a3008060667810c010201306e06082b0601050507010104623060303906082b06010505073002862d687474703a2f2f6372742e7365637469676f2e636f6d2f5a65726f53534c525341445653534c4341322e637274302306082b060105050730018617687474703a2f2f6f6373702e7365637469676f2e636f6d30820104060a2b06010401d6790204020481f50481f200f0007600d76d7d10d1a7f577c2c7e95fd700bff982c9335a65e1d0b3017317c0c8c569770000019e5c80f2cf0000040300473045022100b3af2af4c3deb523c2a572c08540db058b1e7af93ccd6a6ad6bd7912124a00c602206005c6ee993a9e1e16ca1e1d3553a1ddb2a4e59d09b861552f551e0a2868164e007600c8a3c47fc7b3adb9356b013f6a7a126de33a4e43a5c646f997ad3975991dcf9a0000019e5c80f377000004030047304502206028797bab421f18a0455efa3d3442a25aa16a94c45a29fda859acc0e43bd9d9022100c63ffdcf99203fa21a81f6c45c5210d03d84ecba6f4b7453f4746a57bdd795a2301f0603551d110418301682086d61612e706c7573820a2a2e6d61612e706c7573300d06092a864886f70d01010b050003820181002d7bbf88e2141d534b4a1b4ea0f850d30de74b5009d6c9cced0693cc8b210c82b5c1d855a178f82d795b8257413906118d8e373d059ca7b9ca1c606ee244e39220a4329b5238aec29c1976440699d346f51b48b6125f279156a16d75b8ff12d2b580184007b629b4568a1984f1ca9ed5814968bb1cbc6bdd79ccab8d7532c655bb5ddd05fdbf1b390cf182d4069a6aeff332b1fdd6721f239f8680fc27756ec1fcdf438195ea511e10b3da40edd0d8d340b13309f396de60d7dad719b1e2d12d8dd2d1bd4d53b7a4a6aa7b22823e496a34d53e71bc8c8826379dee76ec3767de0ea173766c6e532f63929e4050b25724095471b3c0cfe2424c9ec8953b2a2d1cf186df729542281cd6effb6a5f8772aed3c825ccb04625fc8cf8f6f94d027369ab4ea6de4d509502d65228624fcce87d64e2b2e6852ddf4835b67dc9d2c1dd8c25cc34fdc79ca736edb6471302d252186456deb2efdba2eed6d629a93cfb4dcfe366bb2e1eb870760932f664ba3cda0a55d0341c99704b49a1142d10d26fb3aa), CertificateDer(0x3082062130820409a003020102021100d0a908255f8e50e5f3396d1114702a37300d06092a864886f70d01010c0500305f310b300906035504061302474231183016060355040a130f5365637469676f204c696d69746564313630340603550403132d5365637469676f205075626c6963205365727665722041757468656e7469636174696f6e20526f6f7420523436301e170d3235303932343030303030305a170d3335303932333233353935395a3046310b300906035504061302415431153013060355040a130c5a65726f53534c20476d62483120301e060355040313175a65726f53534c205253412044562053534c2043412032308201a2300d06092a864886f70d01010105000382018f003082018a0282018100a75d7dd09bf1beba3ca5bd8224849e77659ed7334def5d8d37b029cef555a3c0cb15d2a090325be1b91889c2b9b83398e019e871222091d6a4f40322f6ac74d6251d3bbe3273b8d9a9eeea0abb71cac22c4193d42e5c3e5a9623bcfc40dbcdd643706fc79b9a4298e7aeb0bb5db3f504fc8ab6e27c395a9720644e4bcbe17fc82603b846bb8572c900f33949e70921b946d4e437ba43251c73416c3c41a46593c83b9d7740d379dd0d4e008fb35b7c4593e15bd1adffc9c3c055f4a50e1e1df3c407c73a78d976b11af601fa75604ada911fb9df2117d925dcd8acf47db4e551cf93a3450b19c26258dc99c23fff0d367e338c71b13d93aa34385dfbe6d84513ca6ad70eb8753e6ff0901a2ebbceb473a79e41f3652a571c5321ce49e282b4f216ade32f1f705e61d7aedc3c08f2579f9ff55485207605bcfb857deacf7a0c9ad4939968539e86f22a5c752f66ffa25a1aaa9cb570173f4222d148ea6d6063e366d5f4a51ad354a41778fdab3d4934cb9abfe34591a6e812947097e9a71e5a7b0203010001a382016f3082016b301f0603551d230418301680145673586495f9921ab0122a046279a14015882149301d0603551d0e041604144bbefa7684234404b9cebe316fe9f53206ff0c57300e0603551d0f0101ff04040302018630120603551d130101ff040830060101ff02010030130603551d25040c300a06082b0601050507030130130603551d20040c300a3008060667810c01020130540603551d1f044d304b3049a047a0458643687474703a2f2f63726c2e7365637469676f2e636f6d2f5365637469676f5075626c696353657276657241757468656e7469636174696f6e526f6f745234362e63726c30818406082b0601050507010104783076304f06082b060105050730028643687474703a2f2f6372742e7365637469676f2e636f6d2f5365637469676f5075626c696353657276657241757468656e7469636174696f6e526f6f745234362e703763302306082b060105050730018617687474703a2f2f6f6373702e7365637469676f2e636f6d300d06092a864886f70d01010c0500038202010089ff7bf6fef75ec47b1d5725cbf5a093404d35617976dfceba4d533f2e0469456fa49de6575d9c4fd21cb81a7be5a947314eaf7b07aa8f750710c50c691a77bb0919f49d66aecea89e31c273625ddf0c2d90fc03723e1cab6f0088cf1f44b11ae07e3bee24269432d95f6292aa0546223ce08f00dd0776b2c3e6153aa15d6dbd656c5334c0e37b240b7b87c1033960f224d0d0c9170dcd8503ce20ec1bab4f53f92612119bec277b78b00e07de0874dd111335a0304dc4cd4bffaed6d01e41465998a4322d660bca8c6f6c84a9fcc16bf71aa10eaae902ead854d7a22c9e7ee3f5993e6976d323598dcc5528aa9161d12eae5f2b988dada029c20d68847130efa181adcfad1e608b7b549203e03ac28d3c405935a1d93e5a836a4aaf23491adf011462ed8de0fbef84b10059f930660156f10ae0b5e60a3557efca5bebfd0371ea3bd5d95050aebcc9fb5bfb24deca8aa3c209362fcbcd4ab923e944e4befa9748e345b9553b6ef0b43bff5b8b931706fed0522bcc3710ec4ed6932193bb3ec4824662eb69033610f0606cd2fd951484622e078fe362713fdef3ba5b86ff3c934a1e73dc4672791cbd9a4db09073efc9a465f7852088e1d367b6cbd91efc5ab0d456dd847b54da6c9a1675f4b11c862e623fbf35d2c32bd3f8ac655b1f0557ae33d8f05dc1dd2f5d1680317a26182d0cd6f41ae5f0439f87629b37b0b128a985), CertificateDer(0x308206953082047da003020102021100d27fbbc1de359e5216ad6149586099c4300d06092a864886f70d01010c0500308188310b3009060355040613025553311330110603550408130a4e6577204a6572736579311430120603550407130b4a65727365792043697479311e301c060355040a131554686520555345525452555354204e6574776f726b312e302c06035504031325555345525472757374205253412043657274696669636174696f6e20417574686f72697479301e170d3231303332323030303030305a170d3338303131383233353935395a305f310b300906035504061302474231183016060355040a130f5365637469676f204c696d69746564313630340603550403132d5365637469676f205075626c6963205365727665722041757468656e7469636174696f6e20526f6f742052343630820222300d06092a864886f70d01010105000382020f003082020a028202010093bed5365275d80123a01c474249ee63b6b721fdc495d5482b267c145310da79fd2bb72da4d42cfaea32dd49c2b9bd0f483d7b5a9854af9e5d31744f07fc5021dda4cf684f1b12636d25994c2a99f3483061fa817c1ea7084adc3e2b1c1f184c71aa358cadf86ee83b4ad9e59402d6898413aa6dc84f33cc5096379233dc5f88e79f54d948f09843d666fd9f173843c501510bd7e3230f145d5b14e74bbeddf4c8da0337d1d639a121513083b06dd7304e965b91f07024abbf458164430dbd213a2f3ce99e0dcb20b54227ccda6f9bee64309039cd9365812131b52350333722e338edf83130cc45fe62f9d15d32794287df6acc5619404dceaabbf9b5764994f127f891a583e506b3630e80dce0125580a63b66b439872dc8f0d0d114e9e40d4d0ef65d5772c53b1c47569de2d5fb81618ccc4d8090345bb7d71475dcd804489fc0c12888b4e91ccaa7b1f156b77b494c59e52015a8840229fa3894699a49068fcd1f791417120c837ade1fb197eef9977828a4c84492e97d2605a658729b7913d8115faec538623468b286308ef890619e326cf50736cda24c6eec8a36edf2e699154470c37cbc9c39c0b4e16bf783252357d91280e549f0750fef8deb1c9b5428b4213cfc7c0affef7b6b75ff8b1da01905abfaf82b8142e838babbfbaafd3de0f3cadf4e979729edf31856e9a596acbdc39098b2e0f9a2d4a647437c6dcf0203010001a38201203082011c301f0603551d230418301680145379bf5aaa2b4acf5480e1d89bc09df2b20366cb301d0603551d0e041604145673586495f9921ab0122a046279a14015882149300e0603551d0f0101ff040403020186300f0603551d130101ff040530030101ff301d0603551d250416301406082b0601050507030106082b0601050507030230110603551d20040a300830060604551d200030500603551d1f044930473045a043a041863f687474703a2f2f63726c2e7573657274727573742e636f6d2f55534552547275737452534143657274696669636174696f6e417574686f726974792e63726c303506082b0601050507010104293027302506082b060105050730018619687474703a2f2f6f6373702e7573657274727573742e636f6d300d06092a864886f70d01010c050003820201003a6f04896aedb314d1c1434fff4ff7e06c802911810b344ba05feef252956307c1bcb4546bf1092d21adb8b42b60483596c46ec56c82942ad38e37d72ca8567dc795da2b82adb84657510ce3a2a446434c507dc02f4762dd6d847174d17786d82f0a0b5a65c281332802213ef79f23f0b7713d027d35c9b858d46ca2204b08cd8f0e981ed2e0a32fe1779f892d494b728fe0cc55ffa966d3eed12ab8e318a6c34a5998fc4cba8fabaccc886e0d6ba7de119b5ee983d71ab31695358ddf8d6f0de75cfb2c50a92ba0efd1c951070e66cecac835b3b6669e431b0f138f5457ff17c2b7d9b59698cabb381690fde19e10f1dcd718bf3ea84263c607336bb5ba3d139a0a5b9b6af77554a3e6f3e6825bbeeeed2c694764c518bea43ddc6c2b21628e972e9d1e55efdb14c9139f35dce3ac07055995caf2c6dbf45967c2e546ebbec92eff995535f90312ef5b9381e33b79b92fb307adb027f5affa35c602db5201c25e73888580258746f762fe32684b344b6b79c4cf1ea9148cdc9520a7874bb5c4278b714072a5288f81af16fba3e4ba8c90abc53daacf44a311b936faef972b21c144bdcaf719446c3b2e3971e23247fc18483d1f242010908f5be76bd4f38993abc3539ff210d46c72851bd3e6f03a76bdb8f3ff6247dfdaafc6c84f29596519fabee6494f9bbc994546138823006eac0d74bfe7b2a1764679f2a79f17452b49)])
+[2026-06-30 23:21:14 TRACE] Unvalidated OCSP response: [48, 130, 2, 84, 10, 1, 0, 160, 130, 2, 77, 48, 130, 2, 73, 6, 9, 43, 6, 1, 5, 5, 7, 48, 1, 1, 4, 130, 2, 58, 48, 130, 2, 54, 48, 129, 159, 162, 22, 4, 20, 75, 190, 250, 118, 132, 35, 68, 4, 185, 206, 190, 49, 111, 233, 245, 50, 6, 255, 12, 87, 24, 15, 50, 48, 50, 54, 48, 54, 50, 56, 48, 50, 49, 50, 50, 49, 90, 48, 116, 48, 114, 48, 74, 48, 9, 6, 5, 43, 14, 3, 2, 26, 5, 0, 4, 20, 71, 22, 6, 248, 107, 253, 87, 117, 45, 32, 139, 130, 76, 199, 76, 209, 98, 202, 129, 100, 4, 20, 75, 190, 250, 118, 132, 35, 68, 4, 185, 206, 190, 49, 111, 233, 245, 50, 6, 255, 12, 87, 2, 17, 0, 235, 69, 162, 214, 191, 198, 26, 21, 58, 44, 67, 155, 136, 11, 22, 99, 128, 0, 24, 15, 50, 48, 50, 54, 48, 54, 50, 56, 48, 50, 49, 50, 50, 49, 90, 160, 17, 24, 15, 50, 48, 50, 54, 48, 55, 48, 53, 48, 50, 49, 50, 50, 48, 90, 48, 13, 6, 9, 42, 134, 72, 134, 247, 13, 1, 1, 11, 5, 0, 3, 130, 1, 129, 0, 65, 189, 239, 182, 85, 41, 252, 78, 205, 240, 124, 113, 0, 150, 174, 218, 42, 81, 19, 100, 221, 99, 239, 251, 88, 100, 114, 121, 17, 147, 27, 161, 47, 178, 227, 156, 206, 157, 230, 44, 11, 101, 151, 38, 9, 215, 227, 238, 188, 65, 4, 107, 114, 163, 167, 231, 52, 114, 66, 101, 146, 30, 60, 80, 242, 114, 253, 254, 163, 81, 21, 90, 168, 100, 17, 220, 9, 140, 157, 90, 43, 166, 153, 8, 212, 119, 253, 43, 215, 6, 25, 242, 203, 62, 65, 165, 171, 33, 158, 41, 30, 20, 115, 183, 46, 168, 150, 215, 151, 172, 177, 173, 182, 196, 130, 73, 232, 180, 88, 231, 139, 206, 28, 33, 134, 83, 19, 94, 90, 163, 154, 85, 129, 65, 92, 63, 246, 249, 215, 23, 148, 68, 86, 42, 212, 93, 136, 145, 119, 123, 130, 170, 162, 239, 149, 146, 165, 48, 48, 80, 94, 36, 136, 83, 99, 178, 132, 152, 101, 116, 126, 98, 16, 121, 49, 94, 54, 154, 178, 1, 165, 161, 230, 178, 56, 239, 194, 93, 249, 128, 22, 32, 153, 73, 142, 194, 5, 22, 3, 147, 107, 84, 195, 186, 138, 236, 211, 179, 129, 160, 228, 157, 5, 214, 194, 167, 168, 169, 113, 170, 112, 154, 188, 222, 139, 13, 248, 134, 10, 246, 104, 131, 182, 230, 157, 0, 85, 196, 221, 211, 190, 128, 166, 123, 128, 51, 5, 45, 201, 161, 232, 157, 130, 149, 177, 180, 90, 239, 145, 157, 23, 90, 174, 145, 213, 140, 120, 36, 90, 172, 181, 253, 123, 85, 195, 71, 29, 191, 49, 165, 224, 248, 96, 86, 40, 192, 78, 39, 55, 149, 37, 75, 200, 108, 221, 73, 166, 89, 176, 130, 220, 205, 61, 254, 195, 96, 62, 214, 178, 255, 106, 207, 252, 203, 79, 213, 74, 172, 16, 92, 47, 84, 72, 171, 111, 113, 183, 170, 36, 149, 183, 156, 31, 126, 50, 251, 13, 213, 214, 165, 91, 82, 69, 37, 208, 7, 40, 125, 166, 228, 217, 193, 134, 189, 119, 166, 170, 93, 8, 176, 185, 108, 103, 177, 115, 70, 92, 161, 45, 36, 173, 115, 63, 28, 125, 71, 57, 63, 173, 203, 236, 229, 154, 88]
+[2026-06-30 23:21:14 DEBUG] Call<RecvResponse>
+[2026-06-30 23:21:14 TRACE] Server cert is CertificateChain([CertificateDer(0x3082058b308203f3a003020102021100eb45a2d6bfc61a153a2c439b880b1663300d06092a864886f70d01010b05003046310b300906035504061302415431153013060355040a130c5a65726f53534c20476d62483120301e060355040313175a65726f53534c205253412044562053534c2043412032301e170d3236303532353030303030305a170d3236303832333233353935395a30133111300f060355040313086d61612e706c757330820122300d06092a864886f70d01010105000382010f003082010a0282010100a270a26a34e69d9e035e4db7613604de0907ef08fa16e5903bf5e5e8c77135bb675cea7438435c52ad1778705aabb74948f146eeb41ff77db2866a6b28bccc47afe52b27e0f14aec5b4c4743002098a18ef546ed7f293170095c91a9ae1ec8c055f9bb9e6209a4bf0e9364a69f33e305686650f93d1028ac7b661da6e2fb1ab9c9b95fcd77c6f869316479a1565db7f7c609c3740a57f87902c61675c2dc6b8a69e91217e5c9b50af734e21a94c13d84d5d97a43a2eb2431c3f323c0edc4281952bf2478810bc1ecfc3145cb5c24169378a0e98c231bddc3bd49ad9f9fb1aeeabfbbd0a164b723684aed0605abfa1c58ab585e8d23a25786122049fed4b1da790203010001a382022530820221301f0603551d230418301680144bbefa7684234404b9cebe316fe9f53206ff0c57301d0603551d0e0416041486addf7d584d5448a771a3892ff89369d82ddda8300e0603551d0f0101ff0404030205a0300c0603551d130101ff0402300030130603551d25040c300a06082b0601050507030130130603551d20040c300a3008060667810c010201306e06082b0601050507010104623060303906082b06010505073002862d687474703a2f2f6372742e7365637469676f2e636f6d2f5a65726f53534c525341445653534c4341322e637274302306082b060105050730018617687474703a2f2f6f6373702e7365637469676f2e636f6d30820104060a2b06010401d6790204020481f50481f200f0007600d76d7d10d1a7f577c2c7e95fd700bff982c9335a65e1d0b3017317c0c8c569770000019e5c80f2cf0000040300473045022100b3af2af4c3deb523c2a572c08540db058b1e7af93ccd6a6ad6bd7912124a00c602206005c6ee993a9e1e16ca1e1d3553a1ddb2a4e59d09b861552f551e0a2868164e007600c8a3c47fc7b3adb9356b013f6a7a126de33a4e43a5c646f997ad3975991dcf9a0000019e5c80f377000004030047304502206028797bab421f18a0455efa3d3442a25aa16a94c45a29fda859acc0e43bd9d9022100c63ffdcf99203fa21a81f6c45c5210d03d84ecba6f4b7453f4746a57bdd795a2301f0603551d110418301682086d61612e706c7573820a2a2e6d61612e706c7573300d06092a864886f70d01010b050003820181002d7bbf88e2141d534b4a1b4ea0f850d30de74b5009d6c9cced0693cc8b210c82b5c1d855a178f82d795b8257413906118d8e373d059ca7b9ca1c606ee244e39220a4329b5238aec29c1976440699d346f51b48b6125f279156a16d75b8ff12d2b580184007b629b4568a1984f1ca9ed5814968bb1cbc6bdd79ccab8d7532c655bb5ddd05fdbf1b390cf182d4069a6aeff332b1fdd6721f239f8680fc27756ec1fcdf438195ea511e10b3da40edd0d8d340b13309f396de60d7dad719b1e2d12d8dd2d1bd4d53b7a4a6aa7b22823e496a34d53e71bc8c8826379dee76ec3767de0ea173766c6e532f63929e4050b25724095471b3c0cfe2424c9ec8953b2a2d1cf186df729542281cd6effb6a5f8772aed3c825ccb04625fc8cf8f6f94d027369ab4ea6de4d509502d65228624fcce87d64e2b2e6852ddf4835b67dc9d2c1dd8c25cc34fdc79ca736edb6471302d252186456deb2efdba2eed6d629a93cfb4dcfe366bb2e1eb870760932f664ba3cda0a55d0341c99704b49a1142d10d26fb3aa), CertificateDer(0x3082062130820409a003020102021100d0a908255f8e50e5f3396d1114702a37300d06092a864886f70d01010c0500305f310b300906035504061302474231183016060355040a130f5365637469676f204c696d69746564313630340603550403132d5365637469676f205075626c6963205365727665722041757468656e7469636174696f6e20526f6f7420523436301e170d3235303932343030303030305a170d3335303932333233353935395a3046310b300906035504061302415431153013060355040a130c5a65726f53534c20476d62483120301e060355040313175a65726f53534c205253412044562053534c2043412032308201a2300d06092a864886f70d01010105000382018f003082018a0282018100a75d7dd09bf1beba3ca5bd8224849e77659ed7334def5d8d37b029cef555a3c0cb15d2a090325be1b91889c2b9b83398e019e871222091d6a4f40322f6ac74d6251d3bbe3273b8d9a9eeea0abb71cac22c4193d42e5c3e5a9623bcfc40dbcdd643706fc79b9a4298e7aeb0bb5db3f504fc8ab6e27c395a9720644e4bcbe17fc82603b846bb8572c900f33949e70921b946d4e437ba43251c73416c3c41a46593c83b9d7740d379dd0d4e008fb35b7c4593e15bd1adffc9c3c055f4a50e1e1df3c407c73a78d976b11af601fa75604ada911fb9df2117d925dcd8acf47db4e551cf93a3450b19c26258dc99c23fff0d367e338c71b13d93aa34385dfbe6d84513ca6ad70eb8753e6ff0901a2ebbceb473a79e41f3652a571c5321ce49e282b4f216ade32f1f705e61d7aedc3c08f2579f9ff55485207605bcfb857deacf7a0c9ad4939968539e86f22a5c752f66ffa25a1aaa9cb570173f4222d148ea6d6063e366d5f4a51ad354a41778fdab3d4934cb9abfe34591a6e812947097e9a71e5a7b0203010001a382016f3082016b301f0603551d230418301680145673586495f9921ab0122a046279a14015882149301d0603551d0e041604144bbefa7684234404b9cebe316fe9f53206ff0c57300e0603551d0f0101ff04040302018630120603551d130101ff040830060101ff02010030130603551d25040c300a06082b0601050507030130130603551d20040c300a3008060667810c01020130540603551d1f044d304b3049a047a0458643687474703a2f2f63726c2e7365637469676f2e636f6d2f5365637469676f5075626c696353657276657241757468656e7469636174696f6e526f6f745234362e63726c30818406082b0601050507010104783076304f06082b060105050730028643687474703a2f2f6372742e7365637469676f2e636f6d2f5365637469676f5075626c696353657276657241757468656e7469636174696f6e526f6f745234362e703763302306082b060105050730018617687474703a2f2f6f6373702e7365637469676f2e636f6d300d06092a864886f70d01010c0500038202010089ff7bf6fef75ec47b1d5725cbf5a093404d35617976dfceba4d533f2e0469456fa49de6575d9c4fd21cb81a7be5a947314eaf7b07aa8f750710c50c691a77bb0919f49d66aecea89e31c273625ddf0c2d90fc03723e1cab6f0088cf1f44b11ae07e3bee24269432d95f6292aa0546223ce08f00dd0776b2c3e6153aa15d6dbd656c5334c0e37b240b7b87c1033960f224d0d0c9170dcd8503ce20ec1bab4f53f92612119bec277b78b00e07de0874dd111335a0304dc4cd4bffaed6d01e41465998a4322d660bca8c6f6c84a9fcc16bf71aa10eaae902ead854d7a22c9e7ee3f5993e6976d323598dcc5528aa9161d12eae5f2b988dada029c20d68847130efa181adcfad1e608b7b549203e03ac28d3c405935a1d93e5a836a4aaf23491adf011462ed8de0fbef84b10059f930660156f10ae0b5e60a3557efca5bebfd0371ea3bd5d95050aebcc9fb5bfb24deca8aa3c209362fcbcd4ab923e944e4befa9748e345b9553b6ef0b43bff5b8b931706fed0522bcc3710ec4ed6932193bb3ec4824662eb69033610f0606cd2fd951484622e078fe362713fdef3ba5b86ff3c934a1e73dc4672791cbd9a4db09073efc9a465f7852088e1d367b6cbd91efc5ab0d456dd847b54da6c9a1675f4b11c862e623fbf35d2c32bd3f8ac655b1f0557ae33d8f05dc1dd2f5d1680317a26182d0cd6f41ae5f0439f87629b37b0b128a985), CertificateDer(0x308206953082047da003020102021100d27fbbc1de359e5216ad6149586099c4300d06092a864886f70d01010c0500308188310b3009060355040613025553311330110603550408130a4e6577204a6572736579311430120603550407130b4a65727365792043697479311e301c060355040a131554686520555345525452555354204e6574776f726b312e302c06035504031325555345525472757374205253412043657274696669636174696f6e20417574686f72697479301e170d3231303332323030303030305a170d3338303131383233353935395a305f310b300906035504061302474231183016060355040a130f5365637469676f204c696d69746564313630340603550403132d5365637469676f205075626c6963205365727665722041757468656e7469636174696f6e20526f6f742052343630820222300d06092a864886f70d01010105000382020f003082020a028202010093bed5365275d80123a01c474249ee63b6b721fdc495d5482b267c145310da79fd2bb72da4d42cfaea32dd49c2b9bd0f483d7b5a9854af9e5d31744f07fc5021dda4cf684f1b12636d25994c2a99f3483061fa817c1ea7084adc3e2b1c1f184c71aa358cadf86ee83b4ad9e59402d6898413aa6dc84f33cc5096379233dc5f88e79f54d948f09843d666fd9f173843c501510bd7e3230f145d5b14e74bbeddf4c8da0337d1d639a121513083b06dd7304e965b91f07024abbf458164430dbd213a2f3ce99e0dcb20b54227ccda6f9bee64309039cd9365812131b52350333722e338edf83130cc45fe62f9d15d32794287df6acc5619404dceaabbf9b5764994f127f891a583e506b3630e80dce0125580a63b66b439872dc8f0d0d114e9e40d4d0ef65d5772c53b1c47569de2d5fb81618ccc4d8090345bb7d71475dcd804489fc0c12888b4e91ccaa7b1f156b77b494c59e52015a8840229fa3894699a49068fcd1f791417120c837ade1fb197eef9977828a4c84492e97d2605a658729b7913d8115faec538623468b286308ef890619e326cf50736cda24c6eec8a36edf2e699154470c37cbc9c39c0b4e16bf783252357d91280e549f0750fef8deb1c9b5428b4213cfc7c0affef7b6b75ff8b1da01905abfaf82b8142e838babbfbaafd3de0f3cadf4e979729edf31856e9a596acbdc39098b2e0f9a2d4a647437c6dcf0203010001a38201203082011c301f0603551d230418301680145379bf5aaa2b4acf5480e1d89bc09df2b20366cb301d0603551d0e041604145673586495f9921ab0122a046279a14015882149300e0603551d0f0101ff040403020186300f0603551d130101ff040530030101ff301d0603551d250416301406082b0601050507030106082b0601050507030230110603551d20040a300830060604551d200030500603551d1f044930473045a043a041863f687474703a2f2f63726c2e7573657274727573742e636f6d2f55534552547275737452534143657274696669636174696f6e417574686f726974792e63726c303506082b0601050507010104293027302506082b060105050730018619687474703a2f2f6f6373702e7573657274727573742e636f6d300d06092a864886f70d01010c050003820201003a6f04896aedb314d1c1434fff4ff7e06c802911810b344ba05feef252956307c1bcb4546bf1092d21adb8b42b60483596c46ec56c82942ad38e37d72ca8567dc795da2b82adb84657510ce3a2a446434c507dc02f4762dd6d847174d17786d82f0a0b5a65c281332802213ef79f23f0b7713d027d35c9b858d46ca2204b08cd8f0e981ed2e0a32fe1779f892d494b728fe0cc55ffa966d3eed12ab8e318a6c34a5998fc4cba8fabaccc886e0d6ba7de119b5ee983d71ab31695358ddf8d6f0de75cfb2c50a92ba0efd1c951070e66cecac835b3b6669e431b0f138f5457ff17c2b7d9b59698cabb381690fde19e10f1dcd718bf3ea84263c607336bb5ba3d139a0a5b9b6af77554a3e6f3e6825bbeeeed2c694764c518bea43ddc6c2b21628e972e9d1e55efdb14c9139f35dce3ac07055995caf2c6dbf45967c2e546ebbec92eff995535f90312ef5b9381e33b79b92fb307adb027f5affa35c602db5201c25e73888580258746f762fe32684b344b6b79c4cf1ea9148cdc9520a7874bb5c4278b714072a5288f81af16fba3e4ba8c90abc53daacf44a311b936faef972b21c144bdcaf719446c3b2e3971e23247fc18483d1f242010908f5be76bd4f38993abc3539ff210d46c72851bd3e6f03a76bdb8f3ff6247dfdaafc6c84f29596519fabee6494f9bbc994546138823006eac0d74bfe7b2a1764679f2a79f17452b49)])
+[2026-06-30 23:21:14 TRACE] We got ServerHello ServerHelloPayload {
+    legacy_version: TLSv1_2,
+    random: 3038653d87078e5e4144f3041607b2e2784533f446147a4aef6a138164247bd3,
+    session_id: 06a57931805408eb8d17ed749bcf9915c6c03770a3c684c4fc2fb2869451ceea,
+    cipher_suite: TLS13_AES_256_GCM_SHA384,
+    compression_method: Null,
+    extensions: ServerExtensions {
+        key_share: KeyShareEntry {
+            group: X25519,
+            payload: 3be82780d24903df2f2b56647586dc5bd6e11468839e3d8b1c02ff8bb9bbc93a,
+        },
+        selected_version: TLSv1_3,
+        unknown_extensions: {},
+        ..
+    },
+}
+[2026-06-30 23:21:14 DEBUG] Using ciphersuite TLS13_AES_256_GCM_SHA384
+[2026-06-30 23:21:14 DEBUG] Not resuming
+[2026-06-30 23:21:14 TRACE] EarlyData rejected
+[2026-06-30 23:21:14 TRACE] Dropping CCS
+[2026-06-30 23:21:14 DEBUG] TLS1.3 encrypted extensions: ServerExtensions { server_name_ack: (), unknown_extensions: {}, .. }
+[2026-06-30 23:21:14 DEBUG] ALPN protocol is None
+[2026-06-30 23:21:14 TRACE] Unvalidated OCSP response: [48, 130, 2, 84, 10, 1, 0, 160, 130, 2, 77, 48, 130, 2, 73, 6, 9, 43, 6, 1, 5, 5, 7, 48, 1, 1, 4, 130, 2, 58, 48, 130, 2, 54, 48, 129, 159, 162, 22, 4, 20, 75, 190, 250, 118, 132, 35, 68, 4, 185, 206, 190, 49, 111, 233, 245, 50, 6, 255, 12, 87, 24, 15, 50, 48, 50, 54, 48, 54, 50, 56, 48, 50, 49, 50, 50, 49, 90, 48, 116, 48, 114, 48, 74, 48, 9, 6, 5, 43, 14, 3, 2, 26, 5, 0, 4, 20, 71, 22, 6, 248, 107, 253, 87, 117, 45, 32, 139, 130, 76, 199, 76, 209, 98, 202, 129, 100, 4, 20, 75, 190, 250, 118, 132, 35, 68, 4, 185, 206, 190, 49, 111, 233, 245, 50, 6, 255, 12, 87, 2, 17, 0, 235, 69, 162, 214, 191, 198, 26, 21, 58, 44, 67, 155, 136, 11, 22, 99, 128, 0, 24, 15, 50, 48, 50, 54, 48, 54, 50, 56, 48, 50, 49, 50, 50, 49, 90, 160, 17, 24, 15, 50, 48, 50, 54, 48, 55, 48, 53, 48, 50, 49, 50, 50, 48, 90, 48, 13, 6, 9, 42, 134, 72, 134, 247, 13, 1, 1, 11, 5, 0, 3, 130, 1, 129, 0, 65, 189, 239, 182, 85, 41, 252, 78, 205, 240, 124, 113, 0, 150, 174, 218, 42, 81, 19, 100, 221, 99, 239, 251, 88, 100, 114, 121, 17, 147, 27, 161, 47, 178, 227, 156, 206, 157, 230, 44, 11, 101, 151, 38, 9, 215, 227, 238, 188, 65, 4, 107, 114, 163, 167, 231, 52, 114, 66, 101, 146, 30, 60, 80, 242, 114, 253, 254, 163, 81, 21, 90, 168, 100, 17, 220, 9, 140, 157, 90, 43, 166, 153, 8, 212, 119, 253, 43, 215, 6, 25, 242, 203, 62, 65, 165, 171, 33, 158, 41, 30, 20, 115, 183, 46, 168, 150, 215, 151, 172, 177, 173, 182, 196, 130, 73, 232, 180, 88, 231, 139, 206, 28, 33, 134, 83, 19, 94, 90, 163, 154, 85, 129, 65, 92, 63, 246, 249, 215, 23, 148, 68, 86, 42, 212, 93, 136, 145, 119, 123, 130, 170, 162, 239, 149, 146, 165, 48, 48, 80, 94, 36, 136, 83, 99, 178, 132, 152, 101, 116, 126, 98, 16, 121, 49, 94, 54, 154, 178, 1, 165, 161, 230, 178, 56, 239, 194, 93, 249, 128, 22, 32, 153, 73, 142, 194, 5, 22, 3, 147, 107, 84, 195, 186, 138, 236, 211, 179, 129, 160, 228, 157, 5, 214, 194, 167, 168, 169, 113, 170, 112, 154, 188, 222, 139, 13, 248, 134, 10, 246, 104, 131, 182, 230, 157, 0, 85, 196, 221, 211, 190, 128, 166, 123, 128, 51, 5, 45, 201, 161, 232, 157, 130, 149, 177, 180, 90, 239, 145, 157, 23, 90, 174, 145, 213, 140, 120, 36, 90, 172, 181, 253, 123, 85, 195, 71, 29, 191, 49, 165, 224, 248, 96, 86, 40, 192, 78, 39, 55, 149, 37, 75, 200, 108, 221, 73, 166, 89, 176, 130, 220, 205, 61, 254, 195, 96, 62, 214, 178, 255, 106, 207, 252, 203, 79, 213, 74, 172, 16, 92, 47, 84, 72, 171, 111, 113, 183, 170, 36, 149, 183, 156, 31, 126, 50, 251, 13, 213, 214, 165, 91, 82, 69, 37, 208, 7, 40, 125, 166, 228, 217, 193, 134, 189, 119, 166, 170, 93, 8, 176, 185, 108, 103, 177, 115, 70, 92, 161, 45, 36, 173, 115, 63, 28, 125, 71, 57, 63, 173, 203, 236, 229, 154, 88]
+[2026-06-30 23:21:14 DEBUG] Call<RecvResponse>
+[2026-06-30 23:21:14 TRACE] We got ServerHello ServerHelloPayload {
+    legacy_version: TLSv1_2,
+    random: bef2fcdb9436682e690373c31d406ee3aea1a817ff547c38448335e28b9eddf0,
+    session_id: 08fd27870e0e567a9d64262b7fb5413007cc998983c739399d143e71bf519c9e,
+    cipher_suite: TLS13_AES_256_GCM_SHA384,
+    compression_method: Null,
+    extensions: ServerExtensions {
+        key_share: KeyShareEntry {
+            group: X25519,
+            payload: f3d811cd510e289132c4037a7b9e965c87b4f76ad14d8312dabf4a6e98ed9309,
+        },
+        selected_version: TLSv1_3,
+        unknown_extensions: {},
+        ..
+    },
+}
+[2026-06-30 23:21:14 DEBUG] Using ciphersuite TLS13_AES_256_GCM_SHA384
+[2026-06-30 23:21:14 DEBUG] Not resuming
+[2026-06-30 23:21:14 TRACE] EarlyData rejected
+[2026-06-30 23:21:14 TRACE] Dropping CCS
+[2026-06-30 23:21:14 DEBUG] TLS1.3 encrypted extensions: ServerExtensions { server_name_ack: (), unknown_extensions: {}, .. }
+[2026-06-30 23:21:14 DEBUG] ALPN protocol is None
+[2026-06-30 23:21:14 TRACE] Server cert is CertificateChain([CertificateDer(0x3082058b308203f3a003020102021100eb45a2d6bfc61a153a2c439b880b1663300d06092a864886f70d01010b05003046310b300906035504061302415431153013060355040a130c5a65726f53534c20476d62483120301e060355040313175a65726f53534c205253412044562053534c2043412032301e170d3236303532353030303030305a170d3236303832333233353935395a30133111300f060355040313086d61612e706c757330820122300d06092a864886f70d01010105000382010f003082010a0282010100a270a26a34e69d9e035e4db7613604de0907ef08fa16e5903bf5e5e8c77135bb675cea7438435c52ad1778705aabb74948f146eeb41ff77db2866a6b28bccc47afe52b27e0f14aec5b4c4743002098a18ef546ed7f293170095c91a9ae1ec8c055f9bb9e6209a4bf0e9364a69f33e305686650f93d1028ac7b661da6e2fb1ab9c9b95fcd77c6f869316479a1565db7f7c609c3740a57f87902c61675c2dc6b8a69e91217e5c9b50af734e21a94c13d84d5d97a43a2eb2431c3f323c0edc4281952bf2478810bc1ecfc3145cb5c24169378a0e98c231bddc3bd49ad9f9fb1aeeabfbbd0a164b723684aed0605abfa1c58ab585e8d23a25786122049fed4b1da790203010001a382022530820221301f0603551d230418301680144bbefa7684234404b9cebe316fe9f53206ff0c57301d0603551d0e0416041486addf7d584d5448a771a3892ff89369d82ddda8300e0603551d0f0101ff0404030205a0300c0603551d130101ff0402300030130603551d25040c300a06082b0601050507030130130603551d20040c300a3008060667810c010201306e06082b0601050507010104623060303906082b06010505073002862d687474703a2f2f6372742e7365637469676f2e636f6d2f5a65726f53534c525341445653534c4341322e637274302306082b060105050730018617687474703a2f2f6f6373702e7365637469676f2e636f6d30820104060a2b06010401d6790204020481f50481f200f0007600d76d7d10d1a7f577c2c7e95fd700bff982c9335a65e1d0b3017317c0c8c569770000019e5c80f2cf0000040300473045022100b3af2af4c3deb523c2a572c08540db058b1e7af93ccd6a6ad6bd7912124a00c602206005c6ee993a9e1e16ca1e1d3553a1ddb2a4e59d09b861552f551e0a2868164e007600c8a3c47fc7b3adb9356b013f6a7a126de33a4e43a5c646f997ad3975991dcf9a0000019e5c80f377000004030047304502206028797bab421f18a0455efa3d3442a25aa16a94c45a29fda859acc0e43bd9d9022100c63ffdcf99203fa21a81f6c45c5210d03d84ecba6f4b7453f4746a57bdd795a2301f0603551d110418301682086d61612e706c7573820a2a2e6d61612e706c7573300d06092a864886f70d01010b050003820181002d7bbf88e2141d534b4a1b4ea0f850d30de74b5009d6c9cced0693cc8b210c82b5c1d855a178f82d795b8257413906118d8e373d059ca7b9ca1c606ee244e39220a4329b5238aec29c1976440699d346f51b48b6125f279156a16d75b8ff12d2b580184007b629b4568a1984f1ca9ed5814968bb1cbc6bdd79ccab8d7532c655bb5ddd05fdbf1b390cf182d4069a6aeff332b1fdd6721f239f8680fc27756ec1fcdf438195ea511e10b3da40edd0d8d340b13309f396de60d7dad719b1e2d12d8dd2d1bd4d53b7a4a6aa7b22823e496a34d53e71bc8c8826379dee76ec3767de0ea173766c6e532f63929e4050b25724095471b3c0cfe2424c9ec8953b2a2d1cf186df729542281cd6effb6a5f8772aed3c825ccb04625fc8cf8f6f94d027369ab4ea6de4d509502d65228624fcce87d64e2b2e6852ddf4835b67dc9d2c1dd8c25cc34fdc79ca736edb6471302d252186456deb2efdba2eed6d629a93cfb4dcfe366bb2e1eb870760932f664ba3cda0a55d0341c99704b49a1142d10d26fb3aa), CertificateDer(0x3082062130820409a003020102021100d0a908255f8e50e5f3396d1114702a37300d06092a864886f70d01010c0500305f310b300906035504061302474231183016060355040a130f5365637469676f204c696d69746564313630340603550403132d5365637469676f205075626c6963205365727665722041757468656e7469636174696f6e20526f6f7420523436301e170d3235303932343030303030305a170d3335303932333233353935395a3046310b300906035504061302415431153013060355040a130c5a65726f53534c20476d62483120301e060355040313175a65726f53534c205253412044562053534c2043412032308201a2300d06092a864886f70d01010105000382018f003082018a0282018100a75d7dd09bf1beba3ca5bd8224849e77659ed7334def5d8d37b029cef555a3c0cb15d2a090325be1b91889c2b9b83398e019e871222091d6a4f40322f6ac74d6251d3bbe3273b8d9a9eeea0abb71cac22c4193d42e5c3e5a9623bcfc40dbcdd643706fc79b9a4298e7aeb0bb5db3f504fc8ab6e27c395a9720644e4bcbe17fc82603b846bb8572c900f33949e70921b946d4e437ba43251c73416c3c41a46593c83b9d7740d379dd0d4e008fb35b7c4593e15bd1adffc9c3c055f4a50e1e1df3c407c73a78d976b11af601fa75604ada911fb9df2117d925dcd8acf47db4e551cf93a3450b19c26258dc99c23fff0d367e338c71b13d93aa34385dfbe6d84513ca6ad70eb8753e6ff0901a2ebbceb473a79e41f3652a571c5321ce49e282b4f216ade32f1f705e61d7aedc3c08f2579f9ff55485207605bcfb857deacf7a0c9ad4939968539e86f22a5c752f66ffa25a1aaa9cb570173f4222d148ea6d6063e366d5f4a51ad354a41778fdab3d4934cb9abfe34591a6e812947097e9a71e5a7b0203010001a382016f3082016b301f0603551d230418301680145673586495f9921ab0122a046279a14015882149301d0603551d0e041604144bbefa7684234404b9cebe316fe9f53206ff0c57300e0603551d0f0101ff04040302018630120603551d130101ff040830060101ff02010030130603551d25040c300a06082b0601050507030130130603551d20040c300a3008060667810c01020130540603551d1f044d304b3049a047a0458643687474703a2f2f63726c2e7365637469676f2e636f6d2f5365637469676f5075626c696353657276657241757468656e7469636174696f6e526f6f745234362e63726c30818406082b0601050507010104783076304f06082b060105050730028643687474703a2f2f6372742e7365637469676f2e636f6d2f5365637469676f5075626c696353657276657241757468656e7469636174696f6e526f6f745234362e703763302306082b060105050730018617687474703a2f2f6f6373702e7365637469676f2e636f6d300d06092a864886f70d01010c0500038202010089ff7bf6fef75ec47b1d5725cbf5a093404d35617976dfceba4d533f2e0469456fa49de6575d9c4fd21cb81a7be5a947314eaf7b07aa8f750710c50c691a77bb0919f49d66aecea89e31c273625ddf0c2d90fc03723e1cab6f0088cf1f44b11ae07e3bee24269432d95f6292aa0546223ce08f00dd0776b2c3e6153aa15d6dbd656c5334c0e37b240b7b87c1033960f224d0d0c9170dcd8503ce20ec1bab4f53f92612119bec277b78b00e07de0874dd111335a0304dc4cd4bffaed6d01e41465998a4322d660bca8c6f6c84a9fcc16bf71aa10eaae902ead854d7a22c9e7ee3f5993e6976d323598dcc5528aa9161d12eae5f2b988dada029c20d68847130efa181adcfad1e608b7b549203e03ac28d3c405935a1d93e5a836a4aaf23491adf011462ed8de0fbef84b10059f930660156f10ae0b5e60a3557efca5bebfd0371ea3bd5d95050aebcc9fb5bfb24deca8aa3c209362fcbcd4ab923e944e4befa9748e345b9553b6ef0b43bff5b8b931706fed0522bcc3710ec4ed6932193bb3ec4824662eb69033610f0606cd2fd951484622e078fe362713fdef3ba5b86ff3c934a1e73dc4672791cbd9a4db09073efc9a465f7852088e1d367b6cbd91efc5ab0d456dd847b54da6c9a1675f4b11c862e623fbf35d2c32bd3f8ac655b1f0557ae33d8f05dc1dd2f5d1680317a26182d0cd6f41ae5f0439f87629b37b0b128a985), CertificateDer(0x308206953082047da003020102021100d27fbbc1de359e5216ad6149586099c4300d06092a864886f70d01010c0500308188310b3009060355040613025553311330110603550408130a4e6577204a6572736579311430120603550407130b4a65727365792043697479311e301c060355040a131554686520555345525452555354204e6574776f726b312e302c06035504031325555345525472757374205253412043657274696669636174696f6e20417574686f72697479301e170d3231303332323030303030305a170d3338303131383233353935395a305f310b300906035504061302474231183016060355040a130f5365637469676f204c696d69746564313630340603550403132d5365637469676f205075626c6963205365727665722041757468656e7469636174696f6e20526f6f742052343630820222300d06092a864886f70d01010105000382020f003082020a028202010093bed5365275d80123a01c474249ee63b6b721fdc495d5482b267c145310da79fd2bb72da4d42cfaea32dd49c2b9bd0f483d7b5a9854af9e5d31744f07fc5021dda4cf684f1b12636d25994c2a99f3483061fa817c1ea7084adc3e2b1c1f184c71aa358cadf86ee83b4ad9e59402d6898413aa6dc84f33cc5096379233dc5f88e79f54d948f09843d666fd9f173843c501510bd7e3230f145d5b14e74bbeddf4c8da0337d1d639a121513083b06dd7304e965b91f07024abbf458164430dbd213a2f3ce99e0dcb20b54227ccda6f9bee64309039cd9365812131b52350333722e338edf83130cc45fe62f9d15d32794287df6acc5619404dceaabbf9b5764994f127f891a583e506b3630e80dce0125580a63b66b439872dc8f0d0d114e9e40d4d0ef65d5772c53b1c47569de2d5fb81618ccc4d8090345bb7d71475dcd804489fc0c12888b4e91ccaa7b1f156b77b494c59e52015a8840229fa3894699a49068fcd1f791417120c837ade1fb197eef9977828a4c84492e97d2605a658729b7913d8115faec538623468b286308ef890619e326cf50736cda24c6eec8a36edf2e699154470c37cbc9c39c0b4e16bf783252357d91280e549f0750fef8deb1c9b5428b4213cfc7c0affef7b6b75ff8b1da01905abfaf82b8142e838babbfbaafd3de0f3cadf4e979729edf31856e9a596acbdc39098b2e0f9a2d4a647437c6dcf0203010001a38201203082011c301f0603551d230418301680145379bf5aaa2b4acf5480e1d89bc09df2b20366cb301d0603551d0e041604145673586495f9921ab0122a046279a14015882149300e0603551d0f0101ff040403020186300f0603551d130101ff040530030101ff301d0603551d250416301406082b0601050507030106082b0601050507030230110603551d20040a300830060604551d200030500603551d1f044930473045a043a041863f687474703a2f2f63726c2e7573657274727573742e636f6d2f55534552547275737452534143657274696669636174696f6e417574686f726974792e63726c303506082b0601050507010104293027302506082b060105050730018619687474703a2f2f6f6373702e7573657274727573742e636f6d300d06092a864886f70d01010c050003820201003a6f04896aedb314d1c1434fff4ff7e06c802911810b344ba05feef252956307c1bcb4546bf1092d21adb8b42b60483596c46ec56c82942ad38e37d72ca8567dc795da2b82adb84657510ce3a2a446434c507dc02f4762dd6d847174d17786d82f0a0b5a65c281332802213ef79f23f0b7713d027d35c9b858d46ca2204b08cd8f0e981ed2e0a32fe1779f892d494b728fe0cc55ffa966d3eed12ab8e318a6c34a5998fc4cba8fabaccc886e0d6ba7de119b5ee983d71ab31695358ddf8d6f0de75cfb2c50a92ba0efd1c951070e66cecac835b3b6669e431b0f138f5457ff17c2b7d9b59698cabb381690fde19e10f1dcd718bf3ea84263c607336bb5ba3d139a0a5b9b6af77554a3e6f3e6825bbeeeed2c694764c518bea43ddc6c2b21628e972e9d1e55efdb14c9139f35dce3ac07055995caf2c6dbf45967c2e546ebbec92eff995535f90312ef5b9381e33b79b92fb307adb027f5affa35c602db5201c25e73888580258746f762fe32684b344b6b79c4cf1ea9148cdc9520a7874bb5c4278b714072a5288f81af16fba3e4ba8c90abc53daacf44a311b936faef972b21c144bdcaf719446c3b2e3971e23247fc18483d1f242010908f5be76bd4f38993abc3539ff210d46c72851bd3e6f03a76bdb8f3ff6247dfdaafc6c84f29596519fabee6494f9bbc994546138823006eac0d74bfe7b2a1764679f2a79f17452b49)])
+[2026-06-30 23:21:14 TRACE] Server cert is CertificateChain([CertificateDer(0x3082058b308203f3a003020102021100eb45a2d6bfc61a153a2c439b880b1663300d06092a864886f70d01010b05003046310b300906035504061302415431153013060355040a130c5a65726f53534c20476d62483120301e060355040313175a65726f53534c205253412044562053534c2043412032301e170d3236303532353030303030305a170d3236303832333233353935395a30133111300f060355040313086d61612e706c757330820122300d06092a864886f70d01010105000382010f003082010a0282010100a270a26a34e69d9e035e4db7613604de0907ef08fa16e5903bf5e5e8c77135bb675cea7438435c52ad1778705aabb74948f146eeb41ff77db2866a6b28bccc47afe52b27e0f14aec5b4c4743002098a18ef546ed7f293170095c91a9ae1ec8c055f9bb9e6209a4bf0e9364a69f33e305686650f93d1028ac7b661da6e2fb1ab9c9b95fcd77c6f869316479a1565db7f7c609c3740a57f87902c61675c2dc6b8a69e91217e5c9b50af734e21a94c13d84d5d97a43a2eb2431c3f323c0edc4281952bf2478810bc1ecfc3145cb5c24169378a0e98c231bddc3bd49ad9f9fb1aeeabfbbd0a164b723684aed0605abfa1c58ab585e8d23a25786122049fed4b1da790203010001a382022530820221301f0603551d230418301680144bbefa7684234404b9cebe316fe9f53206ff0c57301d0603551d0e0416041486addf7d584d5448a771a3892ff89369d82ddda8300e0603551d0f0101ff0404030205a0300c0603551d130101ff0402300030130603551d25040c300a06082b0601050507030130130603551d20040c300a3008060667810c010201306e06082b0601050507010104623060303906082b06010505073002862d687474703a2f2f6372742e7365637469676f2e636f6d2f5a65726f53534c525341445653534c4341322e637274302306082b060105050730018617687474703a2f2f6f6373702e7365637469676f2e636f6d30820104060a2b06010401d6790204020481f50481f200f0007600d76d7d10d1a7f577c2c7e95fd700bff982c9335a65e1d0b3017317c0c8c569770000019e5c80f2cf0000040300473045022100b3af2af4c3deb523c2a572c08540db058b1e7af93ccd6a6ad6bd7912124a00c602206005c6ee993a9e1e16ca1e1d3553a1ddb2a4e59d09b861552f551e0a2868164e007600c8a3c47fc7b3adb9356b013f6a7a126de33a4e43a5c646f997ad3975991dcf9a0000019e5c80f377000004030047304502206028797bab421f18a0455efa3d3442a25aa16a94c45a29fda859acc0e43bd9d9022100c63ffdcf99203fa21a81f6c45c5210d03d84ecba6f4b7453f4746a57bdd795a2301f0603551d110418301682086d61612e706c7573820a2a2e6d61612e706c7573300d06092a864886f70d01010b050003820181002d7bbf88e2141d534b4a1b4ea0f850d30de74b5009d6c9cced0693cc8b210c82b5c1d855a178f82d795b8257413906118d8e373d059ca7b9ca1c606ee244e39220a4329b5238aec29c1976440699d346f51b48b6125f279156a16d75b8ff12d2b580184007b629b4568a1984f1ca9ed5814968bb1cbc6bdd79ccab8d7532c655bb5ddd05fdbf1b390cf182d4069a6aeff332b1fdd6721f239f8680fc27756ec1fcdf438195ea511e10b3da40edd0d8d340b13309f396de60d7dad719b1e2d12d8dd2d1bd4d53b7a4a6aa7b22823e496a34d53e71bc8c8826379dee76ec3767de0ea173766c6e532f63929e4050b25724095471b3c0cfe2424c9ec8953b2a2d1cf186df729542281cd6effb6a5f8772aed3c825ccb04625fc8cf8f6f94d027369ab4ea6de4d509502d65228624fcce87d64e2b2e6852ddf4835b67dc9d2c1dd8c25cc34fdc79ca736edb6471302d252186456deb2efdba2eed6d629a93cfb4dcfe366bb2e1eb870760932f664ba3cda0a55d0341c99704b49a1142d10d26fb3aa), CertificateDer(0x3082062130820409a003020102021100d0a908255f8e50e5f3396d1114702a37300d06092a864886f70d01010c0500305f310b300906035504061302474231183016060355040a130f5365637469676f204c696d69746564313630340603550403132d5365637469676f205075626c6963205365727665722041757468656e7469636174696f6e20526f6f7420523436301e170d3235303932343030303030305a170d3335303932333233353935395a3046310b300906035504061302415431153013060355040a130c5a65726f53534c20476d62483120301e060355040313175a65726f53534c205253412044562053534c2043412032308201a2300d06092a864886f70d01010105000382018f003082018a0282018100a75d7dd09bf1beba3ca5bd8224849e77659ed7334def5d8d37b029cef555a3c0cb15d2a090325be1b91889c2b9b83398e019e871222091d6a4f40322f6ac74d6251d3bbe3273b8d9a9eeea0abb71cac22c4193d42e5c3e5a9623bcfc40dbcdd643706fc79b9a4298e7aeb0bb5db3f504fc8ab6e27c395a9720644e4bcbe17fc82603b846bb8572c900f33949e70921b946d4e437ba43251c73416c3c41a46593c83b9d7740d379dd0d4e008fb35b7c4593e15bd1adffc9c3c055f4a50e1e1df3c407c73a78d976b11af601fa75604ada911fb9df2117d925dcd8acf47db4e551cf93a3450b19c26258dc99c23fff0d367e338c71b13d93aa34385dfbe6d84513ca6ad70eb8753e6ff0901a2ebbceb473a79e41f3652a571c5321ce49e282b4f216ade32f1f705e61d7aedc3c08f2579f9ff55485207605bcfb857deacf7a0c9ad4939968539e86f22a5c752f66ffa25a1aaa9cb570173f4222d148ea6d6063e366d5f4a51ad354a41778fdab3d4934cb9abfe34591a6e812947097e9a71e5a7b0203010001a382016f3082016b301f0603551d230418301680145673586495f9921ab0122a046279a14015882149301d0603551d0e041604144bbefa7684234404b9cebe316fe9f53206ff0c57300e0603551d0f0101ff04040302018630120603551d130101ff040830060101ff02010030130603551d25040c300a06082b0601050507030130130603551d20040c300a3008060667810c01020130540603551d1f044d304b3049a047a0458643687474703a2f2f63726c2e7365637469676f2e636f6d2f5365637469676f5075626c696353657276657241757468656e7469636174696f6e526f6f745234362e63726c30818406082b0601050507010104783076304f06082b060105050730028643687474703a2f2f6372742e7365637469676f2e636f6d2f5365637469676f5075626c696353657276657241757468656e7469636174696f6e526f6f745234362e703763302306082b060105050730018617687474703a2f2f6f6373702e7365637469676f2e636f6d300d06092a864886f70d01010c0500038202010089ff7bf6fef75ec47b1d5725cbf5a093404d35617976dfceba4d533f2e0469456fa49de6575d9c4fd21cb81a7be5a947314eaf7b07aa8f750710c50c691a77bb0919f49d66aecea89e31c273625ddf0c2d90fc03723e1cab6f0088cf1f44b11ae07e3bee24269432d95f6292aa0546223ce08f00dd0776b2c3e6153aa15d6dbd656c5334c0e37b240b7b87c1033960f224d0d0c9170dcd8503ce20ec1bab4f53f92612119bec277b78b00e07de0874dd111335a0304dc4cd4bffaed6d01e41465998a4322d660bca8c6f6c84a9fcc16bf71aa10eaae902ead854d7a22c9e7ee3f5993e6976d323598dcc5528aa9161d12eae5f2b988dada029c20d68847130efa181adcfad1e608b7b549203e03ac28d3c405935a1d93e5a836a4aaf23491adf011462ed8de0fbef84b10059f930660156f10ae0b5e60a3557efca5bebfd0371ea3bd5d95050aebcc9fb5bfb24deca8aa3c209362fcbcd4ab923e944e4befa9748e345b9553b6ef0b43bff5b8b931706fed0522bcc3710ec4ed6932193bb3ec4824662eb69033610f0606cd2fd951484622e078fe362713fdef3ba5b86ff3c934a1e73dc4672791cbd9a4db09073efc9a465f7852088e1d367b6cbd91efc5ab0d456dd847b54da6c9a1675f4b11c862e623fbf35d2c32bd3f8ac655b1f0557ae33d8f05dc1dd2f5d1680317a26182d0cd6f41ae5f0439f87629b37b0b128a985), CertificateDer(0x308206953082047da003020102021100d27fbbc1de359e5216ad6149586099c4300d06092a864886f70d01010c0500308188310b3009060355040613025553311330110603550408130a4e6577204a6572736579311430120603550407130b4a65727365792043697479311e301c060355040a131554686520555345525452555354204e6574776f726b312e302c06035504031325555345525472757374205253412043657274696669636174696f6e20417574686f72697479301e170d3231303332323030303030305a170d3338303131383233353935395a305f310b300906035504061302474231183016060355040a130f5365637469676f204c696d69746564313630340603550403132d5365637469676f205075626c6963205365727665722041757468656e7469636174696f6e20526f6f742052343630820222300d06092a864886f70d01010105000382020f003082020a028202010093bed5365275d80123a01c474249ee63b6b721fdc495d5482b267c145310da79fd2bb72da4d42cfaea32dd49c2b9bd0f483d7b5a9854af9e5d31744f07fc5021dda4cf684f1b12636d25994c2a99f3483061fa817c1ea7084adc3e2b1c1f184c71aa358cadf86ee83b4ad9e59402d6898413aa6dc84f33cc5096379233dc5f88e79f54d948f09843d666fd9f173843c501510bd7e3230f145d5b14e74bbeddf4c8da0337d1d639a121513083b06dd7304e965b91f07024abbf458164430dbd213a2f3ce99e0dcb20b54227ccda6f9bee64309039cd9365812131b52350333722e338edf83130cc45fe62f9d15d32794287df6acc5619404dceaabbf9b5764994f127f891a583e506b3630e80dce0125580a63b66b439872dc8f0d0d114e9e40d4d0ef65d5772c53b1c47569de2d5fb81618ccc4d8090345bb7d71475dcd804489fc0c12888b4e91ccaa7b1f156b77b494c59e52015a8840229fa3894699a49068fcd1f791417120c837ade1fb197eef9977828a4c84492e97d2605a658729b7913d8115faec538623468b286308ef890619e326cf50736cda24c6eec8a36edf2e699154470c37cbc9c39c0b4e16bf783252357d91280e549f0750fef8deb1c9b5428b4213cfc7c0affef7b6b75ff8b1da01905abfaf82b8142e838babbfbaafd3de0f3cadf4e979729edf31856e9a596acbdc39098b2e0f9a2d4a647437c6dcf0203010001a38201203082011c301f0603551d230418301680145379bf5aaa2b4acf5480e1d89bc09df2b20366cb301d0603551d0e041604145673586495f9921ab0122a046279a14015882149300e0603551d0f0101ff040403020186300f0603551d130101ff040530030101ff301d0603551d250416301406082b0601050507030106082b0601050507030230110603551d20040a300830060604551d200030500603551d1f044930473045a043a041863f687474703a2f2f63726c2e7573657274727573742e636f6d2f55534552547275737452534143657274696669636174696f6e417574686f726974792e63726c303506082b0601050507010104293027302506082b060105050730018619687474703a2f2f6f6373702e7573657274727573742e636f6d300d06092a864886f70d01010c050003820201003a6f04896aedb314d1c1434fff4ff7e06c802911810b344ba05feef252956307c1bcb4546bf1092d21adb8b42b60483596c46ec56c82942ad38e37d72ca8567dc795da2b82adb84657510ce3a2a446434c507dc02f4762dd6d847174d17786d82f0a0b5a65c281332802213ef79f23f0b7713d027d35c9b858d46ca2204b08cd8f0e981ed2e0a32fe1779f892d494b728fe0cc55ffa966d3eed12ab8e318a6c34a5998fc4cba8fabaccc886e0d6ba7de119b5ee983d71ab31695358ddf8d6f0de75cfb2c50a92ba0efd1c951070e66cecac835b3b6669e431b0f138f5457ff17c2b7d9b59698cabb381690fde19e10f1dcd718bf3ea84263c607336bb5ba3d139a0a5b9b6af77554a3e6f3e6825bbeeeed2c694764c518bea43ddc6c2b21628e972e9d1e55efdb14c9139f35dce3ac07055995caf2c6dbf45967c2e546ebbec92eff995535f90312ef5b9381e33b79b92fb307adb027f5affa35c602db5201c25e73888580258746f762fe32684b344b6b79c4cf1ea9148cdc9520a7874bb5c4278b714072a5288f81af16fba3e4ba8c90abc53daacf44a311b936faef972b21c144bdcaf719446c3b2e3971e23247fc18483d1f242010908f5be76bd4f38993abc3539ff210d46c72851bd3e6f03a76bdb8f3ff6247dfdaafc6c84f29596519fabee6494f9bbc994546138823006eac0d74bfe7b2a1764679f2a79f17452b49)])
+[2026-06-30 23:21:14 TRACE] Unvalidated OCSP response: [48, 130, 2, 84, 10, 1, 0, 160, 130, 2, 77, 48, 130, 2, 73, 6, 9, 43, 6, 1, 5, 5, 7, 48, 1, 1, 4, 130, 2, 58, 48, 130, 2, 54, 48, 129, 159, 162, 22, 4, 20, 75, 190, 250, 118, 132, 35, 68, 4, 185, 206, 190, 49, 111, 233, 245, 50, 6, 255, 12, 87, 24, 15, 50, 48, 50, 54, 48, 54, 50, 56, 48, 50, 49, 50, 50, 49, 90, 48, 116, 48, 114, 48, 74, 48, 9, 6, 5, 43, 14, 3, 2, 26, 5, 0, 4, 20, 71, 22, 6, 248, 107, 253, 87, 117, 45, 32, 139, 130, 76, 199, 76, 209, 98, 202, 129, 100, 4, 20, 75, 190, 250, 118, 132, 35, 68, 4, 185, 206, 190, 49, 111, 233, 245, 50, 6, 255, 12, 87, 2, 17, 0, 235, 69, 162, 214, 191, 198, 26, 21, 58, 44, 67, 155, 136, 11, 22, 99, 128, 0, 24, 15, 50, 48, 50, 54, 48, 54, 50, 56, 48, 50, 49, 50, 50, 49, 90, 160, 17, 24, 15, 50, 48, 50, 54, 48, 55, 48, 53, 48, 50, 49, 50, 50, 48, 90, 48, 13, 6, 9, 42, 134, 72, 134, 247, 13, 1, 1, 11, 5, 0, 3, 130, 1, 129, 0, 65, 189, 239, 182, 85, 41, 252, 78, 205, 240, 124, 113, 0, 150, 174, 218, 42, 81, 19, 100, 221, 99, 239, 251, 88, 100, 114, 121, 17, 147, 27, 161, 47, 178, 227, 156, 206, 157, 230, 44, 11, 101, 151, 38, 9, 215, 227, 238, 188, 65, 4, 107, 114, 163, 167, 231, 52, 114, 66, 101, 146, 30, 60, 80, 242, 114, 253, 254, 163, 81, 21, 90, 168, 100, 17, 220, 9, 140, 157, 90, 43, 166, 153, 8, 212, 119, 253, 43, 215, 6, 25, 242, 203, 62, 65, 165, 171, 33, 158, 41, 30, 20, 115, 183, 46, 168, 150, 215, 151, 172, 177, 173, 182, 196, 130, 73, 232, 180, 88, 231, 139, 206, 28, 33, 134, 83, 19, 94, 90, 163, 154, 85, 129, 65, 92, 63, 246, 249, 215, 23, 148, 68, 86, 42, 212, 93, 136, 145, 119, 123, 130, 170, 162, 239, 149, 146, 165, 48, 48, 80, 94, 36, 136, 83, 99, 178, 132, 152, 101, 116, 126, 98, 16, 121, 49, 94, 54, 154, 178, 1, 165, 161, 230, 178, 56, 239, 194, 93, 249, 128, 22, 32, 153, 73, 142, 194, 5, 22, 3, 147, 107, 84, 195, 186, 138, 236, 211, 179, 129, 160, 228, 157, 5, 214, 194, 167, 168, 169, 113, 170, 112, 154, 188, 222, 139, 13, 248, 134, 10, 246, 104, 131, 182, 230, 157, 0, 85, 196, 221, 211, 190, 128, 166, 123, 128, 51, 5, 45, 201, 161, 232, 157, 130, 149, 177, 180, 90, 239, 145, 157, 23, 90, 174, 145, 213, 140, 120, 36, 90, 172, 181, 253, 123, 85, 195, 71, 29, 191, 49, 165, 224, 248, 96, 86, 40, 192, 78, 39, 55, 149, 37, 75, 200, 108, 221, 73, 166, 89, 176, 130, 220, 205, 61, 254, 195, 96, 62, 214, 178, 255, 106, 207, 252, 203, 79, 213, 74, 172, 16, 92, 47, 84, 72, 171, 111, 113, 183, 170, 36, 149, 183, 156, 31, 126, 50, 251, 13, 213, 214, 165, 91, 82, 69, 37, 208, 7, 40, 125, 166, 228, 217, 193, 134, 189, 119, 166, 170, 93, 8, 176, 185, 108, 103, 177, 115, 70, 92, 161, 45, 36, 173, 115, 63, 28, 125, 71, 57, 63, 173, 203, 236, 229, 154, 88]
+[2026-06-30 23:21:14 DEBUG] Call<RecvResponse>
+[2026-06-30 23:21:14 TRACE] Unvalidated OCSP response: [48, 130, 2, 84, 10, 1, 0, 160, 130, 2, 77, 48, 130, 2, 73, 6, 9, 43, 6, 1, 5, 5, 7, 48, 1, 1, 4, 130, 2, 58, 48, 130, 2, 54, 48, 129, 159, 162, 22, 4, 20, 75, 190, 250, 118, 132, 35, 68, 4, 185, 206, 190, 49, 111, 233, 245, 50, 6, 255, 12, 87, 24, 15, 50, 48, 50, 54, 48, 54, 50, 56, 48, 50, 49, 50, 50, 49, 90, 48, 116, 48, 114, 48, 74, 48, 9, 6, 5, 43, 14, 3, 2, 26, 5, 0, 4, 20, 71, 22, 6, 248, 107, 253, 87, 117, 45, 32, 139, 130, 76, 199, 76, 209, 98, 202, 129, 100, 4, 20, 75, 190, 250, 118, 132, 35, 68, 4, 185, 206, 190, 49, 111, 233, 245, 50, 6, 255, 12, 87, 2, 17, 0, 235, 69, 162, 214, 191, 198, 26, 21, 58, 44, 67, 155, 136, 11, 22, 99, 128, 0, 24, 15, 50, 48, 50, 54, 48, 54, 50, 56, 48, 50, 49, 50, 50, 49, 90, 160, 17, 24, 15, 50, 48, 50, 54, 48, 55, 48, 53, 48, 50, 49, 50, 50, 48, 90, 48, 13, 6, 9, 42, 134, 72, 134, 247, 13, 1, 1, 11, 5, 0, 3, 130, 1, 129, 0, 65, 189, 239, 182, 85, 41, 252, 78, 205, 240, 124, 113, 0, 150, 174, 218, 42, 81, 19, 100, 221, 99, 239, 251, 88, 100, 114, 121, 17, 147, 27, 161, 47, 178, 227, 156, 206, 157, 230, 44, 11, 101, 151, 38, 9, 215, 227, 238, 188, 65, 4, 107, 114, 163, 167, 231, 52, 114, 66, 101, 146, 30, 60, 80, 242, 114, 253, 254, 163, 81, 21, 90, 168, 100, 17, 220, 9, 140, 157, 90, 43, 166, 153, 8, 212, 119, 253, 43, 215, 6, 25, 242, 203, 62, 65, 165, 171, 33, 158, 41, 30, 20, 115, 183, 46, 168, 150, 215, 151, 172, 177, 173, 182, 196, 130, 73, 232, 180, 88, 231, 139, 206, 28, 33, 134, 83, 19, 94, 90, 163, 154, 85, 129, 65, 92, 63, 246, 249, 215, 23, 148, 68, 86, 42, 212, 93, 136, 145, 119, 123, 130, 170, 162, 239, 149, 146, 165, 48, 48, 80, 94, 36, 136, 83, 99, 178, 132, 152, 101, 116, 126, 98, 16, 121, 49, 94, 54, 154, 178, 1, 165, 161, 230, 178, 56, 239, 194, 93, 249, 128, 22, 32, 153, 73, 142, 194, 5, 22, 3, 147, 107, 84, 195, 186, 138, 236, 211, 179, 129, 160, 228, 157, 5, 214, 194, 167, 168, 169, 113, 170, 112, 154, 188, 222, 139, 13, 248, 134, 10, 246, 104, 131, 182, 230, 157, 0, 85, 196, 221, 211, 190, 128, 166, 123, 128, 51, 5, 45, 201, 161, 232, 157, 130, 149, 177, 180, 90, 239, 145, 157, 23, 90, 174, 145, 213, 140, 120, 36, 90, 172, 181, 253, 123, 85, 195, 71, 29, 191, 49, 165, 224, 248, 96, 86, 40, 192, 78, 39, 55, 149, 37, 75, 200, 108, 221, 73, 166, 89, 176, 130, 220, 205, 61, 254, 195, 96, 62, 214, 178, 255, 106, 207, 252, 203, 79, 213, 74, 172, 16, 92, 47, 84, 72, 171, 111, 113, 183, 170, 36, 149, 183, 156, 31, 126, 50, 251, 13, 213, 214, 165, 91, 82, 69, 37, 208, 7, 40, 125, 166, 228, 217, 193, 134, 189, 119, 166, 170, 93, 8, 176, 185, 108, 103, 177, 115, 70, 92, 161, 45, 36, 173, 115, 63, 28, 125, 71, 57, 63, 173, 203, 236, 229, 154, 88]
+[2026-06-30 23:21:14 DEBUG] Call<RecvResponse>
+[2026-06-30 23:21:14 TRACE] 4854 5450 2f31 2e31 2033 3034 204e 6f74  HTTP/1.1.304.Not
+[2026-06-30 23:21:14 TRACE] 204d 6f64 6966 6965 640d 0a44 6174 653a  .Modified..Date:
+[2026-06-30 23:21:14 TRACE] 2054 7565 2c20 3330 204a 756e 2032 3032  .Tue,.30.Jun.202
+[2026-06-30 23:21:14 TRACE] 3620 3233 3a32 313a 3134 2047 4d54 0d0a  6.23:21:14.GMT..
+[2026-06-30 23:21:14 TRACE] 436f 6e6e 6563 7469 6f6e 3a20 6b65 6570  Connection:.keep
+[2026-06-30 23:21:14 TRACE] 2d61 6c69 7665 0d0a 5374 7269 6374 2d54  -alive..Strict-T
+[2026-06-30 23:21:14 TRACE] 7261 6e73 706f 7274 2d53 6563 7572 6974  ransport-Securit
+[2026-06-30 23:21:14 TRACE] 793a 206d 6178 2d61 6765 3d33 3135 3336  y:.max-age=31536
+[2026-06-30 23:21:14 TRACE] 3030 300d 0a4c 6173 742d 4d6f 6469 6669  000..Last-Modifi
+[2026-06-30 23:21:14 TRACE] 6564 3a20 5765 642c 2032 3420 4a75 6e20  ed:.Wed,.24.Jun.
+[2026-06-30 23:21:14 TRACE] 3230 3236 2031 313a 3139 3a32 3920 474d  2026.11:19:29.GM
+[2026-06-30 23:21:14 TRACE] 540d 0a56 6172 793a 2041 6363 6570 742d  T..Vary:.Accept-
+[2026-06-30 23:21:14 TRACE] 456e 636f 6469 6e67 0d0a 4554 6167 3a20  Encoding..ETag:.
+[2026-06-30 23:21:14 TRACE] 572f 2236 6133 6262 6434 312d 3538 3322  W/"6a3bbd41-583"
+[2026-06-30 23:21:14 TRACE] 0d0a 4163 6365 7373 2d43 6f6e 7472 6f6c  ..Access-Control
+[2026-06-30 23:21:14 TRACE] 2d41 6c6c 6f77 2d4f 7269 6769 6e3a 202a  -Allow-Origin:.*
+[2026-06-30 23:21:14 TRACE] 0d0a 5365 7276 6572 3a20 5741 4650 524f  ..Server:.WAFPRO
+[2026-06-30 23:21:14 TRACE] 0d0a 582d 4361 6368 652d 5374 6174 7573  ..X-Cache-Status
+[2026-06-30 23:21:14 TRACE] 3a20 4849 5420 6672 6f6d 204c 313a 3534  :.HIT.from.L1:54
+[2026-06-30 23:21:14 TRACE] 0d0a 5669 613a 204c 313a 3534 0d0a 0d0a  ..Via:.L1:54....
+[2026-06-30 23:21:14 DEBUG] Call<Cleanup>
+[2026-06-30 23:21:14 DEBUG] Response { status: 304, version: HTTP/1.1, headers: {"date": "Tue, 30 Jun 2026 23:21:14 GMT", "connection": "keep-alive", "server": "WAFPRO", "<NOTICE>": "7 HEADERS ARE REDACTED"} }
+[2026-06-30 23:21:14 DEBUG] Return to pool: PoolKey { scheme: "https", authority: api.maa.plus, proxy: None }
+[2026-06-30 23:21:14 TRACE] File /root/Linux_maa/runtime/maa/cache/maa/resource/global/YoStarJP/resource/tasks/tasks.json is up to date
+[2026-06-30 23:21:14 TRACE] Touched /root/Linux_maa/runtime/maa/cache/maa/resource/global/YoStarJP/resource/tasks/tasks.json
+[2026-06-30 23:21:14 TRACE] 4854 5450 2f31 2e31 2033 3034 204e 6f74  HTTP/1.1.304.Not
+[2026-06-30 23:21:14 TRACE] 204d 6f64 6966 6965 640d 0a44 6174 653a  .Modified..Date:
+[2026-06-30 23:21:14 TRACE] 2054 7565 2c20 3330 204a 756e 2032 3032  .Tue,.30.Jun.202
+[2026-06-30 23:21:14 TRACE] 3620 3233 3a32 313a 3134 2047 4d54 0d0a  6.23:21:14.GMT..
+[2026-06-30 23:21:14 TRACE] 436f 6e6e 6563 7469 6f6e 3a20 6b65 6570  Connection:.keep
+[2026-06-30 23:21:14 TRACE] 2d61 6c69 7665 0d0a 5374 7269 6374 2d54  -alive..Strict-T
+[2026-06-30 23:21:14 TRACE] 7261 6e73 706f 7274 2d53 6563 7572 6974  ransport-Securit
+[2026-06-30 23:21:14 TRACE] 793a 206d 6178 2d61 6765 3d33 3135 3336  y:.max-age=31536
+[2026-06-30 23:21:14 TRACE] 3030 300d 0a4c 6173 742d 4d6f 6469 6669  000..Last-Modifi
+[2026-06-30 23:21:14 TRACE] 6564 3a20 4672 692c 2032 3620 4a75 6e20  ed:.Fri,.26.Jun.
+[2026-06-30 23:21:14 TRACE] 3230 3236 2031 303a 3337 3a31 3420 474d  2026.10:37:14.GM
+[2026-06-30 23:21:14 TRACE] 540d 0a56 6172 793a 2041 6363 6570 742d  T..Vary:.Accept-
+[2026-06-30 23:21:14 TRACE] 456e 636f 6469 6e67 0d0a 4554 6167 3a20  Encoding..ETag:.
+[2026-06-30 23:21:14 TRACE] 572f 2236 6133 6535 3635 612d 3236 3461  W/"6a3e565a-264a
+[2026-06-30 23:21:14 TRACE] 220d 0a41 6363 6573 732d 436f 6e74 726f  "..Access-Contro
+[2026-06-30 23:21:14 TRACE] 6c2d 416c 6c6f 772d 4f72 6967 696e 3a20  l-Allow-Origin:.
+[2026-06-30 23:21:14 TRACE] 2a0d 0a53 6572 7665 723a 2057 4146 5052  *..Server:.WAFPR
+[2026-06-30 23:21:14 TRACE] 4f0d 0a58 2d43 6163 6865 2d53 7461 7475  O..X-Cache-Statu
+[2026-06-30 23:21:14 TRACE] 733a 2048 4954 2066 726f 6d20 4c31 3a35  s:.HIT.from.L1:5
+[2026-06-30 23:21:14 TRACE] 340d 0a56 6961 3a20 4c31 3a35 340d 0a0d  4..Via:.L1:54...
+[2026-06-30 23:21:14 TRACE] 0a-- ---- ---- ---- ---- ---- ---- ----  ................
+[2026-06-30 23:21:14 DEBUG] Call<Cleanup>
+[2026-06-30 23:21:14 DEBUG] Response { status: 304, version: HTTP/1.1, headers: {"date": "Tue, 30 Jun 2026 23:21:14 GMT", "connection": "keep-alive", "server": "WAFPRO", "<NOTICE>": "7 HEADERS ARE REDACTED"} }
+[2026-06-30 23:21:14 DEBUG] Return to pool: PoolKey { scheme: "https", authority: api.maa.plus, proxy: None }
+[2026-06-30 23:21:14 TRACE] File /root/Linux_maa/runtime/maa/cache/maa/StageActivityV2.json is up to date
+[2026-06-30 23:21:14 TRACE] Touched /root/Linux_maa/runtime/maa/cache/maa/StageActivityV2.json
+[2026-06-30 23:21:14 TRACE] 4854 5450 2f31 2e31 2033 3034 204e 6f74  HTTP/1.1.304.Not
+[2026-06-30 23:21:14 TRACE] 204d 6f64 6966 6965 640d 0a44 6174 653a  .Modified..Date:
+[2026-06-30 23:21:14 TRACE] 4854 5450 2f31 2e31 2033 3034 204e 6f74  HTTP/1.1.304.Not
+[2026-06-30 23:21:14 TRACE] 204d 6f64 6966 6965 640d 0a44 6174 653a  .Modified..Date:
+[2026-06-30 23:21:14 TRACE] 2054 7565 2c20 3330 204a 756e 2032 3032  .Tue,.30.Jun.202
+[2026-06-30 23:21:14 TRACE] 3620 3233 3a32 313a 3134 2047 4d54 0d0a  6.23:21:14.GMT..
+[2026-06-30 23:21:14 TRACE] 2054 7565 2c20 3330 204a 756e 2032 3032  .Tue,.30.Jun.202
+[2026-06-30 23:21:14 TRACE] 3620 3233 3a32 313a 3134 2047 4d54 0d0a  6.23:21:14.GMT..
+[2026-06-30 23:21:14 TRACE] 436f 6e6e 6563 7469 6f6e 3a20 6b65 6570  Connection:.keep
+[2026-06-30 23:21:14 TRACE] 436f 6e6e 6563 7469 6f6e 3a20 6b65 6570  Connection:.keep
+[2026-06-30 23:21:14 TRACE] 2d61 6c69 7665 0d0a 5374 7269 6374 2d54  -alive..Strict-T
+[2026-06-30 23:21:14 TRACE] 2d61 6c69 7665 0d0a 5374 7269 6374 2d54  -alive..Strict-T
+[2026-06-30 23:21:14 TRACE] 7261 6e73 706f 7274 2d53 6563 7572 6974  ransport-Securit
+[2026-06-30 23:21:14 TRACE] 7261 6e73 706f 7274 2d53 6563 7572 6974  ransport-Securit
+[2026-06-30 23:21:14 TRACE] 793a 206d 6178 2d61 6765 3d33 3135 3336  y:.max-age=31536
+[2026-06-30 23:21:14 TRACE] 793a 206d 6178 2d61 6765 3d33 3135 3336  y:.max-age=31536
+[2026-06-30 23:21:14 TRACE] 3030 300d 0a4c 6173 742d 4d6f 6469 6669  000..Last-Modifi
+[2026-06-30 23:21:14 TRACE] 3030 300d 0a4c 6173 742d 4d6f 6469 6669  000..Last-Modifi
+[2026-06-30 23:21:14 TRACE] 6564 3a20 5765 642c 2032 3420 4a75 6e20  ed:.Wed,.24.Jun.
+[2026-06-30 23:21:14 TRACE] 6564 3a20 4d6f 6e2c 2031 3520 4a75 6e20  ed:.Mon,.15.Jun.
+[2026-06-30 23:21:14 TRACE] 3230 3236 2031 313a 3139 3a32 3920 474d  2026.11:19:29.GM
+[2026-06-30 23:21:14 TRACE] 3230 3236 2031 303a 3237 3a31 3820 474d  2026.10:27:18.GM
+[2026-06-30 23:21:14 TRACE] 540d 0a56 6172 793a 2041 6363 6570 742d  T..Vary:.Accept-
+[2026-06-30 23:21:14 TRACE] 540d 0a56 6172 793a 2041 6363 6570 742d  T..Vary:.Accept-
+[2026-06-30 23:21:14 TRACE] 456e 636f 6469 6e67 0d0a 4554 6167 3a20  Encoding..ETag:.
+[2026-06-30 23:21:14 TRACE] 456e 636f 6469 6e67 0d0a 4554 6167 3a20  Encoding..ETag:.
+[2026-06-30 23:21:14 TRACE] 572f 2236 6133 6262 6434 312d 3132 3922  W/"6a3bbd41-129"
+[2026-06-30 23:21:14 TRACE] 572f 2236 6132 6664 3338 362d 3339 6222  W/"6a2fd386-39b"
+[2026-06-30 23:21:14 TRACE] 0d0a 4163 6365 7373 2d43 6f6e 7472 6f6c  ..Access-Control
+[2026-06-30 23:21:14 TRACE] 0d0a 4163 6365 7373 2d43 6f6e 7472 6f6c  ..Access-Control
+[2026-06-30 23:21:14 TRACE] 2d41 6c6c 6f77 2d4f 7269 6769 6e3a 202a  -Allow-Origin:.*
+[2026-06-30 23:21:14 TRACE] 2d41 6c6c 6f77 2d4f 7269 6769 6e3a 202a  -Allow-Origin:.*
+[2026-06-30 23:21:14 TRACE] 0d0a 5365 7276 6572 3a20 5741 4650 524f  ..Server:.WAFPRO
+[2026-06-30 23:21:14 TRACE] 0d0a 5365 7276 6572 3a20 5741 4650 524f  ..Server:.WAFPRO
+[2026-06-30 23:21:14 TRACE] 0d0a 582d 4361 6368 652d 5374 6174 7573  ..X-Cache-Status
+[2026-06-30 23:21:14 TRACE] 0d0a 582d 4361 6368 652d 5374 6174 7573  ..X-Cache-Status
+[2026-06-30 23:21:14 TRACE] 3a20 4849 5420 6672 6f6d 204c 313a 3534  :.HIT.from.L1:54
+[2026-06-30 23:21:14 TRACE] 3a20 4849 5420 6672 6f6d 204c 313a 3534  :.HIT.from.L1:54
+[2026-06-30 23:21:14 TRACE] 0d0a 5669 613a 204c 313a 3534 0d0a 0d0a  ..Via:.L1:54....
+[2026-06-30 23:21:14 TRACE] 0d0a 5669 613a 204c 313a 3534 0d0a 0d0a  ..Via:.L1:54....
+[2026-06-30 23:21:14 DEBUG] Call<Cleanup>
+[2026-06-30 23:21:14 DEBUG] Call<Cleanup>
+[2026-06-30 23:21:14 DEBUG] Response { status: 304, version: HTTP/1.1, headers: {"date": "Tue, 30 Jun 2026 23:21:14 GMT", "connection": "keep-alive", "server": "WAFPRO", "<NOTICE>": "7 HEADERS ARE REDACTED"} }
+[2026-06-30 23:21:14 DEBUG] Response { status: 304, version: HTTP/1.1, headers: {"date": "Tue, 30 Jun 2026 23:21:14 GMT", "connection": "keep-alive", "server": "WAFPRO", "<NOTICE>": "7 HEADERS ARE REDACTED"} }
+[2026-06-30 23:21:14 DEBUG] Return to pool: PoolKey { scheme: "https", authority: api.maa.plus, proxy: None }
+[2026-06-30 23:21:14 DEBUG] Return to pool: PoolKey { scheme: "https", authority: api.maa.plus, proxy: None }
+[2026-06-30 23:21:14 TRACE] File /root/Linux_maa/runtime/maa/cache/maa/resource/global/YoStarKR/resource/tasks/tasks.json is up to date
+[2026-06-30 23:21:14 TRACE] Touched /root/Linux_maa/runtime/maa/cache/maa/resource/global/YoStarKR/resource/tasks/tasks.json
+[2026-06-30 23:21:14 TRACE] File /root/Linux_maa/runtime/maa/cache/maa/resource/tasks/tasks.json is up to date
+[2026-06-30 23:21:14 TRACE] Touched /root/Linux_maa/runtime/maa/cache/maa/resource/tasks/tasks.json
+[2026-06-30 23:21:15 TRACE] 4854 5450 2f31 2e31 2033 3034 204e 6f74  HTTP/1.1.304.Not
+[2026-06-30 23:21:15 TRACE] 204d 6f64 6966 6965 640d 0a44 6174 653a  .Modified..Date:
+[2026-06-30 23:21:15 TRACE] 2054 7565 2c20 3330 204a 756e 2032 3032  .Tue,.30.Jun.202
+[2026-06-30 23:21:15 TRACE] 3620 3233 3a32 313a 3134 2047 4d54 0d0a  6.23:21:14.GMT..
+[2026-06-30 23:21:15 TRACE] 436f 6e6e 6563 7469 6f6e 3a20 6b65 6570  Connection:.keep
+[2026-06-30 23:21:15 TRACE] 2d61 6c69 7665 0d0a 5374 7269 6374 2d54  -alive..Strict-T
+[2026-06-30 23:21:15 TRACE] 7261 6e73 706f 7274 2d53 6563 7572 6974  ransport-Securit
+[2026-06-30 23:21:15 TRACE] 793a 206d 6178 2d61 6765 3d33 3135 3336  y:.max-age=31536
+[2026-06-30 23:21:15 TRACE] 3030 300d 0a4c 6173 742d 4d6f 6469 6669  000..Last-Modifi
+[2026-06-30 23:21:15 TRACE] 6564 3a20 5765 642c 2032 3420 4a75 6e20  ed:.Wed,.24.Jun.
+[2026-06-30 23:21:15 TRACE] 3230 3236 2031 313a 3139 3a32 3920 474d  2026.11:19:29.GM
+[2026-06-30 23:21:15 TRACE] 540d 0a56 6172 793a 2041 6363 6570 742d  T..Vary:.Accept-
+[2026-06-30 23:21:15 TRACE] 456e 636f 6469 6e67 0d0a 4554 6167 3a20  Encoding..ETag:.
+[2026-06-30 23:21:15 TRACE] 572f 2236 6133 6262 6434 312d 3136 3922  W/"6a3bbd41-169"
+[2026-06-30 23:21:15 TRACE] 0d0a 4163 6365 7373 2d43 6f6e 7472 6f6c  ..Access-Control
+[2026-06-30 23:21:15 TRACE] 2d41 6c6c 6f77 2d4f 7269 6769 6e3a 202a  -Allow-Origin:.*
+[2026-06-30 23:21:15 TRACE] 0d0a 5365 7276 6572 3a20 5741 4650 524f  ..Server:.WAFPRO
+[2026-06-30 23:21:15 TRACE] 0d0a 582d 4361 6368 652d 5374 6174 7573  ..X-Cache-Status
+[2026-06-30 23:21:15 TRACE] 3a20 4849 5420 6672 6f6d 204c 313a 3534  :.HIT.from.L1:54
+[2026-06-30 23:21:15 TRACE] 0d0a 5669 613a 204c 313a 3534 0d0a 0d0a  ..Via:.L1:54....
+[2026-06-30 23:21:15 DEBUG] Call<Cleanup>
+[2026-06-30 23:21:15 DEBUG] Response { status: 304, version: HTTP/1.1, headers: {"date": "Tue, 30 Jun 2026 23:21:14 GMT", "connection": "keep-alive", "server": "WAFPRO", "<NOTICE>": "7 HEADERS ARE REDACTED"} }
+[2026-06-30 23:21:15 DEBUG] Return to pool: PoolKey { scheme: "https", authority: api.maa.plus, proxy: None }
+[2026-06-30 23:21:15 TRACE] File /root/Linux_maa/runtime/maa/cache/maa/resource/global/YoStarEN/resource/tasks/tasks.json is up to date
+[2026-06-30 23:21:15 TRACE] Touched /root/Linux_maa/runtime/maa/cache/maa/resource/global/YoStarEN/resource/tasks/tasks.json
+[2026-06-30 23:21:15 TRACE] 4854 5450 2f31 2e31 2033 3034 204e 6f74  HTTP/1.1.304.Not
+[2026-06-30 23:21:15 TRACE] 204d 6f64 6966 6965 640d 0a44 6174 653a  .Modified..Date:
+[2026-06-30 23:21:15 TRACE] 2054 7565 2c20 3330 204a 756e 2032 3032  .Tue,.30.Jun.202
+[2026-06-30 23:21:15 TRACE] 3620 3233 3a32 313a 3134 2047 4d54 0d0a  6.23:21:14.GMT..
+[2026-06-30 23:21:15 TRACE] 436f 6e6e 6563 7469 6f6e 3a20 6b65 6570  Connection:.keep
+[2026-06-30 23:21:15 TRACE] 2d61 6c69 7665 0d0a 5374 7269 6374 2d54  -alive..Strict-T
+[2026-06-30 23:21:15 TRACE] 7261 6e73 706f 7274 2d53 6563 7572 6974  ransport-Securit
+[2026-06-30 23:21:15 TRACE] 793a 206d 6178 2d61 6765 3d33 3135 3336  y:.max-age=31536
+[2026-06-30 23:21:15 TRACE] 3030 300d 0a4c 6173 742d 4d6f 6469 6669  000..Last-Modifi
+[2026-06-30 23:21:15 TRACE] 6564 3a20 5468 752c 2031 3520 4d61 7920  ed:.Thu,.15.May.
+[2026-06-30 23:21:15 TRACE] 3230 3235 2031 343a 3537 3a33 3520 474d  2025.14:57:35.GM
+[2026-06-30 23:21:15 TRACE] 540d 0a56 6172 793a 2041 6363 6570 742d  T..Vary:.Accept-
+[2026-06-30 23:21:15 TRACE] 456e 636f 6469 6e67 0d0a 4554 6167 3a20  Encoding..ETag:.
+[2026-06-30 23:21:15 TRACE] 572f 2236 3832 3630 3064 662d 3566 220d  W/"682600df-5f".
+[2026-06-30 23:21:15 TRACE] 0a41 6363 6573 732d 436f 6e74 726f 6c2d  .Access-Control-
+[2026-06-30 23:21:15 TRACE] 416c 6c6f 772d 4f72 6967 696e 3a20 2a0d  Allow-Origin:.*.
+[2026-06-30 23:21:15 TRACE] 0a53 6572 7665 723a 2057 4146 5052 4f0d  .Server:.WAFPRO.
+[2026-06-30 23:21:15 TRACE] 0a58 2d43 6163 6865 2d53 7461 7475 733a  .X-Cache-Status:
+[2026-06-30 23:21:15 TRACE] 2048 4954 2066 726f 6d20 4c31 3a35 340d  .HIT.from.L1:54.
+[2026-06-30 23:21:15 TRACE] 0a56 6961 3a20 4c31 3a35 340d 0a0d 0a--  .Via:.L1:54.....
+[2026-06-30 23:21:15 DEBUG] Call<Cleanup>
+[2026-06-30 23:21:15 DEBUG] Response { status: 304, version: HTTP/1.1, headers: {"date": "Tue, 30 Jun 2026 23:21:14 GMT", "connection": "keep-alive", "server": "WAFPRO", "<NOTICE>": "7 HEADERS ARE REDACTED"} }
+[2026-06-30 23:21:15 DEBUG] Return to pool: PoolKey { scheme: "https", authority: api.maa.plus, proxy: None }
+[2026-06-30 23:21:15 TRACE] File /root/Linux_maa/runtime/maa/cache/maa/resource/platform_diff/iOS/resource/tasks/tasks.json is up to date
+[2026-06-30 23:21:15 TRACE] Touched /root/Linux_maa/runtime/maa/cache/maa/resource/platform_diff/iOS/resource/tasks/tasks.json
+[2026-06-30 23:21:15 TRACE] 4854 5450 2f31 2e31 2033 3034 204e 6f74  HTTP/1.1.304.Not
+[2026-06-30 23:21:15 TRACE] 204d 6f64 6966 6965 640d 0a44 6174 653a  .Modified..Date:
+[2026-06-30 23:21:15 TRACE] 2054 7565 2c20 3330 204a 756e 2032 3032  .Tue,.30.Jun.202
+[2026-06-30 23:21:15 TRACE] 3620 3233 3a32 313a 3134 2047 4d54 0d0a  6.23:21:14.GMT..
+[2026-06-30 23:21:15 TRACE] 436f 6e6e 6563 7469 6f6e 3a20 6b65 6570  Connection:.keep
+[2026-06-30 23:21:15 TRACE] 2d61 6c69 7665 0d0a 5374 7269 6374 2d54  -alive..Strict-T
+[2026-06-30 23:21:15 TRACE] 7261 6e73 706f 7274 2d53 6563 7572 6974  ransport-Securit
+[2026-06-30 23:21:15 TRACE] 793a 206d 6178 2d61 6765 3d33 3135 3336  y:.max-age=31536
+[2026-06-30 23:21:15 TRACE] 3030 300d 0a4c 6173 742d 4d6f 6469 6669  000..Last-Modifi
+[2026-06-30 23:21:15 TRACE] 6564 3a20 4d6f 6e2c 2031 3520 4a75 6e20  ed:.Mon,.15.Jun.
+[2026-06-30 23:21:15 TRACE] 3230 3236 2030 393a 3336 3a31 3120 474d  2026.09:36:11.GM
+[2026-06-30 23:21:15 TRACE] 540d 0a56 6172 793a 2041 6363 6570 742d  T..Vary:.Accept-
+[2026-06-30 23:21:15 TRACE] 456e 636f 6469 6e67 0d0a 4554 6167 3a20  Encoding..ETag:.
+[2026-06-30 23:21:15 TRACE] 572f 2236 6132 6663 3738 622d 3162 6222  W/"6a2fc78b-1bb"
+[2026-06-30 23:21:15 TRACE] 0d0a 4163 6365 7373 2d43 6f6e 7472 6f6c  ..Access-Control
+[2026-06-30 23:21:15 TRACE] 2d41 6c6c 6f77 2d4f 7269 6769 6e3a 202a  -Allow-Origin:.*
+[2026-06-30 23:21:15 TRACE] 0d0a 5365 7276 6572 3a20 5741 4650 524f  ..Server:.WAFPRO
+[2026-06-30 23:21:15 TRACE] 0d0a 582d 4361 6368 652d 5374 6174 7573  ..X-Cache-Status
+[2026-06-30 23:21:15 TRACE] 3a20 4849 5420 6672 6f6d 204c 313a 3534  :.HIT.from.L1:54
+[2026-06-30 23:21:15 TRACE] 0d0a 5669 613a 204c 313a 3534 0d0a 0d0a  ..Via:.L1:54....
+[2026-06-30 23:21:15 DEBUG] Call<Cleanup>
+[2026-06-30 23:21:15 DEBUG] Response { status: 304, version: HTTP/1.1, headers: {"date": "Tue, 30 Jun 2026 23:21:14 GMT", "connection": "keep-alive", "server": "WAFPRO", "<NOTICE>": "7 HEADERS ARE REDACTED"} }
+[2026-06-30 23:21:15 DEBUG] Return to pool: PoolKey { scheme: "https", authority: api.maa.plus, proxy: None }
+[2026-06-30 23:21:15 TRACE] File /root/Linux_maa/runtime/maa/cache/maa/resource/global/txwy/resource/tasks/tasks.json is up to date
+[2026-06-30 23:21:15 TRACE] Touched /root/Linux_maa/runtime/maa/cache/maa/resource/global/txwy/resource/tasks/tasks.json
+[2026-06-30 23:21:15 INFO ] Hot update completed successfully
+[2026-06-30 23:21:15 DEBUG] Found resource directory: /root/Linux_maa/runtime/maa/data/maa/resource
+[2026-06-30 23:21:15 DEBUG] Loading MaaCore from: /root/Linux_maa/runtime/maa/data/maa/lib
+[2026-06-30 23:21:15 DEBUG] Setting user directory: /root/Linux_maa/runtime/maa/state/maa
+[2026-06-30 23:21:15 DEBUG] Using GPU OCR with GPU ID 0
+[2026-06-30 23:21:15 DEBUG] Loading resource from /root/Linux_maa/runtime/maa/data/maa/resource
+[2026-06-30 23:21:15 DEBUG] Loading resource from /root/Linux_maa/runtime/maa/data/maa/MaaResource/resource
+[2026-06-30 23:21:15 DEBUG] Loading resource from /root/Linux_maa/runtime/maa/cache/maa/resource
+[2026-06-30 23:21:15 DEBUG] Setting touch mode to adb
+[2026-06-30 23:21:15 DEBUG] Setting deployment with pause to false
+[2026-06-30 23:21:15 DEBUG] Setting adb lite enabled to false
+[2026-06-30 23:21:15 DEBUG] Setting kill adb on exit to false
+[2026-06-30 23:21:15 DEBUG] Setting client type to Bilibili
+[2026-06-30 23:21:15 DEBUG] Adding task [startup-smoke] with params: {
+  "client_type": "Bilibili",
+  "start_game_enabled": false
+}
+[2026-06-30 23:21:15 DEBUG] Instance destroyed

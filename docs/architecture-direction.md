@@ -138,15 +138,16 @@ Important rule: treat `maa-cli` as an external process with uncertain behavior. 
 Current frontend stack:
 
 - React + TypeScript + Vite under `frontend/`.
-- React Router routes: `/`, `/tasks/:taskConfig`, `/tasks/:taskConfig/items/:taskItemId`, `/schedule`, and `/settings`.
+- React Router routes: `/`, `/tasks/:taskConfig`, `/tasks/:taskConfig/items/:taskItemId`, `/schedule`, `/schedule/:scheduleId`, `/tools`, and `/settings`.
 - Local shadcn-style components with Radix primitives, lucide icons, Tailwind CSS v4, `@tailwindcss/vite`, and `tw-animate-css`.
 
 Current UI shape:
 
-- Persistent sidebar for `主界面`, `定时执行`, and `设置`.
+- Persistent sidebar for `主界面`, expandable `定时执行`, `小工具`, and `设置`.
 - Main page uses a three-column operational layout: task config/task-item list, schema-driven task editor, and info-level log/status panel.
+- Schedule page now has an overview route and per-schedule detail route. The detail route uses a three-column operational layout: bound task/time-entry controls, per-schedule settings/statistics, and structured scheduled-run logs.
 - Profile selection is hidden from the main page for now and defaults to `default`.
-- Schedule/settings pages are placeholders.
+- Settings page edits framework timezone/theme/default Profile/maa-cli update settings. Schedule configs keep their own Profile copy.
 
 Current config editing behavior:
 
@@ -154,7 +155,7 @@ Current config editing behavior:
 - Backend validates structured task config saves before writing `config/maa/tasks/*`.
 - Deleting a config moves the file to `config/maa/.trash/` through a reusable trash manager.
 
-Recommendation remains: do not build the full config editor first. Build workflow execution, run history, log viewing, and retry/fallback engine first. Add schema-driven config editing after the model stabilizes.
+Recommendation remains: keep expanding workflow execution, run history, log viewing, and retry/fallback behavior before over-investing in new config-editor surfaces.
 
 ## Testing Direction
 

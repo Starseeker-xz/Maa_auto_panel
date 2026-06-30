@@ -22,6 +22,14 @@ class MaaRuntime:
         return self.repo_root / "config" / "linux-maa"
 
     @property
+    def schedule_config_dir(self) -> Path:
+        return self.framework_config_dir / "schedules"
+
+    @property
+    def script_dir(self) -> Path:
+        return self.framework_config_dir / "scripts"
+
+    @property
     def data_home(self) -> Path:
         return self.repo_root / "runtime" / "maa" / "data"
 
@@ -40,6 +48,14 @@ class MaaRuntime:
     @property
     def generated_config_dir(self) -> Path:
         return self.repo_root / "runtime" / "maa" / "generated-configs"
+
+    @property
+    def framework_state_dir(self) -> Path:
+        return self.repo_root / "runtime" / "linux-maa"
+
+    @property
+    def scheduler_db_path(self) -> Path:
+        return self.framework_state_dir / "scheduler.sqlite3"
 
     def env(self) -> dict[str, str]:
         env = os.environ.copy()

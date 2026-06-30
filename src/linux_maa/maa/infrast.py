@@ -116,6 +116,15 @@ class MaaInfrastService:
         active = self._active_plan(plans, now)
         return active.index if active else plans[0].index
 
+    def describe_plan(self, *, filename: str, plan_index: int) -> str:
+        display_filename = filename.strip()
+        errors: list[str] = []
+        plans = self._load_plans(filename, errors)
+        plan = next((item for item in plans if item.index == plan_index), None)
+        if plan and plan.name:
+            return f"{display_filename} / {plan.name}" if display_filename else plan.name
+        return f"{display_filename} / 计划 #{plan_index}" if display_filename else f"计划 #{plan_index}"
+
     def _load_plans(self, filename: str, errors: list[str]) -> list[InfrastPlan]:
         path = self._resolve_infrast_file(filename)
         if path is None:

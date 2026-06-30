@@ -117,3 +117,54 @@ def test_adds_framework_preprocess_event() -> None:
         "tone": "info",
         "time": "18:37:14",
     }
+
+
+def test_groups_summary_tail_into_one_entry() -> None:
+    translator = MaaCliLogTranslator()
+
+    output = translator.translate(
+        "Summary\n"
+        "----------------------------------------\n"
+        "[启动 B 服] 2026-06-30 21:41:42 - 2026-06-30 21:42:25 (43s) Completed\n"
+        "[公开招募] 2026-06-30 21:42:25 - 2026-06-30 21:42:40 (15s) Error\n"
+        "Fight 1-7 1 times, drops:\n"
+        "1. 固源岩 × 2\n"
+        "total drops:\n"
+        "Error: Some error occurred during running task!\n"
+    )
+    entry = translator.entries()[0]
+
+    assert "运行摘要" in output
+    assert entry["type"] == "summary"
+    assert entry["status"] == "failed"
+    assert len(entry["messages"]) == 6
+    assert entry["messages"][0]["text"] == "启动 B 服: 完成, 用时 43s"
+    assert entry["messages"][1]["tone"] == "danger"
+    assert entry["messages"][2]["text"] == "作战 1-7 1 次，掉落："
+    assert entry["messages"][4]["text"] == "合计掉落："
+    assert entry["messages"][5]["text"] == "存在失败任务，maa-cli 返回错误。"
+
+
+def test_labels_duplicate_task_types_from_expected_sequence() -> None:
+    translator = MaaCliLogTranslator()
+    translator.begin_task_sequence(
+        [
+            {"task_id": "fight-a", "source_name": "Fight", "name": "剿灭"},
+            {"task_id": "fight-b", "source_name": "Fight", "name": "刷理智"},
+        ]
+    )
+
+    output = translator.translate(
+        "[2026-06-30 21:57:03 INFO ] Fight Start\n"
+        "[2026-06-30 21:58:00 INFO ] Fight Completed\n"
+        "[2026-06-30 21:58:00 INFO ] Fight Start\n"
+        "[2026-06-30 22:00:32 INFO ] Fight Completed\n"
+    )
+    results = translator.task_results()
+
+    assert "已开始任务: 剿灭" in output
+    assert "已开始任务: 刷理智" in output
+    assert [(item["task_id"], item["name"], item["source_name"], item["status"]) for item in results] == [
+        ("fight-a", "剿灭", "Fight", "succeeded"),
+        ("fight-b", "刷理智", "Fight", "succeeded"),
+    ]

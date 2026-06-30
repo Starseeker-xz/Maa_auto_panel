@@ -1,0 +1,26 @@
+[2026-06-30 23:21:15.771][TRC][Px16224][Tx53696] Version v6.13.0
+[2026-06-30 23:21:15.771][TRC][Px16224][Tx53696] Built at Jun 28 2026 13:27:36
+[2026-06-30 23:21:15.771][TRC][Px16224][Tx53696] User Dir /root/Linux_maa/runtime/maa/state/maa
+[2026-06-30 23:21:15.771][TRC][Px16224][Tx53696] -----------------------------
+[2026-06-30 23:21:15.771][INF][Px16224][Tx53696] set_static_option | key 2 value 0
+[2026-06-30 23:21:15.782][ERR][Px16224][Tx53696] use_gpu No GPU execution provider available
+[2026-06-30 23:21:15.782][TRC][Px16224][Tx53696] asst::ResourceLoader::load | enter
+[2026-06-30 23:21:15.782][TRC][Px16224][Tx53696] asst::OnnxSessions::load | enter
+[2026-06-30 23:21:15.782][INF][Px16224][Tx53696] record path ../../data/maa/resource/onnx/skill_ready_cls.onnx
+[2026-06-30 23:21:15.782][TRC][Px16224][Tx53696] asst::OnnxSessions::load | leave, 0 ms
+[2026-06-30 23:21:15.782][TRC][Px16224][Tx53696] asst::OnnxSessions::load | enter
+[2026-06-30 23:21:15.782][INF][Px16224][Tx53696] record path ../../data/maa/resource/onnx/deploy_direction_cls.onnx
+[2026-06-30 23:21:15.782][TRC][Px16224][Tx53696] asst::OnnxSessions::load | leave, 0 ms
+[2026-06-30 23:21:15.782][TRC][Px16224][Tx53696] asst::OnnxSessions::load | enter
+[2026-06-30 23:21:15.782][INF][Px16224][Tx53696] record path ../../data/maa/resource/onnx/operators_det.onnx
+[2026-06-30 23:21:15.782][TRC][Px16224][Tx53696] asst::OnnxSessions::load | leave, 0 ms
+[2026-06-30 23:21:15.782][TRC][Px16224][Tx53696] asst::OcrPack::load | enter
+[2026-06-30 23:21:15.782][INF][Px16224][Tx53696] load ../../data/maa/resource/PaddleOCR
+[2026-06-30 23:21:15.782][TRC][Px16224][Tx53696] asst::OcrPack::load | leave, 0 ms
+[2026-06-30 23:21:15.782][TRC][Px16224][Tx53696] asst::OcrPack::load | enter
+[2026-06-30 23:21:15.782][INF][Px16224][Tx53696] load ../../data/maa/resource/PaddleCharOCR
+[2026-06-30 23:21:15.782][TRC][Px16224][Tx53696] asst::OcrPack::load | leave, 0 ms
+[2026-06-30 23:21:15.782][TRC][Px16224][Tx53696] asst::GeneralConfig :: load | enter
+[2026-06-30 23:21:15.782][TRC][Px16224][Tx53696] asst::GeneralConfig::parse | enter
+[2026-06-30 23:21:15.782][TRC][Px16224][Tx53696] asst::GeneralConfig::parse | leave, 0 ms
+[2026-06-30 23:21:15.782][TRC][Px16224][Tx53696] asst::GeneralConfig :: load | leave, 0 ms

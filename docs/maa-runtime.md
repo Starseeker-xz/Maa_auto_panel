@@ -34,13 +34,14 @@ Windows GUI config:
 - ADB address: `192.168.5.151:5555`
 - client: `Bilibili`
 - connection config: `CompatPOSIXShell`
-- touch mode: `ADB`
+- touch mode: `MaaTouch`
 - `kill_adb_on_exit = false`
 
 The Windows GUI config used `General`, Windows ADB paths, and `maatouch`. The
-Linux runtime uses the system `adb` from `PATH`, Linux-compatible connection
-settings, and ADB touch input. The first real test run showed a MaaTouch-side
-`NullPointerException`, so `MaaTouch` is not the default here.
+Linux runtime uses the system `adb` from `PATH` and Linux-compatible connection
+settings. Earlier real-device testing showed a MaaTouch-side
+`NullPointerException`; if this recurs, switch the profile or schedule profile
+copy back to ADB touch mode before retesting automation stability.
 
 ## Current managed task configs
 
@@ -145,6 +146,8 @@ exposes structured `log_entries` for UI rendering and `task_results` for
 per-child status. The frontend renders these entries as timeline-style cards,
 leaving room for future colored text segments and inline images. Already
 translated events do not show the original raw log line in the normal log UI.
+The final maa-cli `Summary` tail is grouped into one structured summary panel
+instead of being rendered as one global log card per line.
 
 ## Config reading and editing
 
@@ -157,14 +160,15 @@ The backend validates task configs in two layers:
   `id`, `unlimited_runs`, `min_daily_successes`, `important`,
   `retry_even_success`, and `managed_params`.
 
-The scheduling metadata is not enforced by the runner yet. `unlimited_runs`
-means future scheduled runs should ignore `min_daily_successes` and always run
-that item. When `unlimited_runs = false`, `min_daily_successes` is a
-non-negative same-day success threshold; `0` means the requirement is already
-satisfied and scheduled runs may skip immediately. `important` is a future
-policy hint for failure handling. `retry_even_success` means a future retry
-attempt should include the item even if it already succeeded in the current
-scheduled run attempt.
+The manual runner does not enforce scheduling metadata. The scheduled execution
+service does. `unlimited_runs` means a scheduled time entry should keep running
+that item regardless of same-day success counts. When `unlimited_runs = false`,
+`min_daily_successes` is a non-negative same-day success threshold for important
+tasks; `0` means the requirement is already satisfied and scheduled runs may
+skip immediately. `important = false` means the task can run but will not enter
+retry; for those tasks, `min_daily_successes` is interpreted as a same-day run
+count threshold. `retry_even_success` does not create a retry by itself; it
+causes the task to be included when another important task requires retry.
 
 The task-config API returns parsed task items, per-item `params`, validation
 state, and the metadata schema. It can also save structured task-item edits back
@@ -221,6 +225,59 @@ Frontend config edits are staged as in-memory drafts until the user clicks the
 main-page save button. The save/reset controls appear after any staged change.
 Starting a run still uses the saved config file on disk, so unsaved drafts do not
 affect `maa-cli`.
+
+## Scheduled execution
+
+Scheduled execution configs live under `config/linux-maa/schedules/*.toml`.
+Each config binds one maa-cli task config and stores its own Profile copy. The
+default Profile in Settings is only the template used for new schedules and for
+manual main-page runs.
+
+The scheduler persists run records, attempts, same-day task counters, and
+trigger de-duplication in `runtime/linux-maa/scheduler.sqlite3`. The runtime
+directory remains ignored by git.
+
+Schedule entries store their own `task_ids`; these are independent from the
+main task editor's `enable` checkbox. When a scheduled attempt is generated, the
+selected child tasks are filtered into a temporary maa-cli task file and are
+force-enabled in that generated file.
+
+Game-day calculations currently use maa-cli's client-timezone convention for
+Chinese servers: `Official`, `Bilibili`, and `txwy` use an effective UTC+4
+game-day timezone, equivalent to a China-server reset at Beijing 04:00. The
+legacy local schema value `Txwy` is still accepted for compatibility. In
+`Europe/London` during summer time this means a local 21:00 reset, so a
+04/08/16/22 local schedule is displayed and evaluated in the game-day order
+22 -> 04 -> 08 -> 16.
+
+Retry selection follows the framework metadata:
+
+- `retry_even_success = true`: rerun when any retry is happening.
+- important + `unlimited_runs = true`: run every scheduled entry and retry until
+  it succeeds for that run.
+- important + `unlimited_runs = false`: run while same-day successes are below
+  `min_daily_successes`; retry only when remaining enabled schedule entries are
+  no greater than remaining required successes.
+- non-important: run according to unlimited/minimum-run settings but never enter
+  retry.
+
+Retry attempts preserve the original task-config order. The service also tracks
+which child tasks have already succeeded within the current scheduled run, so a
+later retry attempt does not requeue an already successful important task just
+because it was absent from the immediately previous retry subset.
+
+The WebUI exposes:
+
+- `GET/POST /api/schedules`
+- `GET/PUT/DELETE /api/schedules/{schedule_id}`
+- `POST /api/schedules/{schedule_id}/run`
+- `GET /api/schedules/current`
+- `POST /api/schedules/current/stop`
+
+Restart-script hooks are configured by schedule. Scripts are read from
+`config/linux-maa/scripts/`; a script can declare string variables with comments
+like `# linux-maa-var: CT_ID|容器 ID|151`, and those values are injected as
+environment variables when the hook runs.
 
 ## Fight stage list API
 

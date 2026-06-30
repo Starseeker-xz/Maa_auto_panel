@@ -23,10 +23,11 @@
       },
       "expiring_medicine": {
         "type": "integer",
-        "title": "最大使用即将过期理智药",
+        "title": "最大使用即将过期理智药（已废弃）",
         "default": 0,
         "minimum": 0,
-        "description": "最大使用 48 小时内过期理智药数量。"
+        "description": "旧版字段，MaaCore 文档已标记 Deprecated；新配置请使用理智药过期天数阈值。",
+        "deprecated": true
       },
       "medicine_expire_days": {
         "type": "integer",

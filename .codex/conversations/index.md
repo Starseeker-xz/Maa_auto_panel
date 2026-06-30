@@ -21,3 +21,5 @@
 - `2026-06-30_1752-maa-cli-sequential-analysis`: Read local runner and upstream maa-cli source to compare one full custom-task invocation with one-child-per-invocation orchestration.
 
 - `2026-06-30_1934-scheduled-retry-architecture`: Implement retry_even_success metadata support, inspect current code for scheduled execution/retry architecture, and make low-risk architecture cleanup.
+- `2026-06-30_2056-scheduled-execution`: Audit existing architecture/code before implementing scheduled execution, then build the scheduler domain/API/UI described in `TEMP/定时执行功能.md`.
+- `2026-06-30_2318-gpu-ocr-research`: Investigate and test MaaCore GPU OCR availability in the current Linux MAA runtime, with Docker packaging notes.

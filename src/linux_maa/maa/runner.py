@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import select
 import json
+import re
 import subprocess
 import threading
 import time
@@ -15,6 +15,7 @@ import tomllib
 from linux_maa.android import ADBDevice
 from linux_maa.config.tasks import TASK_SUFFIXES, prepare_framework_task_config
 from linux_maa.maa.logs import MaaCliLogTranslator, translate_maa_cli_log
+from linux_maa.maa.process import run_maa_cli_process
 from linux_maa.settings import DEFAULT_DEVICE_SERIAL, DEFAULT_TARGET_PACKAGE
 from linux_maa.maa.runtime import MaaRuntime, find_repo_root
 
@@ -103,16 +104,31 @@ def run_maa_task(
     return 1
 
 
-def prepare_maa_cli_task(runtime: MaaRuntime, task: str, *, run_id: str, attempt: int, messages: list[str] | None = None) -> tuple[str, dict[str, str]]:
+def prepare_maa_cli_task(
+    runtime: MaaRuntime,
+    task: str,
+    *,
+    run_id: str,
+    attempt: int,
+    messages: list[str] | None = None,
+    selected_task_ids: set[str] | None = None,
+    force_enable_selected: bool = False,
+    profile_data: dict[str, object] | None = None,
+    profile_name: str | None = None,
+) -> tuple[str, dict[str, str]]:
     source = resolve_task_file(runtime, task)
     data = load_task_file(source)
+    if selected_task_ids is not None:
+        data = select_task_items(data, selected_task_ids, force_enable_selected=force_enable_selected)
     sanitized = prepare_framework_task_config(data, runtime, messages)
 
     generated_name = f"linux-maa-{run_id}-attempt-{attempt}"
     generated_root = runtime.generated_config_dir / run_id
     generated_tasks = generated_root / "tasks"
     generated_tasks.mkdir(parents=True, exist_ok=True)
-    ensure_generated_config_links(runtime, generated_root)
+    ensure_generated_config_links(runtime, generated_root, skip_names={"profiles"} if profile_data is not None else None)
+    if profile_data is not None:
+        write_generated_profile(generated_root, profile_name or f"linux-maa-{run_id}", profile_data)
 
     generated_file = generated_tasks / f"{generated_name}.json"
     generated_file.write_text(json.dumps(sanitized, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -120,6 +136,51 @@ def prepare_maa_cli_task(runtime: MaaRuntime, task: str, *, run_id: str, attempt
     env = runtime.env()
     env["MAA_CONFIG_DIR"] = str(generated_root)
     return generated_name, env
+
+
+def select_task_items(data: dict[str, object], selected_task_ids: set[str], *, force_enable_selected: bool) -> dict[str, object]:
+    selected = dict(data)
+    tasks = selected.get("tasks")
+    if not isinstance(tasks, list):
+        return selected
+
+    selected_tasks: list[object] = []
+    seen: set[str] = set()
+    for index, task in enumerate(tasks, start=1):
+        if not isinstance(task, dict):
+            continue
+        task_id = task_item_id(task, index)
+        if task_id not in selected_task_ids:
+            continue
+        seen.add(task_id)
+        next_task = dict(task)
+        if force_enable_selected:
+            params = dict(next_task.get("params")) if isinstance(next_task.get("params"), dict) else {}
+            params["enable"] = True
+            next_task["params"] = params
+        selected_tasks.append(next_task)
+    selected["tasks"] = selected_tasks
+    return selected
+
+
+def task_item_id(task: dict[str, object], index: int) -> str:
+    metadata = task.get("linux_maa")
+    explicit = metadata.get("id") if isinstance(metadata, dict) else None
+    if isinstance(explicit, str) and explicit.strip():
+        return _slug(explicit) or f"task-{index}"
+    task_type = str(task.get("type") or "Task")
+    name = task.get("name")
+    base = f"{task_type}-{name}" if isinstance(name, str) and name.strip() else task_type
+    return _slug(base) or f"task-{index}"
+
+
+def write_generated_profile(generated_root: Path, profile_name: str, profile_data: dict[str, object]) -> Path:
+    profiles_dir = generated_root / "profiles"
+    profiles_dir.mkdir(parents=True, exist_ok=True)
+    filename = f"{_slug(profile_name) or 'profile'}.json"
+    path = profiles_dir / filename
+    path.write_text(json.dumps(profile_data, ensure_ascii=False, indent=2), encoding="utf-8")
+    return path
 
 
 def resolve_task_file(runtime: MaaRuntime, task: str) -> Path:
@@ -155,15 +216,20 @@ def load_task_file(path: Path) -> dict[str, object]:
     raise ValueError(f"Cannot generate maa-cli task from {path.suffix} config yet")
 
 
-def ensure_generated_config_links(runtime: MaaRuntime, generated_root: Path) -> None:
+def ensure_generated_config_links(runtime: MaaRuntime, generated_root: Path, *, skip_names: set[str] | None = None) -> None:
     runtime.config_dir.mkdir(parents=True, exist_ok=True)
+    skip = skip_names or set()
     for source in runtime.config_dir.iterdir():
-        if source.name == "tasks":
+        if source.name == "tasks" or source.name in skip:
             continue
         target = generated_root / source.name
         if target.exists():
             continue
         target.symlink_to(source, target_is_directory=source.is_dir())
+
+
+def _slug(value: str) -> str:
+    return re.sub(r"[^A-Za-z0-9_.-]+", "-", value.strip()).strip("-").lower()[:64]
 
 
 @dataclass(frozen=True)
@@ -335,52 +401,17 @@ class MaaRunManager:
         self._set_done(state, "failed", return_code)
 
     def _run_process(self, state: MaaRunState, cmd: list[str], log_file: Path | None, env: dict[str, str]) -> int | None:
-        proc = subprocess.Popen(
+        result = run_maa_cli_process(
+            self.runtime,
             cmd,
-            cwd=self.runtime.repo_root,
             env=env,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
+            log_file=log_file,
+            on_output=lambda text: self._append_maa_log(state, text),
+            on_process=lambda proc: self._set_process(state, proc),
         )
+        self._flush_maa_log(state)
+        return result.return_code
+
+    def _set_process(self, state: MaaRunState, proc: subprocess.Popen[str]) -> None:
         with self._lock:
             state.process = proc
-
-        assert proc.stdout is not None
-        log_offset = 0
-        while True:
-            ready, _, _ = select.select([proc.stdout], [], [], 0.2)
-            if ready:
-                line = proc.stdout.readline()
-                if line:
-                    self._append_maa_log(state, line)
-            if log_file is not None:
-                log_offset = self._tail_file(state, log_file, log_offset)
-
-            if proc.poll() is not None:
-                remainder = proc.stdout.read()
-                if remainder:
-                    self._append_maa_log(state, remainder)
-                if log_file is not None:
-                    self._tail_file(state, log_file, log_offset)
-                self._flush_maa_log(state)
-                break
-
-        return proc.wait()
-
-    def _tail_file(self, state: MaaRunState, path: Path, offset: int) -> int:
-        if not path.exists():
-            return offset
-        try:
-            with path.open("rb") as file:
-                file.seek(offset)
-                data = file.read()
-                if not data:
-                    return offset
-                self._append_maa_log(state, data.decode("utf-8", errors="replace"))
-                return file.tell()
-        except OSError as exc:
-            self._append(state, f"读取 maa-cli 日志失败: {exc}\n")
-            return offset

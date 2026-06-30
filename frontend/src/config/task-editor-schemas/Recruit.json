@@ -52,7 +52,7 @@
           "type": "string"
         },
         "default": [],
-        "description": "GUI 概念，保留指定 Tags；MaaCore 集成文档未列该字段。",
+        "description": "需要保留并跳过当前公招槽位的 Tag 名称列表",
         "x-linuxMaaManaged": "array"
       },
       "extra_tags_mode": {
@@ -80,7 +80,7 @@
         "title": "招募次数",
         "default": 0,
         "minimum": 0,
-        "description": "战斗次数上限。"
+        "description": "招募多少次，0 即为不招募。"
       },
       "set_time": {
         "type": "boolean",
@@ -116,8 +116,8 @@
       "skip_robot": {
         "type": "boolean",
         "title": "识别到小车词条时跳过",
-        "default": true,
-        "description": "识别到小车词条时跳过。"
+        "default": false,
+        "description": "识别到小车词条时跳过。已弃用"
       },
       "recruitment_time": {
         "type": "object",

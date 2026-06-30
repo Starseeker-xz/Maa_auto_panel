@@ -7,6 +7,8 @@ import type {
   MaaStagesResponse,
   MaintenanceActionState,
   RunState,
+  ScheduleResponse,
+  SchedulesResponse,
   SaveSettingsPayload,
   SaveTaskConfigPayload,
   SettingsResponse,
@@ -76,6 +78,50 @@ export function startRun(payload: {
 
 export function stopRun(runId: string) {
   return readJson<RunState>(`/api/runs/${runId}/stop`, { method: "POST" });
+}
+
+export function listSchedules() {
+  return readJson<SchedulesResponse>("/api/schedules");
+}
+
+export function createSchedule(payload: { name: string; task_config?: string }) {
+  return readJson<ScheduleResponse>("/api/schedules", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+}
+
+export function readSchedule(scheduleId: string) {
+  return readJson<ScheduleResponse>(`/api/schedules/${encodeURIComponent(scheduleId)}`);
+}
+
+export function saveSchedule(scheduleId: string, config: Record<string, unknown>) {
+  return readJson<ScheduleResponse>(`/api/schedules/${encodeURIComponent(scheduleId)}`, {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ config })
+  });
+}
+
+export function deleteSchedule(scheduleId: string) {
+  return readJson<DeleteConfigResponse>(`/api/schedules/${encodeURIComponent(scheduleId)}`, { method: "DELETE" });
+}
+
+export function startScheduleRun(scheduleId: string, entryId?: string) {
+  return readJson<RunState>(`/api/schedules/${encodeURIComponent(scheduleId)}/run`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ entry_id: entryId || null })
+  });
+}
+
+export function getCurrentScheduleRun() {
+  return readJson<RunState>("/api/schedules/current");
+}
+
+export function stopCurrentScheduleRun() {
+  return readJson<RunState>("/api/schedules/current/stop", { method: "POST" });
 }
 
 export function getSettings() {

@@ -92,14 +92,14 @@ function SidebarMenuButton({
       data-active={active ? "true" : undefined}
       type="button"
       className={cn(
-        "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[active=true]:bg-sidebar-primary data-[active=true]:text-sidebar-primary-foreground flex h-10 w-full items-center rounded-md px-3 text-sm transition-colors",
+        "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[active=true]:bg-sidebar-primary data-[active=true]:text-sidebar-primary-foreground flex h-10 w-full items-center rounded-md px-3 text-left text-sm transition-colors",
         expanded ? "justify-start gap-3" : "justify-center",
         className
       )}
       {...props}
     >
       <span className="[&_svg]:size-4">{icon}</span>
-      {expanded ? <span className="truncate">{children}</span> : null}
+      {expanded ? <span className="flex min-w-0 flex-1 items-center truncate text-left">{children}</span> : null}
     </button>
   );
 

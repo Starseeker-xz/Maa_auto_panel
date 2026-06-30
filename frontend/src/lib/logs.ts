@@ -4,7 +4,9 @@ export const STATUS_LABELS: Record<string, string> = {
   stopping: "停止中",
   stopped: "已停止",
   succeeded: "已完成",
-  failed: "失败"
+  failed: "失败",
+  soft_failed: "部分失败",
+  skipped: "已跳过"
 };
 
 export function translateLogLine(line: string): string {

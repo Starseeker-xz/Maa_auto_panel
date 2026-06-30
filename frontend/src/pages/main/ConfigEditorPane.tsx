@@ -233,10 +233,9 @@ function MetadataEditor({
         />
         <span className="text-sm">非重要任务</span>
       </label>
-      <label className={cn("flex min-h-9 items-center gap-2 rounded-md border px-2.5 py-2", nonImportant && "opacity-60")}>
+      <label className="flex min-h-9 items-center gap-2 rounded-md border px-2.5 py-2">
         <Checkbox
           checked={unlimitedRuns}
-          disabled={nonImportant}
           onCheckedChange={(checked) => onChange({ ...metadata, unlimited_runs: checked === true })}
         />
         <span className="text-sm">无限次运行</span>
@@ -249,13 +248,16 @@ function MetadataEditor({
         />
         <span className="text-sm">成功也参与重试</span>
       </label>
-      <label className={cn("grid grid-cols-[minmax(0,1fr)_110px] items-center gap-3 rounded-md border px-2.5 py-2", (unlimitedRuns || nonImportant) && "opacity-60")}>
+      <label
+        className={cn("grid grid-cols-[minmax(0,1fr)_110px] items-center gap-3 rounded-md border px-2.5 py-2", unlimitedRuns && "opacity-60")}
+        title={nonImportant ? "非重要任务中这里按每日最低运行次数计算，且不会进入重试。" : "重要任务中这里按每日最低成功次数计算。"}
+      >
         <span className="text-sm">每日最低成功次数</span>
         <input
           className="h-8 rounded-md border bg-background px-2 text-sm disabled:bg-muted"
           type="number"
           min={0}
-          disabled={unlimitedRuns || nonImportant}
+          disabled={unlimitedRuns}
           value={minimum}
           onChange={(event) => onChange({ ...metadata, min_daily_successes: Number(event.target.value) })}
         />

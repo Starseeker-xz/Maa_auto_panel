@@ -1,0 +1,26 @@
+[2026-06-30 23:23:44 INFO ] Updating hot update files...
+[2026-06-30 23:23:44 TRACE] File /root/Linux_maa/runtime/maa/cache/maa/StageActivityV2.json is fresh
+[2026-06-30 23:23:44 TRACE] File /root/Linux_maa/runtime/maa/cache/maa/resource/tasks/tasks.json is fresh
+[2026-06-30 23:23:44 TRACE] File /root/Linux_maa/runtime/maa/cache/maa/resource/global/txwy/resource/tasks/tasks.json is fresh
+[2026-06-30 23:23:44 TRACE] File /root/Linux_maa/runtime/maa/cache/maa/resource/global/YoStarKR/resource/tasks/tasks.json is fresh
+[2026-06-30 23:23:44 TRACE] File /root/Linux_maa/runtime/maa/cache/maa/resource/global/YoStarJP/resource/tasks/tasks.json is fresh
+[2026-06-30 23:23:44 TRACE] File /root/Linux_maa/runtime/maa/cache/maa/resource/global/YoStarEN/resource/tasks/tasks.json is fresh
+[2026-06-30 23:23:44 TRACE] File /root/Linux_maa/runtime/maa/cache/maa/resource/platform_diff/iOS/resource/tasks/tasks.json is fresh
+[2026-06-30 23:23:44 INFO ] Hot update completed successfully
+[2026-06-30 23:23:44 DEBUG] Found resource directory: /root/Linux_maa/runtime/maa/data/maa/resource
+[2026-06-30 23:23:44 DEBUG] Loading MaaCore from: /root/Linux_maa/runtime/maa/data/maa/lib
+[2026-06-30 23:23:44 DEBUG] Setting user directory: /root/Linux_maa/runtime/maa/state/maa
+[2026-06-30 23:23:44 DEBUG] Using GPU OCR with GPU ID 1
+[2026-06-30 23:23:44 DEBUG] Loading resource from /root/Linux_maa/runtime/maa/data/maa/resource
+[2026-06-30 23:23:44 DEBUG] Loading resource from /root/Linux_maa/runtime/maa/data/maa/MaaResource/resource
+[2026-06-30 23:23:44 DEBUG] Loading resource from /root/Linux_maa/runtime/maa/cache/maa/resource
+[2026-06-30 23:23:44 DEBUG] Setting touch mode to adb
+[2026-06-30 23:23:44 DEBUG] Setting deployment with pause to false
+[2026-06-30 23:23:44 DEBUG] Setting adb lite enabled to false
+[2026-06-30 23:23:44 DEBUG] Setting kill adb on exit to false
+[2026-06-30 23:23:44 DEBUG] Setting client type to Bilibili
+[2026-06-30 23:23:44 DEBUG] Adding task [startup-smoke] with params: {
+  "client_type": "Bilibili",
+  "start_game_enabled": false
+}
+[2026-06-30 23:23:44 DEBUG] Instance destroyed

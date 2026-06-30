@@ -1,10 +1,12 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { STATUS_LABELS } from "@/lib/logs";
-import type { MaaLogEntry, MaaLogLineEntry, MaaLogMessage, MaaLogTaskEntry, RunState } from "@/lib/types";
+import type { MaaLogEntry, MaaLogLineEntry, MaaLogMessage, MaaLogSummaryEntry, MaaLogTaskEntry, RunState } from "@/lib/types";
 
 type LogPaneProps = {
   run: RunState;
   error: string;
+  title?: string;
+  emptyText?: string;
 };
 
 const TASK_STATUS_LABELS: Record<string, string> = {
@@ -39,7 +41,7 @@ const MESSAGE_TONE_CLASS: Record<string, string> = {
   danger: "text-destructive"
 };
 
-export function LogPane({ run, error }: LogPaneProps) {
+export function LogPane({ run, error, title = "日志", emptyText = "等待 maa-cli info 日志..." }: LogPaneProps) {
   const entries = normalizeEntries(run);
 
   return (
@@ -47,7 +49,7 @@ export function LogPane({ run, error }: LogPaneProps) {
       <CardHeader className="border-b px-3 py-2.5">
         <div className="flex items-start justify-between gap-3">
           <div className="grid gap-1">
-            <CardTitle>日志</CardTitle>
+            <CardTitle>{title}</CardTitle>
             <span className={`status-pill ${run.status}`}>{STATUS_LABELS[run.status] || run.status}</span>
           </div>
           <div className="grid max-w-56 justify-items-end gap-1 text-xs text-muted-foreground">
@@ -64,7 +66,7 @@ export function LogPane({ run, error }: LogPaneProps) {
             ))}
           </div>
         ) : (
-          <div className="rounded-md border bg-background px-3 py-2 text-xs text-muted-foreground">等待 maa-cli info 日志...</div>
+          <div className="rounded-md border bg-background px-3 py-2 text-xs text-muted-foreground">{emptyText}</div>
         )}
       </div>
       {error ? <CardContent className="border-t p-2 text-xs text-destructive break-anywhere">{error}</CardContent> : null}
@@ -84,6 +86,7 @@ function normalizeEntries(run: RunState): MaaLogEntry[] {
 
 function LogEntryView({ entry }: { entry: MaaLogEntry }) {
   if (entry.type === "task") return <TaskEntryView entry={entry} />;
+  if (entry.type === "summary") return <SummaryEntryView entry={entry} />;
   return <LineEntryView entry={entry} />;
 }
 
@@ -109,6 +112,27 @@ function TaskEntryView({ entry }: { entry: MaaLogTaskEntry }) {
       <TimeStamp time={time} />
       <div className={`rounded-md border-2 px-3 py-2 text-xs leading-5 transition-colors ${panelClass}`}>
         <div className={`font-medium ${statusClass}`}>{title}</div>
+        {entry.messages?.length ? (
+          <div className="mt-1 grid gap-0.5">
+            {entry.messages.map((message, index) => (
+              <MessageContent key={index} message={message} />
+            ))}
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function SummaryEntryView({ entry }: { entry: MaaLogSummaryEntry }) {
+  const statusClass = TASK_STATUS_CLASS[entry.status] || TASK_STATUS_CLASS.unknown;
+  const panelClass = TASK_PANEL_CLASS[entry.status] || TASK_PANEL_CLASS.unknown;
+
+  return (
+    <div className="grid grid-cols-[3.75rem_minmax(0,1fr)] items-start gap-2">
+      <TimeStamp />
+      <div className={`rounded-md border-2 px-3 py-2 text-xs leading-5 transition-colors ${panelClass}`}>
+        <div className={`font-medium ${statusClass}`}>{entry.title || "运行摘要"}</div>
         {entry.messages?.length ? (
           <div className="mt-1 grid gap-0.5">
             {entry.messages.map((message, index) => (

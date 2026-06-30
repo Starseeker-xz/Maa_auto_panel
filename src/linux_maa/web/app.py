@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 
 from linux_maa.config import ConfigManager, ConfigValidationFailure, FrameworkSettingsManager
 from linux_maa.maa import MaaInfrastService, MaaRunManager, MaaRunRequest, MaaRuntime, MaaStageService, MaintenanceActionManager, find_repo_root
+from linux_maa.scheduler import ScheduleConfigManager, SchedulerService
 
 
 class StartRunPayload(BaseModel):
@@ -28,6 +29,19 @@ class SaveSettingsPayload(BaseModel):
     maa_cli: dict[str, Any] = Field(default_factory=dict)
 
 
+class CreateSchedulePayload(BaseModel):
+    name: str = Field(min_length=1)
+    task_config: str | None = None
+
+
+class SaveSchedulePayload(BaseModel):
+    config: dict[str, Any] = Field(default_factory=dict)
+
+
+class StartSchedulePayload(BaseModel):
+    entry_id: str | None = None
+
+
 def create_app(repo_root: Path | None = None) -> FastAPI:
     runtime = MaaRuntime(repo_root.resolve() if repo_root is not None else find_repo_root())
     configs = ConfigManager(runtime)
@@ -36,6 +50,8 @@ def create_app(repo_root: Path | None = None) -> FastAPI:
     maintenance = MaintenanceActionManager(runtime)
     stages = MaaStageService(runtime)
     infrast = MaaInfrastService(runtime)
+    schedule_configs = ScheduleConfigManager(runtime, configs)
+    scheduler = SchedulerService(runtime, configs, framework_settings, schedule_configs)
     frontend_dist = runtime.repo_root / "frontend" / "dist"
     frontend_assets = frontend_dist / "assets"
 
@@ -161,6 +177,80 @@ def create_app(repo_root: Path | None = None) -> FastAPI:
     def start_maintenance(kind: str) -> dict[str, object]:
         try:
             return maintenance.start(kind).to_dict()
+        except RuntimeError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.get("/api/schedules")
+    def list_schedules() -> dict[str, object]:
+        try:
+            return scheduler.list_schedules()
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.post("/api/schedules")
+    def create_schedule(payload: CreateSchedulePayload) -> dict[str, object]:
+        try:
+            return scheduler.create_schedule(payload.name, task_config=payload.task_config)
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail="Selected task config not found") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.get("/api/schedules/current")
+    def current_scheduled_run() -> dict[str, object]:
+        state = scheduler.current()
+        return state.to_dict() if state else {"status": "idle", "output": []}
+
+    @app.post("/api/schedules/current/stop")
+    def stop_scheduled_run() -> dict[str, object]:
+        try:
+            return scheduler.stop_current().to_dict()
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="No scheduled run active") from exc
+
+    @app.get("/api/schedules/{schedule_id}")
+    def read_schedule(schedule_id: str) -> dict[str, object]:
+        try:
+            return scheduler.read_schedule(schedule_id)
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail="Schedule not found") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.put("/api/schedules/{schedule_id}")
+    def save_schedule(schedule_id: str, payload: SaveSchedulePayload) -> dict[str, object]:
+        try:
+            return scheduler.save_schedule(schedule_id, payload.config)
+        except ConfigValidationFailure as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "message": "Schedule validation failed",
+                    "validation": exc.result.to_dict(),
+                },
+            ) from exc
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail="Schedule source not found") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.delete("/api/schedules/{schedule_id}")
+    def delete_schedule(schedule_id: str) -> dict[str, object]:
+        try:
+            return scheduler.delete_schedule(schedule_id)
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail="Schedule not found") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.post("/api/schedules/{schedule_id}/run")
+    def start_schedule_now(schedule_id: str, payload: StartSchedulePayload) -> dict[str, object]:
+        try:
+            return scheduler.start_now(schedule_id, entry_id=payload.entry_id).to_dict()
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail="Schedule not found") from exc
         except RuntimeError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
         except ValueError as exc:

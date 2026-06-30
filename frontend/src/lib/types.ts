@@ -80,9 +80,147 @@ export type RunState = {
   log_entries?: MaaLogEntry[];
 };
 
+export type SchedulerStatus = {
+  enabled: boolean;
+  status: string;
+  current_run: RunState;
+  recent_runs: ScheduledRunSummary[];
+};
+
+export type ScheduleConfigFile = {
+  id: string;
+  name: string;
+  filename: string;
+  path: string;
+  size: number;
+  modified_at: number;
+  last_run?: ScheduledRunSummary | null;
+};
+
+export type ScheduleEntry = {
+  id: string;
+  name: string;
+  time: string;
+  enabled: boolean;
+  task_ids: string[];
+};
+
+export type ScheduleRetryPolicy = {
+  max_attempts_per_group: number;
+  group_buffer_seconds: number;
+  max_groups: number;
+};
+
+export type ScheduleTimeouts = {
+  child_warning_seconds: number;
+  child_danger_seconds: number;
+  child_kill_seconds: number;
+  run_warning_seconds: number;
+  run_danger_seconds: number;
+  run_kill_seconds: number;
+};
+
+export type RestartScriptPolicy = {
+  mode: "none" | "before_run" | "before_retry_group" | "before_retry";
+  script: string;
+  variables: Record<string, string>;
+};
+
+export type ScheduleConfig = {
+  id: string;
+  name: string;
+  enabled: boolean;
+  task_config: string;
+  profile_name: string;
+  profile: Record<string, unknown>;
+  log_level: number;
+  entries: ScheduleEntry[];
+  retry: ScheduleRetryPolicy;
+  timeouts: ScheduleTimeouts;
+  restart: RestartScriptPolicy;
+};
+
+export type TaskPolicy = {
+  id: string;
+  name: string;
+  type: string;
+  important: boolean;
+  unlimited_runs: boolean;
+  min_daily_successes: number;
+  retry_even_success: boolean;
+};
+
+export type DailyTaskStats = {
+  task_id: string;
+  task_name: string;
+  successes: number;
+  runs: number;
+};
+
+export type ScheduledRunSummary = {
+  id: string;
+  schedule_id: string;
+  schedule_name: string;
+  entry_id: string;
+  entry_name: string;
+  task_config: string;
+  game_day: string;
+  trigger: string;
+  status: string;
+  created_at: string;
+  started_at?: string | null;
+  ended_at?: string | null;
+  attempt_count: number;
+  retry_group_count: number;
+  log_file?: string | null;
+  selected_task_ids: string[];
+  summary: Record<string, unknown>;
+};
+
+export type ScriptVariable = {
+  name: string;
+  label: string;
+  default: string;
+};
+
+export type ScheduleScriptInfo = {
+  name: string;
+  path: string;
+  variables: ScriptVariable[];
+};
+
+export type ScheduleTimeline = {
+  client: string;
+  game_day: string;
+  timezone_name: string;
+  reset_local_time: string;
+  order: string[];
+  message: string;
+  entries: ScheduleEntry[];
+};
+
+export type SchedulesResponse = {
+  status: SchedulerStatus;
+  schedules: ScheduleConfigFile[];
+};
+
+export type ScheduleResponse = {
+  file: ConfigFile;
+  config: ScheduleConfig;
+  task_config: ConfigResponse;
+  task_policies: TaskPolicy[];
+  timeline: ScheduleTimeline;
+  daily_stats: Record<string, DailyTaskStats>;
+  recent_runs: ScheduledRunSummary[];
+  scripts: ScheduleScriptInfo[];
+  current_run: RunState;
+};
+
 export type MaaTaskResult = {
   type?: "task";
   name: string;
+  task_id?: string;
+  source_name?: string;
   status: "running" | "succeeded" | "failed" | "stopped" | "unknown";
   rule_id?: string;
   panel_kind?: string;
@@ -125,7 +263,15 @@ export type MaaLogTaskEntry = MaaTaskResult & {
   type: "task";
 };
 
-export type MaaLogEntry = MaaLogLineEntry | MaaLogTaskEntry;
+export type MaaLogSummaryEntry = {
+  type: "summary";
+  title: string;
+  status: "running" | "succeeded" | "failed" | "stopped" | "unknown";
+  messages?: MaaLogMessage[];
+  lines: string[];
+};
+
+export type MaaLogEntry = MaaLogLineEntry | MaaLogTaskEntry | MaaLogSummaryEntry;
 
 export type SaveTaskConfigPayload = {
   data: Record<string, unknown>;

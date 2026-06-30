@@ -21,6 +21,7 @@ runtime/
 
 # WebUI recycle bin for user-managed config files
 config/maa/.trash/
+config/linux-maa/.trash/
 
 # User-uploaded local exports and temporary inputs
 TEMP/

@@ -203,7 +203,7 @@ def _apply_managed_params_for_runtime(
             elif handler == "infrast_plan_index":
                 selected_plan_index = _resolve_infrast_plan_index(runtime, spec, params)
                 params[key] = selected_plan_index
-                _append_message(messages, f"选择基建计划: {_describe_infrast_plan(params, selected_plan_index)}")
+                _append_message(messages, f"选择基建计划: {_describe_infrast_plan(runtime, params, selected_plan_index)}")
                 handled.add(key)
             else:
                 return f"{key} 使用了未知运行时占位处理器 {handler!r}"
@@ -277,8 +277,14 @@ def _describe_fight_stage(value: object) -> str:
     return "当前/上次" if text == "" else text
 
 
-def _describe_infrast_plan(params: dict[str, Any], plan_index: int) -> str:
+def _describe_infrast_plan(runtime: object, params: dict[str, Any], plan_index: int) -> str:
+    from linux_maa.maa.infrast import MaaInfrastService
+
     filename = str(params.get("filename") or "").strip()
+    try:
+        return MaaInfrastService(runtime).describe_plan(filename=filename, plan_index=plan_index)
+    except Exception:
+        pass
     if filename:
         return f"{filename} / 计划 #{plan_index}"
     return f"计划 #{plan_index}"

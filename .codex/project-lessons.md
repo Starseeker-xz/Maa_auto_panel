@@ -21,3 +21,7 @@
 - `2026-06-30_1743-fix-infrast-plan-select`: `MaaRuntime` does not have a `discover()` helper. For direct ConfigManager/runtime checks, construct it with `MaaRuntime(find_repo_root())`.
 
 - `2026-06-30_1934-scheduled-retry-architecture`: Repository tests require the uv dev dependency group; before this session `uv run pytest` failed because pytest was not installed. Keep `pytest` in `[dependency-groups].dev` and run tests with `uv run pytest`.
+
+- `2026-06-30_2056-scheduled-execution`: Repository-wide `rg` searches can explode into `frontend/node_modules/` and mirrored upstream docs. For audit searches, pass targets such as `src frontend/src config README.md docs/architecture-direction.md docs/maa-runtime.md` or exclude with `-g '!frontend/node_modules/**' -g '!docs/maa-upstream/**' -g '!runtime/**'`.
+
+- `2026-06-30_2056-scheduled-execution`: This environment does not provide a bare `python` executable on PATH. In this repository, run Python checks and scripts with `uv run python ...` so they use the project interpreter and dependencies.
