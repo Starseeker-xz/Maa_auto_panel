@@ -1,11 +1,5 @@
-import { CircleHelp } from "lucide-react";
-
-import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { CheckboxField, NumberField, SelectField, TextField } from "@/components/FormFields";
 import { DELETE_VALUE, booleanAt, optionalNumberAt, setNestedValue, stringAt } from "@/lib/objectPath";
-import { cn } from "@/lib/utils";
 
 const CONNECTION_TYPES = ["ADB", "PlayCover", "MuMuPro", "Waydroid"];
 const CONNECTION_CONFIGS = ["", "CompatPOSIXShell", "General", "MacPlayTools"];
@@ -86,101 +80,5 @@ export function ProfileEditor({ value, onChange }: ProfileEditorProps) {
         />
       </div>
     </div>
-  );
-}
-
-function FieldLabel({ label, help }: { label: string; help?: string }) {
-  return (
-    <div className="flex min-w-0 items-center gap-1.5 text-xs font-medium text-muted-foreground">
-      <span className="min-w-0 truncate">{label}</span>
-      {help ? <HelpTooltip help={help} /> : null}
-    </div>
-  );
-}
-
-function HelpTooltip({ help }: { help: string }) {
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <button
-          type="button"
-          className="grid size-4 shrink-0 place-items-center rounded-full text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          aria-label="说明"
-        >
-          <CircleHelp className="size-3.5" />
-        </button>
-      </TooltipTrigger>
-      <TooltipContent side="top" sideOffset={6} className="max-w-xs leading-5 shadow-md sm:max-w-sm">
-        {help}
-      </TooltipContent>
-    </Tooltip>
-  );
-}
-
-function TextField({ label, value, help, onChange }: { label: string; value: string; help?: string; onChange: (value: string) => void }) {
-  return (
-    <div className="grid min-w-0 gap-1.5">
-      <FieldLabel label={label} help={help} />
-      <Input className="min-w-0" value={value} onChange={(event) => onChange(event.target.value)} />
-    </div>
-  );
-}
-
-function NumberField({
-  label,
-  value,
-  disabled,
-  onChange
-}: {
-  label: string;
-  value: number | "";
-  disabled?: boolean;
-  onChange: (value: number | "") => void;
-}) {
-  return (
-    <div className="grid min-w-0 gap-1.5">
-      <FieldLabel label={label} />
-      <Input
-        className="min-w-0"
-        type="number"
-        value={value}
-        disabled={disabled}
-        onChange={(event) => {
-          const next = event.target.value;
-          onChange(next === "" ? "" : Number(next));
-        }}
-      />
-    </div>
-  );
-}
-
-function SelectField({ label, value, help, options, onChange }: { label: string; value: string; help?: string; options: string[][]; onChange: (value: string) => void }) {
-  return (
-    <div className="grid min-w-0 gap-1.5">
-      <FieldLabel label={label} help={help} />
-      <Select value={value} onValueChange={onChange}>
-        <SelectTrigger className="min-w-0">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {options.map(([optionValue, labelText]) => (
-            <SelectItem key={optionValue} value={optionValue}>
-              {labelText}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </div>
-  );
-}
-
-function CheckboxField({ label, checked, onChange }: { label: string; checked: boolean; onChange: (value: boolean) => void }) {
-  return (
-    <label className={cn("min-w-0 rounded-md border bg-background p-2 text-sm")}>
-      <span className="flex min-h-5 min-w-0 items-start gap-2">
-        <Checkbox checked={checked} onCheckedChange={(value) => onChange(value === true)} />
-        <span className="min-w-0 break-words leading-5">{label}</span>
-      </span>
-    </label>
   );
 }

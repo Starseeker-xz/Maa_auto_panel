@@ -36,8 +36,32 @@ function safeJsonParse(text: string): unknown {
 
 function formatErrorDetail(detail: unknown) {
   if (typeof detail === "string") return detail;
-  if (detail && typeof detail === "object" && "message" in detail) return String(detail.message);
+  if (Array.isArray(detail)) return detail.map(formatErrorItem).filter(Boolean).join("; ") || "请求参数错误";
+  if (isRecord(detail) && "message" in detail) {
+    const message = String(detail.message);
+    const validation = formatValidationErrors(detail.validation);
+    return validation ? `${message}: ${validation}` : message;
+  }
+  const formatted = formatErrorItem(detail);
+  if (formatted) return formatted;
   return JSON.stringify(detail);
+}
+
+function formatValidationErrors(validation: unknown) {
+  if (!isRecord(validation) || !Array.isArray(validation.errors)) return "";
+  return validation.errors.map(formatErrorItem).filter(Boolean).join("; ");
+}
+
+function formatErrorItem(item: unknown) {
+  if (!isRecord(item)) return item === undefined || item === null ? "" : String(item);
+  const message = typeof item.msg === "string" ? item.msg : typeof item.message === "string" ? item.message : "";
+  const loc = Array.isArray(item.loc) ? item.loc.join(".") : typeof item.path === "string" ? item.path : "";
+  if (message && loc) return `${loc}: ${message}`;
+  return message || (loc ? `${loc}: 参数错误` : "");
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value));
 }
 
 export function listConfigs() {

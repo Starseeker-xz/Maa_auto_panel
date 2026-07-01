@@ -109,7 +109,6 @@ class SchedulerService:
         last_by_schedule: dict[str, dict[str, object]] = {}
         for run in recent:
             last_by_schedule.setdefault(run.schedule_id, run.to_dict())
-        current = self.current()
         return {
             "status": self.status(),
             "schedules": [
@@ -210,7 +209,8 @@ class SchedulerService:
             try:
                 if not _scheduler_enabled(self.framework_settings):
                     continue
-                if self.current() and self.current().status in {"running", "stopping"}:
+                current = self.current()
+                if current and current.status in {"running", "stopping"}:
                     continue
                 self._start_due_entries()
             except Exception:

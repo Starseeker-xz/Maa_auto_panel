@@ -1,0 +1,35 @@
+from __future__ import annotations
+
+from fastapi import APIRouter, HTTPException
+
+from linux_maa.web.responses import state_or_idle
+from linux_maa.web.services import WebServices
+
+
+def create_maintenance_router(services: WebServices) -> APIRouter:
+    router = APIRouter(prefix="/api/maintenance", tags=["maintenance"])
+    configs = services.configs
+    maintenance = services.maintenance
+
+    @router.get("/current")
+    def current_maintenance() -> dict[str, object]:
+        return state_or_idle(maintenance.current())
+
+    @router.get("/update-info")
+    def update_info() -> dict[str, object]:
+        try:
+            cli_config = configs.read_cli_config().get("data")
+            return maintenance.inspect_update_info(cli_config if isinstance(cli_config, dict) else {})
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @router.post("/{kind}")
+    def start_maintenance(kind: str) -> dict[str, object]:
+        try:
+            return maintenance.start(kind).to_dict()
+        except RuntimeError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return router

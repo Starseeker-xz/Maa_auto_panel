@@ -1,7 +1,0 @@
-[[tasks]]
-name = "startup-smoke"
-type = "StartUp"
-
-[tasks.params]
-client_type = "Bilibili"
-start_game_enabled = false

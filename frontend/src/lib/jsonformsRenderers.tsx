@@ -12,14 +12,13 @@ import {
 } from "@jsonforms/core";
 import { withJsonFormsControlProps } from "@jsonforms/react";
 import { vanillaCells, vanillaRenderers } from "@jsonforms/vanilla-renderers";
-import { HelpCircle } from "lucide-react";
 import type { ReactNode } from "react";
 
+import { HelpTooltip } from "@/components/FormFields";
 import { PrimitiveArrayEditor, type PrimitiveArrayItem, type PrimitiveArrayOption, type PrimitiveArrayValue } from "@/components/PrimitiveArrayEditor";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 function BooleanCheckboxControl(props: ControlProps) {
   const { data, handleChange, path } = props;
@@ -90,7 +89,8 @@ function EnumControl(props: ControlProps) {
 function DynamicSelectControl(props: ControlProps) {
   const { data, handleChange, path, schema } = props;
   const enabled = isControlEnabled(props);
-  const options = dynamicOptions(props).length > 0 ? dynamicOptions(props) : enumOptions(schema);
+  const dynamic = dynamicOptions(props);
+  const options = dynamic.length > 0 ? dynamic : enumOptions(schema);
   const values = options.map((option) => option.value);
 
   return (
@@ -195,19 +195,7 @@ function FieldLabel({ title, description }: { title: string; description: string
   return (
     <span className="inline-flex w-fit items-center gap-1.5 text-sm text-foreground">
       <span>{title}</span>
-      <Tooltip>
-      <TooltipTrigger asChild>
-          <button
-            type="button"
-            data-tooltip-help
-            className="inline-grid size-4 place-items-center rounded-full text-muted-foreground hover:text-foreground"
-            aria-label={`${title} 说明`}
-          >
-            <HelpCircle className="size-3.5" />
-          </button>
-      </TooltipTrigger>
-      <TooltipContent className="max-w-80">{description}</TooltipContent>
-      </Tooltip>
+      <HelpTooltip help={description} label={`${title} 说明`} className="inline-grid" contentClassName="max-w-80" />
     </span>
   );
 }

@@ -25,3 +25,10 @@ config/linux-maa/.trash/
 
 # User-uploaded local exports and temporary inputs
 TEMP/
+
+# Codex operational scratch/state that should not become project source
+.codex/conversations/*/scratch/
+frontend/.codex/
+
+# Local debugging captures
+debug/

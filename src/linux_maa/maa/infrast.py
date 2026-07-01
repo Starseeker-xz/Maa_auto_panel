@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from linux_maa.maa.runtime import MaaRuntime
+from linux_maa.utils import relative_path, validate_file_name
 
 
 AUTO_PLAN_VALUE = "__linux_maa_runtime__:infrast_plan_index"
@@ -165,18 +166,16 @@ class MaaInfrastService:
         name = filename.strip()
         if not name:
             return None
-        requested = Path(name)
-        if requested.is_absolute() or requested.name != name:
+        try:
+            requested = validate_file_name(name, label="infrast filename")
+        except ValueError:
             return None
         return self.runtime.config_dir / "infrast" / requested.name
 
     def _relative_or_none(self, path: Path | None) -> str | None:
         if path is None:
             return None
-        try:
-            return str(path.relative_to(self.runtime.repo_root))
-        except ValueError:
-            return str(path)
+        return relative_path(path, self.runtime.repo_root)
 
 
 def _periods(value: object) -> list[tuple[str, str]]:

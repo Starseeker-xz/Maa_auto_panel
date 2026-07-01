@@ -2,6 +2,7 @@ import { GripVertical, PencilLine, Play, Plus, Square, Trash2 } from "lucide-rea
 import React from "react";
 import { useNavigate } from "react-router-dom";
 
+import { InsertionLine } from "@/components/InsertionLine";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -312,15 +313,5 @@ export function TaskListPane({
         </Button>
       </div>
     </Card>
-  );
-}
-
-function InsertionLine({ active, position }: { active: boolean; position: "first" | "top" | "bottom" }) {
-  if (!active) return null;
-  const positionClass = position === "first" ? "top-0" : position === "top" ? "-top-1" : "-bottom-1";
-  return (
-    <div
-      className={`pointer-events-none absolute left-1 right-1 z-10 h-0.5 rounded-full bg-primary ${positionClass}`}
-    />
   );
 }

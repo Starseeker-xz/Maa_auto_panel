@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-import re
 import uuid
 from copy import deepcopy
 from dataclasses import asdict, dataclass, field
 from typing import Any, Literal
 
+from linux_maa.utils import slugify
 
 RestartMode = Literal["none", "before_run", "before_retry_group", "before_retry"]
 
@@ -119,4 +119,4 @@ def entry_id_from_time(time_text: str) -> str:
 
 
 def slug(value: str) -> str:
-    return re.sub(r"[^A-Za-z0-9_.-]+", "-", value.strip()).strip("-").lower()[:64]
+    return slugify(value)

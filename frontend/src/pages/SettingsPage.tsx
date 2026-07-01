@@ -1,18 +1,16 @@
 import React from "react";
-import { CircleHelp, Download, RefreshCw, Search } from "lucide-react";
+import { Download, RefreshCw, Search } from "lucide-react";
 
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { DirtyActions } from "@/components/DirtyActions";
+import { CheckboxField, NumberField, PathLine, ReadOnlyLine, SectionTitle, SelectField, TextField } from "@/components/FormFields";
 import { Button } from "@/components/ui/button";
 import { Card, CardTitle } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { getCurrentMaintenanceAction, getSettings, getUpdateInfo, saveSettings, startMaintenanceAction } from "@/lib/api";
 import { DELETE_VALUE, booleanAt, isRecord, optionalNumberAt, setNestedValue, stringAt, valueAt, type DeleteValue } from "@/lib/objectPath";
 import { loadStoredTheme, saveActiveTheme, setActiveTheme, themeColors, themeFromFrameworkSettings, themeModes, type ThemeColor, type ThemeMode } from "@/lib/theme";
 import type { ConfigValidation, MaintenanceActionState, SaveSettingsPayload, SettingsResponse, UpdateInfoResponse } from "@/lib/types";
+import { usePolling } from "@/lib/usePolling";
 import { cn } from "@/lib/utils";
 
 type SettingsDraft = SaveSettingsPayload;
@@ -74,17 +72,16 @@ export function SettingsPage() {
     setActiveTheme(themeFromFrameworkSettings(draft.framework));
   }, [draft]);
 
-  React.useEffect(() => {
-    if (maintenance.status !== "running") return;
-    const timer = window.setInterval(async () => {
+  usePolling(
+    async () => {
       try {
         setMaintenance(await getCurrentMaintenanceAction());
       } catch (exc) {
         setError(String(exc));
       }
-    }, 1000);
-    return () => window.clearInterval(timer);
-  }, [maintenance.status]);
+    },
+    { enabled: maintenance.status === "running" }
+  );
 
   const dirty = Boolean(draft && savedDraft && JSON.stringify(draftForDirty(draft)) !== JSON.stringify(draftForDirty(savedDraft)));
 
@@ -194,7 +191,6 @@ export function SettingsPage() {
 
   return (
     <section className="min-h-screen overflow-auto p-4">
-      <TooltipProvider delayDuration={120}>
       <div className="grid min-h-[calc(100vh-2rem)] min-w-0 gap-4 2xl:grid-cols-[minmax(320px,0.8fr)_minmax(440px,1fr)_minmax(520px,1.2fr)] xl:grid-cols-[minmax(360px,0.9fr)_minmax(520px,1.1fr)]">
         <SettingsCard title="框架与主题">
           <SelectField
@@ -437,7 +433,6 @@ export function SettingsPage() {
         </SettingsCard>
       </div>
       {error ? <div className="mt-4 rounded-md border border-destructive/30 bg-destructive/10 p-2 text-sm text-destructive">{error}</div> : null}
-      </TooltipProvider>
 
       <DirtyActions
         dirty={dirty}
@@ -468,160 +463,6 @@ function SettingsCard({ title, children }: { title: string; children: React.Reac
       <CardTitle className="text-sm">{title}</CardTitle>
       <div className="grid min-w-0 gap-3">{children}</div>
     </Card>
-  );
-}
-
-function SectionTitle({ label, help }: { label: string; help?: string }) {
-  return (
-    <div className="flex min-w-0 items-center gap-1.5 pt-1 text-xs font-medium text-muted-foreground">
-      <span>{label}</span>
-      {help ? <HelpTooltip help={help} /> : null}
-    </div>
-  );
-}
-
-function FieldLabel({ label, help }: { label: string; help?: string }) {
-  return (
-    <div className="flex min-w-0 items-center gap-1.5 text-xs font-medium text-muted-foreground">
-      <span className="min-w-0 truncate">{label}</span>
-      {help ? <HelpTooltip help={help} /> : null}
-    </div>
-  );
-}
-
-function HelpTooltip({ help }: { help: string }) {
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <button
-          type="button"
-          className="grid size-4 shrink-0 place-items-center rounded-full text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          aria-label="说明"
-        >
-          <CircleHelp className="size-3.5" />
-        </button>
-      </TooltipTrigger>
-      <TooltipContent side="top" sideOffset={6} className="max-w-xs leading-5 shadow-md sm:max-w-sm">
-        {help}
-      </TooltipContent>
-    </Tooltip>
-  );
-}
-
-function TextField({
-  label,
-  value,
-  help,
-  disabled = false,
-  list,
-  onChange
-}: {
-  label: string;
-  value: string;
-  help?: string;
-  disabled?: boolean;
-  list?: string;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <div className="grid min-w-0 gap-1.5">
-      <FieldLabel label={label} help={help} />
-      <Input className="min-w-0" value={value} disabled={disabled} list={list} onChange={(event) => onChange(event.target.value)} />
-    </div>
-  );
-}
-
-function NumberField({
-  label,
-  value,
-  help,
-  disabled = false,
-  onChange
-}: {
-  label: string;
-  value: number | "";
-  help?: string;
-  disabled?: boolean;
-  onChange: (value: number | "") => void;
-}) {
-  return (
-    <div className="grid min-w-0 gap-1.5">
-      <FieldLabel label={label} help={help} />
-      <Input
-        className="min-w-0"
-        type="number"
-        value={value}
-        disabled={disabled}
-        onChange={(event) => {
-          const next = event.target.value;
-          onChange(next === "" ? "" : Number(next));
-        }}
-      />
-    </div>
-  );
-}
-
-function SelectField({ label, value, help, options, onChange }: { label: string; value: string; help?: string; options: string[][]; onChange: (value: string) => void }) {
-  return (
-    <div className="grid min-w-0 gap-1.5">
-      <FieldLabel label={label} help={help} />
-      <Select value={value} onValueChange={onChange}>
-        <SelectTrigger className="min-w-0">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {options.map(([optionValue, labelText]) => (
-            <SelectItem key={optionValue} value={optionValue}>
-              {labelText}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </div>
-  );
-}
-
-function CheckboxField({
-  label,
-  checked,
-  help,
-  disabled = false,
-  onChange
-}: {
-  label: string;
-  checked: boolean;
-  help?: string;
-  disabled?: boolean;
-  onChange: (value: boolean) => void;
-}) {
-  return (
-    <label className={cn("min-w-0 rounded-md border bg-background p-2 text-sm", disabled && "opacity-55")}>
-      <span className="flex min-h-5 min-w-0 items-start gap-2">
-        <Checkbox checked={checked} disabled={disabled} onCheckedChange={(value) => onChange(value === true)} />
-        <span className="flex min-w-0 flex-1 items-center gap-1.5 leading-5">
-          <span className="min-w-0 break-words">{label}</span>
-          {help ? <HelpTooltip help={help} /> : null}
-        </span>
-      </span>
-    </label>
-  );
-}
-
-function ReadOnlyLine({ label, value, help }: { label: string; value: string; help?: string }) {
-  return (
-    <div className="grid min-w-0 gap-1.5">
-      <FieldLabel label={label} help={help} />
-      <div className="break-anywhere min-h-9 rounded-md border bg-muted/30 px-2 py-2 text-sm">{value}</div>
-    </div>
-  );
-}
-
-function PathLine({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="grid min-w-0 gap-1 border-t pt-3">
-      <span className="text-xs font-medium text-muted-foreground">{label}</span>
-      <span className="break-anywhere text-xs text-muted-foreground">{value}</span>
-    </div>
   );
 }
 

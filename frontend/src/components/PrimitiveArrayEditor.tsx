@@ -1,12 +1,13 @@
 import React from "react";
 import * as SelectPrimitive from "@radix-ui/react-select";
-import { GripVertical, HelpCircle, PencilLine, Plus, Trash2 } from "lucide-react";
+import { GripVertical, PencilLine, Plus, Trash2 } from "lucide-react";
 
+import { HelpTooltip } from "@/components/FormFields";
+import { InsertionLine } from "@/components/InsertionLine";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem } from "@/components/ui/select";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 export type PrimitiveArrayValue = string | number | boolean | null;
@@ -314,16 +315,7 @@ function ArrayTitle({ title, description }: { title: string; description: string
   return (
     <div className="inline-flex min-w-0 items-center gap-1.5 text-sm font-medium">
       <span className="truncate">{title}</span>
-      {description ? (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button type="button" data-tooltip-help className="grid size-4 shrink-0 place-items-center rounded-full text-muted-foreground hover:text-foreground" aria-label={`${title} 说明`}>
-              <HelpCircle className="size-3.5" />
-            </button>
-          </TooltipTrigger>
-          <TooltipContent className="max-w-80">{description}</TooltipContent>
-        </Tooltip>
-      ) : null}
+      {description ? <HelpTooltip help={description} label={`${title} 说明`} contentClassName="max-w-80" /> : null}
     </div>
   );
 }
@@ -346,12 +338,6 @@ function IconSelectTrigger({
       </Button>
     </SelectPrimitive.Trigger>
   );
-}
-
-function InsertionLine({ active, position }: { active: boolean; position: "first" | "top" | "bottom" }) {
-  if (!active) return null;
-  const positionClass = position === "first" ? "top-0" : position === "top" ? "-top-1" : "-bottom-1";
-  return <div className={cn("pointer-events-none absolute left-1 right-1 z-10 h-0.5 rounded-full bg-primary", positionClass)} />;
 }
 
 function optionLabel(options: PrimitiveArrayOption[], value: PrimitiveArrayValue) {

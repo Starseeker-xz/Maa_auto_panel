@@ -69,9 +69,17 @@ export type ConfigResponse = {
 
 export type RunState = {
   id?: string;
+  schedule_id?: string;
+  schedule_name?: string;
+  entry_id?: string;
+  entry_name?: string;
   task?: string;
   profile?: string;
   status: string;
+  created_at?: string;
+  updated_at?: string;
+  game_day?: string;
+  trigger?: string;
   log_level?: number;
   return_code?: number | null;
   log_file?: string | null;
@@ -407,4 +415,4 @@ export type SaveSettingsPayload = {
   maa_cli: Record<string, unknown>;
 };
 
-export type Page = "main" | "schedule" | "settings";
+export type Page = "main" | "schedule" | "tools" | "settings";

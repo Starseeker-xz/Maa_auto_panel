@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from linux_maa.maa.runtime import MaaRuntime
+from linux_maa.utils import relative_path, validate_file_name
 
 
 VARIABLE_RE = re.compile(r"^\s*#\s*linux-maa-var:\s*(?P<name>[A-Za-z_][A-Za-z0-9_]*)\s*\|\s*(?P<label>[^|]+)(?:\|\s*(?P<default>.*))?$")
@@ -48,7 +49,7 @@ class ScheduleScriptManager:
         path = self.resolve(name)
         return ScriptInfo(
             name=path.name,
-            path=str(path.relative_to(self.runtime.repo_root)),
+            path=relative_path(path, self.runtime.repo_root),
             variables=parse_script_variables(path),
         )
 
@@ -70,9 +71,7 @@ class ScheduleScriptManager:
         )
 
     def resolve(self, name: str) -> Path:
-        requested = Path(name)
-        if requested.name != name or name in {"", ".", ".."}:
-            raise ValueError("Invalid script name")
+        requested = validate_file_name(name, label="script name")
         path = self.runtime.script_dir / requested.name
         try:
             path.relative_to(self.runtime.script_dir)

@@ -1,1 +1,0 @@
-{"data":{"$schema":"../../../docs/maa-cli/schemas/task.schema.json"},"task_items":[{"id":"startup","name":"启动 B 服","type":"StartUp","enabled":true,"params":{"client_type":"Bilibili","start_game_enabled":true},"variants":[],"linux_maa":{"id":"startup"}}]}

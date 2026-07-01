@@ -18,6 +18,7 @@ import {
   withTaskItemIndexes
 } from "@/lib/taskWorkspace";
 import type { ConfigFile, ConfigResponse, ConfigsResponse, RunState, TaskItem } from "@/lib/types";
+import { usePolling } from "@/lib/usePolling";
 import { ConfigEditorPane } from "@/pages/main/ConfigEditorPane";
 import { LogPane } from "@/pages/main/LogPane";
 import { TaskListPane } from "@/pages/main/TaskListPane";
@@ -142,17 +143,14 @@ export function MainPage() {
     };
   }, [draftsByConfig, taskConfig]);
 
-  React.useEffect(() => {
-    const timer = window.setInterval(async () => {
-      try {
-        const data = await getCurrentRun();
-        setRun(data);
-      } catch (exc) {
-        setError(String(exc));
-      }
-    }, 1000);
-    return () => window.clearInterval(timer);
-  }, []);
+  usePolling(async () => {
+    try {
+      const data = await getCurrentRun();
+      setRun(data);
+    } catch (exc) {
+      setError(String(exc));
+    }
+  });
 
   function handleTaskConfigChange(name: string) {
     navigate(`/tasks/${encodeURIComponent(name)}`);

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import tomllib
-import uuid
 from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
@@ -22,6 +21,7 @@ from linux_maa.scheduler.models import (
     slug,
 )
 from linux_maa.storage import TrashManager, TrashRecord
+from linux_maa.utils import bounded_int, relative_path, validate_file_name, write_text_atomic
 
 
 @dataclass(frozen=True)
@@ -71,7 +71,7 @@ class ScheduleConfigManager:
                     id=config_id,
                     name=name,
                     filename=path.name,
-                    path=str(path.relative_to(self.runtime.repo_root)),
+                    path=relative_path(path, self.runtime.repo_root),
                     size=stat.st_size,
                     modified_at=stat.st_mtime,
                 )
@@ -85,7 +85,7 @@ class ScheduleConfigManager:
     def write(self, schedule_id: str, payload: dict[str, Any]) -> ScheduleConfig:
         config = schedule_from_data(payload, fallback_id=schedule_id)
         path = self.resolve_for_write(config.id)
-        self._write_atomic(path, tomli_w.dumps(schedule_to_toml_data(config)))
+        write_text_atomic(path, tomli_w.dumps(schedule_to_toml_data(config)))
         return self.read(config.id)
 
     def create_default(self, name: str, task_config: str, default_profile: dict[str, Any], task_ids: list[str]) -> ScheduleConfig:
@@ -105,7 +105,7 @@ class ScheduleConfigManager:
             ],
         )
         path = self.resolve_for_write(config.id)
-        self._write_atomic(path, tomli_w.dumps(schedule_to_toml_data(config)))
+        write_text_atomic(path, tomli_w.dumps(schedule_to_toml_data(config)))
         return self.read(config.id)
 
     def delete(self, schedule_id: str) -> TrashRecord:
@@ -113,9 +113,7 @@ class ScheduleConfigManager:
         return self.trash.move(path, label=f"schedule:{path.name}")
 
     def resolve(self, schedule_id: str) -> Path:
-        requested = Path(schedule_id)
-        if requested.name != schedule_id or schedule_id in {"", ".", ".."}:
-            raise ValueError("Invalid schedule id")
+        requested = validate_file_name(schedule_id, label="schedule id")
         candidates = [self.runtime.schedule_config_dir / requested.name] if requested.suffix else [self.runtime.schedule_config_dir / f"{schedule_id}.toml"]
         for candidate in candidates:
             if candidate.is_file() and candidate.suffix.lower() == ".toml":
@@ -135,17 +133,11 @@ class ScheduleConfigManager:
             kind="schedules",
             name=config.id,
             filename=path.name,
-            path=str(path.relative_to(self.runtime.repo_root)),
+            path=relative_path(path, self.runtime.repo_root),
             suffix="toml",
             size=stat.st_size,
             modified_at=stat.st_mtime,
         )
-
-    def _write_atomic(self, path: Path, content: str) -> None:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        temp_path = path.with_name(f".{path.name}.{uuid.uuid4().hex[:8]}.tmp")
-        temp_path.write_text(content, encoding="utf-8")
-        temp_path.replace(path)
 
 
 def schedule_from_data(data: dict[str, Any], *, fallback_id: str) -> ScheduleConfig:
@@ -171,20 +163,20 @@ def schedule_from_data(data: dict[str, Any], *, fallback_id: str) -> ScheduleCon
         task_config=str(data.get("task_config") or ""),
         profile_name=slug(str(data.get("profile_name") or f"{schedule_id}-profile")) or f"{schedule_id}-profile",
         profile_data=profile_data,
-        log_level=_bounded_int(data.get("log_level"), default=1, minimum=0, maximum=3),
+            log_level=bounded_int(data.get("log_level"), default=1, minimum=0, maximum=3),
         entries=entries,
         retry=ScheduleRetryPolicy(
-            max_attempts_per_group=_bounded_int(raw_retry.get("max_attempts_per_group"), default=5, minimum=1, maximum=50),
-            group_buffer_seconds=_bounded_int(raw_retry.get("group_buffer_seconds"), default=300, minimum=0, maximum=86400),
-            max_groups=_bounded_int(raw_retry.get("max_groups"), default=3, minimum=1, maximum=50),
+            max_attempts_per_group=bounded_int(raw_retry.get("max_attempts_per_group"), default=5, minimum=1, maximum=50),
+            group_buffer_seconds=bounded_int(raw_retry.get("group_buffer_seconds"), default=300, minimum=0, maximum=86400),
+            max_groups=bounded_int(raw_retry.get("max_groups"), default=3, minimum=1, maximum=50),
         ),
         timeouts=ScheduleTimeouts(
-            child_warning_seconds=_bounded_int(raw_timeouts.get("child_warning_seconds"), default=900, minimum=0, maximum=86400),
-            child_danger_seconds=_bounded_int(raw_timeouts.get("child_danger_seconds"), default=1200, minimum=0, maximum=86400),
-            child_kill_seconds=_bounded_int(raw_timeouts.get("child_kill_seconds"), default=1800, minimum=0, maximum=86400),
-            run_warning_seconds=_bounded_int(raw_timeouts.get("run_warning_seconds"), default=1800, minimum=0, maximum=172800),
-            run_danger_seconds=_bounded_int(raw_timeouts.get("run_danger_seconds"), default=2400, minimum=0, maximum=172800),
-            run_kill_seconds=_bounded_int(raw_timeouts.get("run_kill_seconds"), default=3600, minimum=0, maximum=172800),
+            child_warning_seconds=bounded_int(raw_timeouts.get("child_warning_seconds"), default=900, minimum=0, maximum=86400),
+            child_danger_seconds=bounded_int(raw_timeouts.get("child_danger_seconds"), default=1200, minimum=0, maximum=86400),
+            child_kill_seconds=bounded_int(raw_timeouts.get("child_kill_seconds"), default=1800, minimum=0, maximum=86400),
+            run_warning_seconds=bounded_int(raw_timeouts.get("run_warning_seconds"), default=1800, minimum=0, maximum=172800),
+            run_danger_seconds=bounded_int(raw_timeouts.get("run_danger_seconds"), default=2400, minimum=0, maximum=172800),
+            run_kill_seconds=bounded_int(raw_timeouts.get("run_kill_seconds"), default=3600, minimum=0, maximum=172800),
         ),
         restart=RestartScriptPolicy(
             mode=_restart_mode(raw_restart.get("mode")),
@@ -241,14 +233,6 @@ def unique_schedule_id(directory: Path, base: str) -> str:
     while (directory / f"{candidate}-{suffix}.toml").exists():
         suffix += 1
     return f"{candidate}-{suffix}"
-
-
-def _bounded_int(value: object, *, default: int, minimum: int, maximum: int) -> int:
-    try:
-        parsed = int(value)  # type: ignore[arg-type]
-    except (TypeError, ValueError):
-        parsed = default
-    return max(minimum, min(maximum, parsed))
 
 
 def _restart_mode(value: object) -> str:

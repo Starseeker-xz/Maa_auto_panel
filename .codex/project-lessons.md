@@ -25,3 +25,5 @@
 - `2026-06-30_2056-scheduled-execution`: Repository-wide `rg` searches can explode into `frontend/node_modules/` and mirrored upstream docs. For audit searches, pass targets such as `src frontend/src config README.md docs/architecture-direction.md docs/maa-runtime.md` or exclude with `-g '!frontend/node_modules/**' -g '!docs/maa-upstream/**' -g '!runtime/**'`.
 
 - `2026-06-30_2056-scheduled-execution`: This environment does not provide a bare `python` executable on PATH. In this repository, run Python checks and scripts with `uv run python ...` so they use the project interpreter and dependencies.
+
+- `2026-06-30_2342-full-project-audit`: Do not put raw scratch artifacts or upstream source checkouts under tracked `.codex/conversations/**/scratch/`. This repository currently has tracked scratch logs/screenshots and gitlink entries for old upstream checkouts, making handoff state noisy and large. Future sessions should keep scratch untracked, summarize durable findings into project history/session files, and update ignore rules during cleanup.

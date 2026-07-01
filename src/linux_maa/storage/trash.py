@@ -7,6 +7,8 @@ from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
 
+from linux_maa.utils import relative_path
+
 
 @dataclass(frozen=True)
 class TrashRecord:
@@ -71,7 +73,4 @@ class TrashManager:
     def _display_path(self, path: Path) -> str:
         if self.repo_root is None:
             return str(path)
-        try:
-            return str(path.relative_to(self.repo_root.resolve()))
-        except ValueError:
-            return str(path)
+        return relative_path(path, self.repo_root.resolve())

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import re
 import subprocess
 import threading
 import time
@@ -18,6 +17,7 @@ from linux_maa.maa.logs import MaaCliLogTranslator, translate_maa_cli_log
 from linux_maa.maa.process import run_maa_cli_process
 from linux_maa.settings import DEFAULT_DEVICE_SERIAL, DEFAULT_TARGET_PACKAGE
 from linux_maa.maa.runtime import MaaRuntime, find_repo_root
+from linux_maa.utils import relative_path, resolve_existing_named_file, slugify, write_text_atomic
 
 
 def recover_android(adb: ADBDevice, package_name: str, *, force_stop: bool, delay_seconds: float) -> None:
@@ -131,7 +131,7 @@ def prepare_maa_cli_task(
         write_generated_profile(generated_root, profile_name or f"linux-maa-{run_id}", profile_data)
 
     generated_file = generated_tasks / f"{generated_name}.json"
-    generated_file.write_text(json.dumps(sanitized, ensure_ascii=False, indent=2), encoding="utf-8")
+    write_text_atomic(generated_file, json.dumps(sanitized, ensure_ascii=False, indent=2))
 
     env = runtime.env()
     env["MAA_CONFIG_DIR"] = str(generated_root)
@@ -145,14 +145,12 @@ def select_task_items(data: dict[str, object], selected_task_ids: set[str], *, f
         return selected
 
     selected_tasks: list[object] = []
-    seen: set[str] = set()
     for index, task in enumerate(tasks, start=1):
         if not isinstance(task, dict):
             continue
         task_id = task_item_id(task, index)
         if task_id not in selected_task_ids:
             continue
-        seen.add(task_id)
         next_task = dict(task)
         if force_enable_selected:
             params = dict(next_task.get("params")) if isinstance(next_task.get("params"), dict) else {}
@@ -167,41 +165,25 @@ def task_item_id(task: dict[str, object], index: int) -> str:
     metadata = task.get("linux_maa")
     explicit = metadata.get("id") if isinstance(metadata, dict) else None
     if isinstance(explicit, str) and explicit.strip():
-        return _slug(explicit) or f"task-{index}"
+        return slugify(explicit) or f"task-{index}"
     task_type = str(task.get("type") or "Task")
     name = task.get("name")
     base = f"{task_type}-{name}" if isinstance(name, str) and name.strip() else task_type
-    return _slug(base) or f"task-{index}"
+    return slugify(base) or f"task-{index}"
 
 
 def write_generated_profile(generated_root: Path, profile_name: str, profile_data: dict[str, object]) -> Path:
     profiles_dir = generated_root / "profiles"
     profiles_dir.mkdir(parents=True, exist_ok=True)
-    filename = f"{_slug(profile_name) or 'profile'}.json"
+    filename = f"{slugify(profile_name) or 'profile'}.json"
     path = profiles_dir / filename
-    path.write_text(json.dumps(profile_data, ensure_ascii=False, indent=2), encoding="utf-8")
+    write_text_atomic(path, json.dumps(profile_data, ensure_ascii=False, indent=2))
     return path
 
 
 def resolve_task_file(runtime: MaaRuntime, task: str) -> Path:
-    requested = Path(task)
-    if requested.name != task or task in {"", ".", ".."}:
-        raise ValueError("Invalid task name")
-
     tasks_dir = runtime.config_dir / "tasks"
-    if requested.suffix:
-        candidates = [tasks_dir / requested.name]
-    else:
-        candidates = [tasks_dir / f"{task}{suffix}" for suffix in TASK_SUFFIXES]
-
-    for candidate in candidates:
-        try:
-            candidate.relative_to(tasks_dir)
-        except ValueError as exc:
-            raise ValueError("Invalid task path") from exc
-        if candidate.is_file() and candidate.suffix.lower() in TASK_SUFFIXES:
-            return candidate
-    raise FileNotFoundError(task)
+    return resolve_existing_named_file(tasks_dir, task, suffixes=TASK_SUFFIXES, label="task name")
 
 
 def load_task_file(path: Path) -> dict[str, object]:
@@ -226,10 +208,6 @@ def ensure_generated_config_links(runtime: MaaRuntime, generated_root: Path, *, 
         if target.exists():
             continue
         target.symlink_to(source, target_is_directory=source.is_dir())
-
-
-def _slug(value: str) -> str:
-    return re.sub(r"[^A-Za-z0-9_.-]+", "-", value.strip()).strip("-").lower()[:64]
 
 
 @dataclass(frozen=True)
@@ -362,7 +340,7 @@ class MaaRunManager:
 
         log_file = self.runtime.run_log_dir / f"{started_at}-{state.task}-webui.log"
         with self._lock:
-            state.log_file = str(log_file.relative_to(self.runtime.repo_root)) if state.log_level > 0 else None
+            state.log_file = relative_path(log_file, self.runtime.repo_root) if state.log_level > 0 else None
         prepare_messages: list[str] = []
         run_task, run_env = prepare_maa_cli_task(self.runtime, state.task, run_id=state.id, attempt=1, messages=prepare_messages)
         cmd = [

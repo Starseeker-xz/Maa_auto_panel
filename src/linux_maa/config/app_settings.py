@@ -11,6 +11,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 import tomli_w
 
 from linux_maa.maa.runtime import MaaRuntime
+from linux_maa.utils import relative_path, write_text_atomic
 
 
 DEFAULT_FRAMEWORK_SETTINGS: dict[str, Any] = {
@@ -60,7 +61,7 @@ class FrameworkSettingsManager:
         data = self._load()
         return {
             "file": {
-                "path": str(self.path.relative_to(self.runtime.repo_root)),
+                "path": relative_path(self.path, self.runtime.repo_root),
                 "exists": self.path.exists(),
             },
             "data": data,
@@ -76,10 +77,7 @@ class FrameworkSettingsManager:
             timezone_settings["auto_resolved_offset_minutes"] = resolved.offset_minutes
             timezone_settings["auto_resolved_at"] = resolved.resolved_at
 
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        temp_path = self.path.with_name(f".{self.path.name}.tmp")
-        temp_path.write_text(tomli_w.dumps(merged), encoding="utf-8")
-        temp_path.replace(self.path)
+        write_text_atomic(self.path, tomli_w.dumps(merged))
         return self.read()
 
     def resolve_timezone(self, data: dict[str, Any]) -> TimezoneInfo:

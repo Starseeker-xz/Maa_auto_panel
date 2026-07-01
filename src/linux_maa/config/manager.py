@@ -2,10 +2,8 @@ from __future__ import annotations
 
 import json
 import tomllib
-import uuid
 from dataclasses import asdict, dataclass
 from pathlib import Path
-import re
 
 import tomli_w
 
@@ -13,6 +11,7 @@ from linux_maa.maa.runtime import MaaRuntime
 from linux_maa.config.schema import ConfigSchemaValidator
 from linux_maa.config.tasks import TASK_SUFFIXES, WRITABLE_TASK_SUFFIXES, inflate_managed_params_for_edit, task_items_to_config_data
 from linux_maa.storage import TrashManager, TrashRecord
+from linux_maa.utils import relative_path, resolve_existing_named_file, slugify, validate_file_name, write_text_atomic
 
 CONFIG_KINDS = {
     "profiles": "profiles",
@@ -69,7 +68,7 @@ class ConfigManager:
                     kind=kind,
                     name=path.stem,
                     filename=path.name,
-                    path=str(path.relative_to(self.runtime.repo_root)),
+                    path=relative_path(path, self.runtime.repo_root),
                     suffix=path.suffix.lower().lstrip("."),
                     size=stat.st_size,
                     modified_at=stat.st_mtime,
@@ -87,7 +86,7 @@ class ConfigManager:
             kind=kind,
             name=path.stem,
             filename=path.name,
-            path=str(path.relative_to(self.runtime.repo_root)),
+            path=relative_path(path, self.runtime.repo_root),
             suffix=path.suffix.lower().lstrip("."),
             size=stat.st_size,
             modified_at=stat.st_mtime,
@@ -137,7 +136,7 @@ class ConfigManager:
                 kind="cli",
                 name="cli",
                 filename="cli.toml",
-                path=str(path.relative_to(self.runtime.repo_root)),
+                path=relative_path(path, self.runtime.repo_root),
                 suffix="toml",
                 size=0,
                 modified_at=0,
@@ -212,7 +211,7 @@ class ConfigManager:
             raise ConfigValidationFailure(validation)
 
         content = self._serialize(path.suffix.lower(), data)
-        self._write_atomic(path, content)
+        write_text_atomic(path, content)
         return self._task_config_response(path)
 
     def write_profile_config(self, name: str, data: dict[str, object]) -> dict[str, object]:
@@ -220,7 +219,7 @@ class ConfigManager:
         if not validation.valid:
             raise ConfigValidationFailure(validation)
         path = self.resolve_for_write("profiles", name, default_suffix=".toml")
-        self._write_atomic(path, self._serialize(path.suffix.lower(), data))
+        write_text_atomic(path, self._serialize(path.suffix.lower(), data))
         return self.read_profile_config(path.stem)
 
     def write_cli_config(self, data: dict[str, object]) -> dict[str, object]:
@@ -228,7 +227,7 @@ class ConfigManager:
         if not validation.valid:
             raise ConfigValidationFailure(validation)
         path = self.runtime.config_dir / "cli.toml"
-        self._write_atomic(path, self._serialize(".toml", data))
+        write_text_atomic(path, self._serialize(".toml", data))
         return self.read_cli_config()
 
     def delete(self, kind: str, name: str) -> TrashRecord:
@@ -240,11 +239,11 @@ class ConfigManager:
         explicit_id = framework.get("id") if isinstance(framework, dict) else None
 
         if isinstance(explicit_id, str) and explicit_id.strip():
-            return self._slug(explicit_id) or "task"
+            return slugify(explicit_id) or "task"
 
         name = task.get("name")
         base_source = f"{task_type}-{name}" if isinstance(name, str) and name.strip() else task_type
-        return self._slug(base_source) or "task"
+        return slugify(base_source) or "task"
 
     def _unique_task_item_id(self, base_id: str, seen_ids: set[str]) -> str:
         if base_id not in seen_ids:
@@ -258,30 +257,9 @@ class ConfigManager:
         seen_ids.add(task_id)
         return task_id
 
-    def _slug(self, value: str) -> str:
-        slug = re.sub(r"[^A-Za-z0-9_.-]+", "-", value.strip()).strip("-").lower()
-        return slug[:64]
-
     def resolve(self, kind: str, name: str) -> Path:
         directory = self._kind_dir(kind)
-        requested = Path(name)
-        if requested.name != name or name in {"", ".", ".."}:
-            raise ValueError("Invalid config name")
-
-        candidates: list[Path]
-        if requested.suffix:
-            candidates = [directory / requested.name]
-        else:
-            candidates = [directory / f"{name}{suffix}" for suffix in CONFIG_SUFFIXES]
-
-        for candidate in candidates:
-            try:
-                candidate.relative_to(directory)
-            except ValueError as exc:
-                raise ValueError("Invalid config path") from exc
-            if candidate.is_file() and candidate.suffix.lower() in CONFIG_SUFFIXES:
-                return candidate
-        raise FileNotFoundError(name)
+        return resolve_existing_named_file(directory, name, suffixes=CONFIG_SUFFIXES, label="config name")
 
     def resolve_for_write(self, kind: str, name: str, *, default_suffix: str) -> Path:
         try:
@@ -290,16 +268,14 @@ class ConfigManager:
             pass
 
         directory = self._kind_dir(kind)
-        requested = Path(name)
-        if requested.name != name or name in {"", ".", ".."}:
-            raise ValueError("Invalid config name")
+        requested = validate_file_name(name, label="config name")
 
         suffix = requested.suffix.lower() or default_suffix
         if suffix not in WRITABLE_TASK_SUFFIXES:
             raise ValueError(f"Cannot write {suffix} config yet")
 
         stem = requested.stem if requested.suffix else requested.name
-        if not self._slug(stem):
+        if not slugify(stem):
             raise ValueError("Invalid config name")
         path = directory / f"{stem}{suffix}"
         try:
@@ -314,12 +290,6 @@ class ConfigManager:
         if suffix == ".json":
             return json.dumps(data, ensure_ascii=False, indent=2) + "\n"
         raise ValueError(f"Cannot write {suffix} config yet")
-
-    def _write_atomic(self, path: Path, content: str) -> None:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        temp_path = path.with_name(f".{path.name}.{uuid.uuid4().hex[:8]}.tmp")
-        temp_path.write_text(content, encoding="utf-8")
-        temp_path.replace(path)
 
     def _kind_dir(self, kind: str) -> Path:
         dirname = CONFIG_KINDS.get(kind)

@@ -19,6 +19,7 @@ from linux_maa.settings import (
     DESKTOP_USER_AGENT,
     MOBILE_USER_AGENT,
 )
+from linux_maa.utils import write_text_atomic
 
 try:
     import hdiffpatch
@@ -54,7 +55,7 @@ class PackageManager:
             return {"packages": {}}
 
     def _save_manifest(self) -> None:
-        self.manifest_file.write_text(json.dumps(self.manifest, indent=4, ensure_ascii=False), encoding="utf-8")
+        write_text_atomic(self.manifest_file, json.dumps(self.manifest, indent=4, ensure_ascii=False))
 
     def get_package_info(self, version: int | str) -> dict[str, Any] | None:
         return self.manifest.setdefault("packages", {}).get(str(version))

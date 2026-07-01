@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from linux_maa.maa.runtime import MaaRuntime
+from linux_maa.utils import dict_value, extract_version, relative_path, version_key
 
 
 CLIENT_ALIASES = {
@@ -213,7 +214,7 @@ class MaaStageService:
         for group in side_story.values():
             if not isinstance(group, dict):
                 continue
-            activity_token = _dict_value(group.get("Activity") or group.get("activity"))
+            activity_token = dict_value(group.get("Activity") or group.get("activity"))
             group_minimum = str(group.get("MinimumRequired") or group.get("minimumRequired") or "")
             stage_list = group.get("Stages") or group.get("stages")
             if not isinstance(stage_list, list):
@@ -223,12 +224,12 @@ class MaaStageService:
                 if not isinstance(item, dict):
                     continue
                 minimum = str(item.get("MinimumRequired") or group_minimum or "")
-                is_low_version = bool(minimum and core_version and _version_key(core_version) < _version_key(minimum))
+                is_low_version = bool(minimum and core_version and version_key(core_version) < version_key(minimum))
                 display = str(item.get("Display") or "")
                 value = str(item.get("Value") or "")
                 if not display or not value:
                     continue
-                activity = _activity_info(_dict_value(item.get("Activity")) or activity_token)
+                activity = _activity_info(dict_value(item.get("Activity")) or activity_token)
                 stages.setdefault(
                     display,
                     StageInfo(
@@ -308,7 +309,7 @@ def _stage_info(stages: dict[str, StageInfo], stage: str) -> StageInfo:
 
 
 def _resource_collection(token: object) -> StageActivity:
-    data = _dict_value(token)
+    data = dict_value(token)
     if not data:
         return StageActivity(is_resource_collection=True)
     return StageActivity(
@@ -379,23 +380,7 @@ def _current_core_version(runtime: MaaRuntime, errors: list[str]) -> str:
 
 
 def _extract_version(line: str) -> str:
-    match = re.search(r"v?\d+(?:\.\d+)+(?:[-+][0-9A-Za-z.-]+)?", line)
-    return match.group(0).lstrip("v") if match else ""
-
-
-def _version_key(value: str) -> tuple[tuple[int, ...], str]:
-    cleaned = value.strip().lstrip("v")
-    main, _, suffix = cleaned.partition("-")
-    parts: list[int] = []
-    for part in main.split("."):
-        if not part.isdigit():
-            break
-        parts.append(int(part))
-    return tuple(parts), suffix
-
-
-def _dict_value(value: object) -> dict[str, Any]:
-    return value if isinstance(value, dict) else {}
+    return extract_version(line)
 
 
 def _as_utc(value: datetime | None) -> datetime:
@@ -409,7 +394,4 @@ def _as_utc(value: datetime | None) -> datetime:
 def _relative_or_none(path: Path | None, repo_root: Path) -> str | None:
     if path is None:
         return None
-    try:
-        return str(path.relative_to(repo_root))
-    except ValueError:
-        return str(path)
+    return relative_path(path, repo_root)

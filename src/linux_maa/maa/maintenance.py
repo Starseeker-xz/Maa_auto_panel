@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import re
 import subprocess
 import threading
 import uuid
@@ -14,6 +13,7 @@ from typing import Any
 import requests
 
 from linux_maa.maa.runtime import MaaRuntime
+from linux_maa.utils import dict_value, extract_version, is_newer_version
 
 
 MAINTENANCE_COMMANDS = {
@@ -158,9 +158,9 @@ def _current_versions(runtime: MaaRuntime, errors: list[str]) -> dict[str, objec
             errors.append(f"读取 maa version 失败: {proc.stderr or proc.stdout}".strip())
         for line in proc.stdout.splitlines():
             if line.lower().startswith("maa-cli"):
-                versions["maa_cli"] = _extract_version(line)
+                versions["maa_cli"] = extract_version(line)
             if line.lower().startswith("maacore"):
-                versions["maa_core"] = _extract_version(line)
+                versions["maa_core"] = extract_version(line)
     except Exception as exc:
         errors.append(f"读取 maa 版本失败: {exc}")
 
@@ -170,44 +170,44 @@ def _current_versions(runtime: MaaRuntime, errors: list[str]) -> dict[str, objec
 
 
 def _latest_core_info(cli_config: dict[str, Any], current_version: object, errors: list[str]) -> dict[str, object]:
-    core_config = _dict_value(cli_config.get("core"))
+    core_config = dict_value(cli_config.get("core"))
     channel = str(core_config.get("channel") or "Stable")
     api_url = str(core_config.get("api_url") or DEFAULT_CORE_API_URL)
     url = _join_api_url(api_url, f"{channel.lower()}.json")
     data = _get_json(url, errors, label="MaaCore 更新信息")
     version = str(data.get("version") or "") if isinstance(data, dict) else ""
-    details = _dict_value(data.get("details")) if isinstance(data, dict) else {}
+    details = dict_value(data.get("details")) if isinstance(data, dict) else {}
     return {
         "channel": channel,
         "api_url": url,
         "version": version,
         "published_at": details.get("published_at"),
         "html_url": details.get("html_url"),
-        "update_available": _is_newer(str(current_version or ""), version),
+        "update_available": is_newer_version(str(current_version or ""), version),
     }
 
 
 def _latest_cli_info(cli_config: dict[str, Any], current_version: object, errors: list[str]) -> dict[str, object]:
-    cli_section = _dict_value(cli_config.get("cli"))
+    cli_section = dict_value(cli_config.get("cli"))
     channel = str(cli_section.get("channel") or "Stable")
     api_url = str(cli_section.get("api_url") or DEFAULT_CLI_API_URL)
     url = _join_api_url(api_url, f"{channel.lower()}.json")
     data = _get_json(url, errors, label="maa-cli 更新信息")
     version = str(data.get("version") or "") if isinstance(data, dict) else ""
-    details = _dict_value(data.get("details")) if isinstance(data, dict) else {}
+    details = dict_value(data.get("details")) if isinstance(data, dict) else {}
     return {
         "channel": channel,
         "api_url": url,
         "version": version,
         "tag": details.get("tag"),
         "commit": details.get("commit"),
-        "update_available": _is_newer(str(current_version or ""), version),
+        "update_available": is_newer_version(str(current_version or ""), version),
     }
 
 
 def _hot_resource_info(runtime: MaaRuntime, cli_config: dict[str, Any], errors: list[str]) -> dict[str, object]:
-    resource = _dict_value(cli_config.get("resource"))
-    remote = _dict_value(resource.get("remote"))
+    resource = dict_value(cli_config.get("resource"))
+    remote = dict_value(resource.get("remote"))
     branch = str(remote.get("branch") or "main")
     url = str(remote.get("url") or "https://github.com/MaaAssistantArknights/MaaResource.git")
     repo = runtime.data_home / "maa" / "MaaResource"
@@ -230,8 +230,8 @@ def _resource_version(path: Path) -> dict[str, object]:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
         now = int(datetime.now(timezone.utc).timestamp())
-        activity = _dict_value(data.get("activity"))
-        gacha = _dict_value(data.get("gacha"))
+        activity = dict_value(data.get("activity"))
+        gacha = dict_value(data.get("gacha"))
         activity_time = int(activity.get("time") or 0)
         gacha_time = int(gacha.get("time") or 0)
         if now >= gacha_time > activity_time:
@@ -283,29 +283,5 @@ def _git_output(args: list[str], errors: list[str], *, label: str) -> str:
         return ""
 
 
-def _extract_version(line: str) -> str:
-    parts = line.strip().split()
-    return parts[-1].removeprefix("v") if parts else ""
-
-
 def _join_api_url(base_url: str, filename: str) -> str:
     return f"{base_url.rstrip('/')}/{filename}"
-
-
-def _dict_value(value: object) -> dict[str, Any]:
-    return value if isinstance(value, dict) else {}
-
-
-def _is_newer(current: str, latest: str) -> bool:
-    if not current or not latest:
-        return False
-    current = current.removeprefix("v")
-    latest = latest.removeprefix("v")
-    if current == latest:
-        return False
-    return _version_key(current) < _version_key(latest)
-
-
-def _version_key(value: str) -> tuple[tuple[int, ...], str]:
-    numeric = tuple(int(part) for part in re.findall(r"\d+", value)[:4])
-    return numeric, value
