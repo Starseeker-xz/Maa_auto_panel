@@ -27,3 +27,5 @@
 - `2026-06-30_2056-scheduled-execution`: This environment does not provide a bare `python` executable on PATH. In this repository, run Python checks and scripts with `uv run python ...` so they use the project interpreter and dependencies.
 
 - `2026-06-30_2342-full-project-audit`: Do not put raw scratch artifacts or upstream source checkouts under tracked `.codex/conversations/**/scratch/`. This repository currently has tracked scratch logs/screenshots and gitlink entries for old upstream checkouts, making handoff state noisy and large. Future sessions should keep scratch untracked, summarize durable findings into project history/session files, and update ignore rules during cleanup.
+
+- `2026-07-01_1312-explain-log-flow`: When splitting one domain's implementation into multiple files, keep those files inside a domain subpackage instead of scattering them as sibling modules in the parent package. Example: log internals belong under `src/linux_maa/maa/logs/`, with `__init__.py` preserving the public import surface.

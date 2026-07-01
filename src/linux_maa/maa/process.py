@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+from contextlib import nullcontext
 import select
 import subprocess
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable
+from typing import Callable, TextIO
 
 from linux_maa.maa.runtime import MaaRuntime
 
@@ -29,8 +30,8 @@ def run_maa_cli_process(
     cmd: list[str],
     *,
     env: dict[str, str],
-    log_file: Path | None,
     on_output: OutputCallback,
+    output_log_file: Path | None = None,
     on_process: ProcessCallback | None = None,
     should_stop: ShouldStopCallback | None = None,
     timeout_seconds: int | None = None,
@@ -58,63 +59,58 @@ def run_maa_cli_process(
     dangered = False
     timed_out = False
     stopped = False
-    log_offset = 0
 
-    while True:
-        ready, _, _ = select.select([proc.stdout], [], [], 0.2)
-        if ready:
-            line = proc.stdout.readline()
-            if line:
-                on_output(line)
-        if log_file is not None:
-            log_offset = tail_log_file(log_file, log_offset, on_output)
-        if on_tick is not None:
-            on_tick()
+    log_context = output_log_file.open("a", encoding="utf-8", errors="replace") if output_log_file is not None else nullcontext(None)
+    with log_context as log_sink:
+        while True:
+            output_chunks = []
+            ready, _, _ = select.select([proc.stdout], [], [], 0.2)
+            if ready:
+                line = proc.stdout.readline()
+                if line:
+                    output_chunks.append(line)
+            _emit_output(output_chunks, on_output, log_sink)
+            if on_tick is not None:
+                on_tick()
 
-        elapsed = time.monotonic() - start
-        if warning_seconds and not warned and elapsed >= warning_seconds:
-            warned = True
-            if on_timeout is not None:
-                on_timeout("warning", elapsed)
-        if danger_seconds and not dangered and elapsed >= danger_seconds:
-            dangered = True
-            if on_timeout is not None:
-                on_timeout("danger", elapsed)
-        if timeout_seconds and elapsed >= timeout_seconds and proc.poll() is None:
-            timed_out = True
-            if on_timeout is not None:
-                on_timeout("kill", elapsed)
-            _terminate_process(proc)
+            elapsed = time.monotonic() - start
+            if warning_seconds and not warned and elapsed >= warning_seconds:
+                warned = True
+                if on_timeout is not None:
+                    on_timeout("warning", elapsed)
+            if danger_seconds and not dangered and elapsed >= danger_seconds:
+                dangered = True
+                if on_timeout is not None:
+                    on_timeout("danger", elapsed)
+            if timeout_seconds and elapsed >= timeout_seconds and proc.poll() is None:
+                timed_out = True
+                if on_timeout is not None:
+                    on_timeout("kill", elapsed)
+                _terminate_process(proc)
 
-        if should_stop is not None and should_stop() and proc.poll() is None:
-            stopped = True
-            _terminate_process(proc)
+            if should_stop is not None and should_stop() and proc.poll() is None:
+                stopped = True
+                _terminate_process(proc)
 
-        if proc.poll() is not None:
-            remainder = proc.stdout.read()
-            if remainder:
-                on_output(remainder)
-            if log_file is not None:
-                tail_log_file(log_file, log_offset, on_output)
-            break
+            if proc.poll() is not None:
+                output_chunks = []
+                remainder = proc.stdout.read()
+                if remainder:
+                    output_chunks.append(remainder)
+                _emit_output(output_chunks, on_output, log_sink)
+                break
 
     return MaaCliProcessResult(return_code=proc.wait(), timed_out=timed_out, stopped=stopped)
 
 
-def tail_log_file(path: Path, offset: int, on_output: OutputCallback) -> int:
-    if not path.exists():
-        return offset
-    try:
-        with path.open("rb") as file:
-            file.seek(offset)
-            data = file.read()
-            if not data:
-                return offset
-            on_output(data.decode("utf-8", errors="replace"))
-            return file.tell()
-    except OSError as exc:
-        on_output(f"读取 maa-cli 日志失败: {exc}\n")
-        return offset
+def _emit_output(chunks: list[str], on_output: OutputCallback, log_sink: TextIO | None = None) -> None:
+    if not chunks:
+        return
+    text = "".join(chunks)
+    if log_sink is not None:
+        log_sink.write(text)
+        log_sink.flush()
+    on_output(text)
 
 
 def _terminate_process(proc: subprocess.Popen[str]) -> None:

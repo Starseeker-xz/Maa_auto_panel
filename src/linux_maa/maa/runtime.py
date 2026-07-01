@@ -64,6 +64,7 @@ class MaaRuntime:
         env["XDG_DATA_HOME"] = str(self.data_home)
         env["XDG_CACHE_HOME"] = str(self.cache_home)
         env["XDG_STATE_HOME"] = str(self.state_home)
+        env["MAA_LOG_PREFIX"] = "Always"
         return env
 
 

@@ -422,7 +422,6 @@ class SchedulerService:
             generated_profile,
         ]
         if state.log_level > 0:
-            cmd.append(f"--log-file={log_file}")
             cmd.extend(["-v"] * state.log_level)
 
         self._append_event(state, f"开始第 {attempt_index} 次尝试: {', '.join(_task_names(policy_by_id, task_ids))}", tone="info")
@@ -435,7 +434,7 @@ class SchedulerService:
             self.runtime,
             cmd,
             env=run_env,
-            log_file=log_file if state.log_level > 0 else None,
+            output_log_file=log_file if state.log_level > 0 else None,
             on_output=lambda text: self._append_maa_log(state, text),
             on_process=lambda proc: self._set_process(state, proc),
             should_stop=lambda: state.stop_requested,

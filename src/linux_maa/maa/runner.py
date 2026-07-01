@@ -352,7 +352,6 @@ class MaaRunManager:
             state.profile,
         ]
         if state.log_level > 0:
-            cmd.append(f"--log-file={log_file}")
             cmd.extend(["-v"] * state.log_level)
         self._append(state, f"\n运行: {state.task}\n")
         for message in prepare_messages:
@@ -383,7 +382,7 @@ class MaaRunManager:
             self.runtime,
             cmd,
             env=env,
-            log_file=log_file,
+            output_log_file=log_file,
             on_output=lambda text: self._append_maa_log(state, text),
             on_process=lambda proc: self._set_process(state, proc),
         )

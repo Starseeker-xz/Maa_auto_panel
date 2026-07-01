@@ -116,7 +116,7 @@ For visible progress, the WebUI invokes `maa-cli` with an explicit log file and
 verbosity level:
 
 ```text
-maa run <generated-task> --batch --profile <profile> --log-file=<path> -v
+maa run <generated-task> --batch --profile <profile> -v
 ```
 
 The frontend currently submits profile `default` and info-level logs. Main-page
@@ -128,26 +128,35 @@ diagnosis and are not streamed as normal UI output.
 The WebUI captures two visible process channels:
 
 - `maa-cli` stdout and stderr are merged with `stderr=subprocess.STDOUT` and read
-  from the process pipe. This captures output such as git fetch text and the
-  final `Summary`; those lines are not necessarily present in the explicit
-  `--log-file`.
-- The explicit `--log-file` is tailed separately while the process runs. This is
-  where normal info-level `maa-cli`/MaaCore callback logs appear when
-  `--log-file` is used.
+  from the process pipe. maa-cli writes logs to stderr by default, so this is
+  the real-time UI log source. It also captures output such as git fetch text
+  and the final `Summary`.
+- When info logs are enabled, the framework tees the merged process stream into
+  its own `runtime/maa/run-logs/...` artifact. It does not pass `--log-file` to
+  maa-cli for WebUI/scheduled live runs, because that can move info callback
+  logs out of stderr in the observed maa-cli runtime. Runtime environments force
+  `MAA_LOG_PREFIX=Always` so stderr logs keep the timestamp/level prefix expected
+  by the structured log parser.
 
 The WebUI run manager does not pass raw `maa-cli` log chunks straight through.
-`src/linux_maa/maa/logs.py` parses the first framework-level semantics from
-info-level `maa-cli` output through configurable panel rules. The default rule
-opens a child-task panel on `TaskName Start` and closes it on `TaskName
-Completed`, `TaskName Error`, or `TaskName Stopped`. Framework preprocessing
-events also enter the same structured log stream; current examples include the
-resolved Fight stage and Infrast plan before `maa-cli` starts. The run-state API
-exposes structured `log_entries` for UI rendering and `task_results` for
-per-child status. The frontend renders these entries as timeline-style cards,
-leaving room for future colored text segments and inline images. Already
-translated events do not show the original raw log line in the normal log UI.
-The final maa-cli `Summary` tail is grouped into one structured summary panel
-instead of being rendered as one global log card per line.
+The `src/linux_maa/maa/logs/` package parses framework-level semantics from
+info-level `maa-cli` output through configurable chunk rules. `rules.py` defines
+the explicit summary rule, task-lifecycle rule, and default line rule;
+`translator.py` owns the state machine that applies those rules to a stream.
+The task-lifecycle rule opens a child-task panel on `TaskName Start` and closes
+it on `TaskName Completed`, `TaskName Error`, or `TaskName Stopped`. Unmatched
+lines use the default line rule; when a task panel is active, those lines remain
+child messages of that task, preserving current UI behavior.
+
+Framework preprocessing events also enter the same structured log stream;
+current examples include the resolved Fight stage and Infrast plan before
+`maa-cli` starts. The run-state API exposes structured `log_entries` for UI
+rendering and `task_results` for per-child status. The frontend renders these
+entries as timeline-style cards, leaving room for future colored text segments
+and inline images. Already translated events do not show the original raw log
+line in the normal log UI. The final maa-cli `Summary` tail is grouped into one
+structured summary panel instead of being rendered as one global log card per
+line.
 
 ## Config reading and editing
 

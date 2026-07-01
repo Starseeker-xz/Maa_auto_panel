@@ -24,3 +24,5 @@
 - `2026-06-30_2056-scheduled-execution`: Audit existing architecture/code before implementing scheduled execution, then build the scheduler domain/API/UI described in `TEMP/定时执行功能.md`.
 - `2026-06-30_2318-gpu-ocr-research`: Investigate and test MaaCore GPU OCR availability in the current Linux MAA runtime, with Docker packaging notes.
 - `2026-06-30_2342-full-project-audit`: Full backend/frontend/project-history audit execution. Added Chinese root audit reports, split backend routes/services, consolidated shared helpers, refactored frontend shared fields/polling/schedule panes, and cleaned large old scratch artifacts.
+
+- `2026-07-01_1312-explain-log-flow`: Explain current log translation, chunking, and frontend response/display flow.
