@@ -21,6 +21,8 @@ from linux_maa.scheduler.policy import initial_task_selection, retry_task_ids, t
 from linux_maa.scheduler.scripts import ScheduleScriptManager
 from linux_maa.scheduler.store import ScheduleStore
 from linux_maa.scheduler.time import effective_timezone, extract_client_type, game_day_info, game_day_key, sort_entries_for_game_day
+from linux_maa.state import state_or_idle
+from linux_maa.utils import relative_path
 
 
 @dataclass
@@ -97,7 +99,7 @@ class SchedulerService:
         return {
             "enabled": enabled,
             "status": "running" if enabled else "disabled",
-            "current_run": current.to_dict() if current else {"status": "idle", "output": []},
+            "current_run": state_or_idle(current),
             "recent_runs": [run.to_dict() for run in self.store.recent_runs(limit=8)],
         }
 
@@ -107,6 +109,7 @@ class SchedulerService:
         last_by_schedule: dict[str, dict[str, object]] = {}
         for run in recent:
             last_by_schedule.setdefault(run.schedule_id, run.to_dict())
+        current = self.current()
         return {
             "status": self.status(),
             "schedules": [
@@ -124,7 +127,7 @@ class SchedulerService:
 
     def create_schedule(self, name: str, task_config: str | None = None) -> dict[str, object]:
         configs = self.configs.list_kind("tasks")
-        selected_task_config = task_config or configs[0].name if configs else ""
+        selected_task_config = task_config or (configs[0].name if configs else "")
         if not selected_task_config:
             raise ValueError("No task config available")
         task_response = self.configs.read_task_config(selected_task_config)
@@ -177,6 +180,7 @@ class SchedulerService:
             return self._current
 
     def _schedule_response(self, config: ScheduleConfig) -> dict[str, object]:
+        current = self.current()
         task_config_data = self.configs.read_task_config(config.task_config)
         task_data = task_config_data.get("data") if isinstance(task_config_data.get("data"), dict) else {}
         client = extract_client_type(task_data)
@@ -198,7 +202,7 @@ class SchedulerService:
             },
             "recent_runs": [run.to_dict() for run in self.store.recent_runs(config.id, limit=12)],
             "scripts": [script.to_dict() for script in self.scripts.list_scripts()],
-            "current_run": self.current().to_dict() if self.current() and self.current().schedule_id == config.id else {"status": "idle", "output": []},
+            "current_run": current.to_dict() if current and current.schedule_id == config.id else state_or_idle(None),
         }
 
     def _loop(self) -> None:
@@ -394,7 +398,7 @@ class SchedulerService:
         started_at = datetime.now().strftime("%Y%m%d-%H%M%S")
         log_file = self.runtime.run_log_dir / f"{started_at}-{config.id}-{state.entry_id}-attempt-{attempt_index}.log"
         with self._lock:
-            state.log_file = str(log_file.relative_to(self.runtime.repo_root)) if state.log_level > 0 else state.log_file
+            state.log_file = relative_path(log_file, self.runtime.repo_root) if state.log_level > 0 else state.log_file
 
         prepare_messages: list[str] = []
         generated_profile = config.profile_name or f"{config.id}-profile"
@@ -465,7 +469,7 @@ class SchedulerService:
         )
         return {
             "return_code": result.return_code,
-            "log_file": str(log_file.relative_to(self.runtime.repo_root)) if state.log_level > 0 else None,
+            "log_file": relative_path(log_file, self.runtime.repo_root) if state.log_level > 0 else None,
             "status_by_task_id": status_by_task_id,
         }
 
