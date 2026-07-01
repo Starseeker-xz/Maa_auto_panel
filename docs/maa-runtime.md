@@ -164,9 +164,13 @@ The current-run UI state is delivered through Server-Sent Events:
 - `GET /api/schedules/current/events` streams the active scheduled run state.
 
 Each stream sends the current state immediately, then sends another complete
-`RunState` only when the state signature changes. The legacy JSON endpoints
-`GET /api/runs/current` and `GET /api/schedules/current` remain available for
-one-shot reads and non-SSE clients.
+`RunState` only after the owning run service reports a state change. The backend
+does not poll current state on a fixed interval for SSE; `MaaRunManager` and
+`SchedulerService` notify waiting streams through condition variables whenever
+they append output, update task state, start a run, stop a run, or finish a run.
+Idle streams block until a real update or a 15-second keep-alive timeout. The
+legacy JSON endpoints `GET /api/runs/current` and `GET /api/schedules/current`
+remain available for one-shot reads and non-SSE clients.
 
 ## Config reading and editing
 

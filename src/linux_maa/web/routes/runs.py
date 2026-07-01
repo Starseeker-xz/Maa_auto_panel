@@ -48,7 +48,7 @@ def create_run_router(services: WebServices) -> APIRouter:
 
     @router.get("/current/events")
     def current_run_events(request: Request):
-        return state_event_stream(request, runs.current)
+        return state_event_stream(request, runs.current, runs.wait_for_change)
 
     @router.get("/{run_id}")
     def get_run(run_id: str) -> dict[str, object]:

@@ -86,6 +86,8 @@ class SchedulerService:
         self.store = ScheduleStore(runtime.scheduler_db_path)
         self.scripts = ScheduleScriptManager(runtime)
         self._lock = threading.Lock()
+        self._condition = threading.Condition(self._lock)
+        self._version = 0
         self._current: ScheduleRunState | None = None
         self._shutdown = threading.Event()
         self._thread = threading.Thread(target=self._loop, daemon=True)
@@ -167,6 +169,12 @@ class SchedulerService:
         with self._lock:
             return self._current
 
+    def wait_for_change(self, last_version: int, timeout: float | None = None) -> int:
+        with self._condition:
+            if self._version == last_version:
+                self._condition.wait(timeout)
+            return self._version
+
     def stop_current(self) -> ScheduleRunState:
         with self._lock:
             if self._current is None:
@@ -176,6 +184,7 @@ class SchedulerService:
                 self._current.process.terminate()
             self._current.status = "stopping"
             self._current.updated_at = _now()
+            self._notify_locked()
             return self._current
 
     def _schedule_response(self, config: ScheduleConfig) -> dict[str, object]:
@@ -265,6 +274,7 @@ class SchedulerService:
                 trigger=trigger,
             )
             self._current = state
+            self._notify_locked()
 
         thread = threading.Thread(target=self._execute_run, args=(state, config, entry), daemon=True)
         state.thread = thread
@@ -399,6 +409,7 @@ class SchedulerService:
         log_file = self.runtime.run_log_dir / f"{started_at}-{config.id}-{state.entry_id}-attempt-{attempt_index}.log"
         with self._lock:
             state.log_file = relative_path(log_file, self.runtime.repo_root) if state.log_level > 0 else state.log_file
+            self._notify_locked()
 
         prepare_messages: list[str] = []
         generated_profile = config.profile_name or f"{config.id}-profile"
@@ -509,6 +520,7 @@ class SchedulerService:
         with self._lock:
             state.lines.append(line)
             state.updated_at = _now()
+            self._notify_locked()
 
     def _append_event(self, state: ScheduleRunState, text: str, *, tone: str = "info") -> None:
         translated = state.log_translator.add_event(text, time=datetime.now().strftime("%H:%M:%S"), tone=tone)  # type: ignore[arg-type]
@@ -566,6 +578,11 @@ class SchedulerService:
             state.return_code = return_code
             state.updated_at = _now()
             state.process = None
+            self._notify_locked()
+
+    def _notify_locked(self) -> None:
+        self._version += 1
+        self._condition.notify_all()
 
 
 def _scheduler_enabled(settings: FrameworkSettingsManager) -> bool:

@@ -44,6 +44,11 @@ SSE change:
 - Real HTTP verification against local uvicorn on port 8765: idle events worked for manual/schedule streams; starting `startup-smoke` through `POST /api/runs` produced streamed events through two tasks and final `succeeded`.
 - Browser verification against the built frontend at local uvicorn port 8765 passed for `/` and `/schedule` with no console/page errors. Initial Playwright `networkidle` wait timed out because SSE keeps the connection open; reran successfully with `domcontentloaded`.
 
+SSE push correction:
+- Replaced the initial SSE helper's 0.5s state-signature polling loop with active condition-variable notifications from `MaaRunManager` and `SchedulerService`.
+- Streams now send the initial state, then block in `wait_for_change()` until a run state mutation increments the version and notifies waiters. A 15-second timeout emits only a keep-alive comment.
+- Verification against local uvicorn port 8765: idle manual/schedule streams emitted only the initial idle event during a 3s observation; starting `startup-smoke` produced pushed events through StartUp and CloseDown to final `succeeded`.
+
 Deployment:
 - Built frontend with `npm run build`.
 - Deployed WebUI on `http://0.0.0.0:8000/` using detached `setsid uv run linux-maa webui --host 0.0.0.0 --port 8000`.

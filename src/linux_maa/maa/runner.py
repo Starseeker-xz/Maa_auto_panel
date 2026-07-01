@@ -254,6 +254,8 @@ class MaaRunManager:
     def __init__(self, runtime: MaaRuntime) -> None:
         self.runtime = runtime
         self._lock = threading.Lock()
+        self._condition = threading.Condition(self._lock)
+        self._version = 0
         self._runs: dict[str, MaaRunState] = {}
         self._current_run_id: str | None = None
 
@@ -276,11 +278,18 @@ class MaaRunManager:
             )
             self._runs[run_id] = state
             self._current_run_id = run_id
+            self._notify_locked()
 
         thread = threading.Thread(target=self._run, args=(state,), daemon=True)
         state.thread = thread
         thread.start()
         return state
+
+    def wait_for_change(self, last_version: int, timeout: float | None = None) -> int:
+        with self._condition:
+            if self._version == last_version:
+                self._condition.wait(timeout)
+            return self._version
 
     def current(self) -> MaaRunState | None:
         with self._lock:
@@ -306,12 +315,14 @@ class MaaRunManager:
                 state.process.terminate()
                 state.status = "stopping"
                 state.updated_at = datetime.now().isoformat(timespec="seconds")
+                self._notify_locked()
         return state
 
     def _append(self, state: MaaRunState, line: str) -> None:
         with self._lock:
             state.lines.append(line)
             state.updated_at = datetime.now().isoformat(timespec="seconds")
+            self._notify_locked()
 
     def _append_maa_log(self, state: MaaRunState, text: str) -> None:
         translated = state.log_translator.translate(text)
@@ -333,6 +344,7 @@ class MaaRunManager:
             state.return_code = return_code
             state.updated_at = datetime.now().isoformat(timespec="seconds")
             state.process = None
+            self._notify_locked()
 
     def _run(self, state: MaaRunState) -> None:
         self.runtime.run_log_dir.mkdir(parents=True, exist_ok=True)
@@ -341,6 +353,7 @@ class MaaRunManager:
         log_file = self.runtime.run_log_dir / f"{started_at}-{state.task}-webui.log"
         with self._lock:
             state.log_file = relative_path(log_file, self.runtime.repo_root) if state.log_level > 0 else None
+            self._notify_locked()
         prepare_messages: list[str] = []
         run_task, run_env = prepare_maa_cli_task(self.runtime, state.task, run_id=state.id, attempt=1, messages=prepare_messages)
         cmd = [
@@ -392,3 +405,7 @@ class MaaRunManager:
     def _set_process(self, state: MaaRunState, proc: subprocess.Popen[str]) -> None:
         with self._lock:
             state.process = proc
+
+    def _notify_locked(self) -> None:
+        self._version += 1
+        self._condition.notify_all()

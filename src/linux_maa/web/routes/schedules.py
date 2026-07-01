@@ -50,7 +50,7 @@ def create_schedule_router(services: WebServices) -> APIRouter:
 
     @router.get("/current/events")
     def current_scheduled_run_events(request: Request):
-        return state_event_stream(request, scheduler.current)
+        return state_event_stream(request, scheduler.current, scheduler.wait_for_change)
 
     @router.post("/current/stop")
     def stop_scheduled_run() -> dict[str, object]:
