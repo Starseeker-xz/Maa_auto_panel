@@ -55,3 +55,4 @@ Deployment:
 - Active wrapper PID recorded in `runtime/linux-maa/webui.pid`: `10436`; uvicorn child PID observed as `10440`.
 - Service log path: `runtime/linux-maa/webui.log`.
 - Post-deploy checks passed: `GET /` returned 200, `GET /api/runs/current/events` returned an SSE idle event, and browser smoke for `/` plus `/schedule` had no console/page errors.
+- Redeployed after the condition-variable SSE fix. Current wrapper PID is `20585`, uvicorn child PID is `20589`. Old wrapper/child PIDs `10436`/`10440` were stale and required `SIGKILL` cleanup. Post-redeploy checks: `GET /` returned 200 and idle `GET /api/runs/current/events` emitted only the initial idle event during a 3s observation.
