@@ -29,6 +29,7 @@ This is the compact handoff state for future sessions. It intentionally omits ol
 ## Runtime And Environment
 
 - Confirmed (`2026-06-26_1702-setup-maa-cli-test`): Project-local `maa-cli` and MaaCore runtime are installed under ignored `runtime/maa/`.
+- Confirmed (`2026-07-01_1312-explain-log-flow`): WebUI is currently deployed on `http://0.0.0.0:8000/` via detached `setsid uv run linux-maa webui --host 0.0.0.0 --port 8000`. Wrapper PID is recorded in ignored `runtime/linux-maa/webui.pid` (`10436` at deploy time), with logs at `runtime/linux-maa/webui.log`.
 - Confirmed (`2026-06-30_2318-gpu-ocr-research`): `scripts/maa-env maa version` reported `maa-cli v0.7.5` and `MaaCore v6.13.0`.
 - Confirmed (`2026-06-30_2056-scheduled-execution`): Default profile currently targets ADB serial `192.168.5.151:5555`, package `com.hypergryph.arknights.bilibili`, client `Bilibili`, connection config `CompatPOSIXShell`, touch mode `MaaTouch`, and CPU OCR.
 - Confirmed (`2026-06-30_2318-gpu-ocr-research`): Current machine has NVIDIA RTX 2080 Ti and Intel iGPU visible, but the packaged MaaCore runtime only exposes CPU ONNXRuntime provider symbols. GPU OCR config reaches MaaCore but logs `use_gpu No GPU execution provider available`.

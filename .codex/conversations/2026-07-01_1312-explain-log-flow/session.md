@@ -43,3 +43,10 @@ SSE change:
 - SSE streams send the current state immediately and then send complete `RunState` payloads only when a state signature changes.
 - Real HTTP verification against local uvicorn on port 8765: idle events worked for manual/schedule streams; starting `startup-smoke` through `POST /api/runs` produced streamed events through two tasks and final `succeeded`.
 - Browser verification against the built frontend at local uvicorn port 8765 passed for `/` and `/schedule` with no console/page errors. Initial Playwright `networkidle` wait timed out because SSE keeps the connection open; reran successfully with `domcontentloaded`.
+
+Deployment:
+- Built frontend with `npm run build`.
+- Deployed WebUI on `http://0.0.0.0:8000/` using detached `setsid uv run linux-maa webui --host 0.0.0.0 --port 8000`.
+- Active wrapper PID recorded in `runtime/linux-maa/webui.pid`: `10436`; uvicorn child PID observed as `10440`.
+- Service log path: `runtime/linux-maa/webui.log`.
+- Post-deploy checks passed: `GET /` returned 200, `GET /api/runs/current/events` returned an SSE idle event, and browser smoke for `/` plus `/schedule` had no console/page errors.
