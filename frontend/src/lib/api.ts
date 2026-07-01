@@ -15,6 +15,9 @@ import type {
   UpdateInfoResponse
 } from "@/lib/types";
 
+export const currentRunEventsUrl = "/api/runs/current/events";
+export const currentScheduleRunEventsUrl = "/api/schedules/current/events";
+
 async function readJson<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, init);
   const text = await response.text();

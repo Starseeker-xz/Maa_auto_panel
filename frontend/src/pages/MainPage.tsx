@@ -3,7 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { DirtyActions } from "@/components/DirtyActions";
-import { deleteConfig, getCurrentRun, listConfigs, readTaskConfig, saveTaskConfig, startRun, stopRun } from "@/lib/api";
+import { currentRunEventsUrl, deleteConfig, listConfigs, readTaskConfig, saveTaskConfig, startRun, stopRun } from "@/lib/api";
 import { createTaskItem } from "@/lib/taskItemDefaults";
 import {
   deleteTaskItem,
@@ -18,7 +18,6 @@ import {
   withTaskItemIndexes
 } from "@/lib/taskWorkspace";
 import type { ConfigFile, ConfigResponse, ConfigsResponse, RunState, TaskItem } from "@/lib/types";
-import { usePolling } from "@/lib/usePolling";
 import { ConfigEditorPane } from "@/pages/main/ConfigEditorPane";
 import { LogPane } from "@/pages/main/LogPane";
 import { TaskListPane } from "@/pages/main/TaskListPane";
@@ -36,6 +35,7 @@ const DEFAULT_TASK_CONFIG_DATA = {
   "$schema": "../../../docs/maa-cli/schemas/task.schema.json"
 };
 const LAST_MAIN_PATH_KEY = "linux-maa:last-main-path";
+const RUN_EVENTS_ERROR = "运行日志事件流连接中断，正在重连...";
 
 export function MainPage() {
   const navigate = useNavigate();
@@ -143,14 +143,19 @@ export function MainPage() {
     };
   }, [draftsByConfig, taskConfig]);
 
-  usePolling(async () => {
-    try {
-      const data = await getCurrentRun();
-      setRun(data);
-    } catch (exc) {
-      setError(String(exc));
-    }
-  });
+  React.useEffect(() => {
+    const events = new EventSource(currentRunEventsUrl);
+    events.onmessage = (event) => {
+      setRun(JSON.parse(event.data) as RunState);
+      setError((current) => (current === RUN_EVENTS_ERROR ? "" : current));
+    };
+    events.onerror = () => {
+      setError((current) => current || RUN_EVENTS_ERROR);
+    };
+    return () => {
+      events.close();
+    };
+  }, []);
 
   function handleTaskConfigChange(name: string) {
     navigate(`/tasks/${encodeURIComponent(name)}`);

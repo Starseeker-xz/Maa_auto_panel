@@ -158,6 +158,16 @@ line in the normal log UI. The final maa-cli `Summary` tail is grouped into one
 structured summary panel instead of being rendered as one global log card per
 line.
 
+The current-run UI state is delivered through Server-Sent Events:
+
+- `GET /api/runs/current/events` streams the manual run state.
+- `GET /api/schedules/current/events` streams the active scheduled run state.
+
+Each stream sends the current state immediately, then sends another complete
+`RunState` only when the state signature changes. The legacy JSON endpoints
+`GET /api/runs/current` and `GET /api/schedules/current` remain available for
+one-shot reads and non-SSE clients.
+
 ## Config reading and editing
 
 The backend validates task configs in two layers:

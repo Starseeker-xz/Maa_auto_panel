@@ -10,8 +10,8 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   createSchedule,
+  currentScheduleRunEventsUrl,
   deleteSchedule,
-  getCurrentScheduleRun,
   listConfigs,
   listSchedules,
   readSchedule,
@@ -22,13 +22,13 @@ import {
 } from "@/lib/api";
 import { STATUS_LABELS } from "@/lib/logs";
 import type { ConfigFile, ConfigResponse, RunState, ScheduleConfig, ScheduleEntry, ScheduleResponse, SchedulesResponse } from "@/lib/types";
-import { usePolling } from "@/lib/usePolling";
 import { cn } from "@/lib/utils";
 import { LogPane } from "@/pages/main/LogPane";
 import { ScheduleSettings, ScheduleStats } from "@/pages/schedule/ScheduleDetailPanels";
 import { ScheduleLeftPane } from "@/pages/schedule/ScheduleLeftPane";
 
 type CenterTab = "settings" | "stats";
+const SCHEDULE_RUN_EVENTS_ERROR = "定时运行日志事件流连接中断，正在重连...";
 
 export function SchedulePage() {
   const { scheduleId } = useParams();
@@ -91,15 +91,21 @@ export function SchedulePage() {
     };
   }, [scheduleId]);
 
-  usePolling(async () => {
-    try {
-      const currentRun = await getCurrentScheduleRun();
+  React.useEffect(() => {
+    const events = new EventSource(currentScheduleRunEventsUrl);
+    events.onmessage = (event) => {
+      const currentRun = JSON.parse(event.data) as RunState;
       setGlobalRun(currentRun);
       setRun(runForSchedule(currentRun, scheduleId));
-    } catch (exc) {
-      setError(String(exc));
-    }
-  });
+      setError((current) => (current === SCHEDULE_RUN_EVENTS_ERROR ? "" : current));
+    };
+    events.onerror = () => {
+      setError((current) => current || SCHEDULE_RUN_EVENTS_ERROR);
+    };
+    return () => {
+      events.close();
+    };
+  }, [scheduleId]);
 
   const dirty = Boolean(detail && draft && JSON.stringify(detail.config) !== JSON.stringify(draft));
 

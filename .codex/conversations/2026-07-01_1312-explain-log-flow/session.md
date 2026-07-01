@@ -6,7 +6,7 @@ Observed:
 - Manual runs and scheduled runs both use `MaaCliLogTranslator`.
 - `run_maa_cli_process()` reads stdout plus tails the maa-cli log file when enabled, forwarding text chunks to the translator.
 - Translator buffers incomplete physical lines, then groups complete lines into `line`, `task`, or `summary` entries.
-- Frontend polls current run state every 1000 ms; there is no websocket/SSE path for logs.
+- Before the SSE change, frontend polled current run state every 1000 ms; there was no websocket/SSE path for logs.
 - `LogPane` prefers structured `run.log_entries`; it only falls back to splitting `run.output` when structured entries are missing.
 
 Changes made:
@@ -35,3 +35,11 @@ Follow-up log-file source correction:
 - Final correction: WebUI/scheduled live runs no longer pass `--log-file` to maa-cli. `run_maa_cli_process()` reads only merged stdout/stderr and optionally tees that same stream into the framework-owned `state.log_file` artifact.
 - Set `MAA_LOG_PREFIX=Always` in `MaaRuntime.env()` so stderr logs retain the timestamp/level prefix expected by the structured parser even if the host environment differs.
 - Real verification: `startup-smoke` WebUI/manual manager path succeeded on run `18e8db502e5c`. It produced `StartUp` task entry/status `succeeded`, `return_code=0`, and tee log file `runtime/maa/run-logs/20260701-140848-startup-smoke-webui.log`.
+
+SSE change:
+- Added backend SSE helper `src/linux_maa/web/sse.py`.
+- Added `GET /api/runs/current/events` and `GET /api/schedules/current/events`.
+- Replaced `MainPage` and `SchedulePage` 1-second current-run polling with `EventSource`; settings maintenance polling remains on `usePolling`.
+- SSE streams send the current state immediately and then send complete `RunState` payloads only when a state signature changes.
+- Real HTTP verification against local uvicorn on port 8765: idle events worked for manual/schedule streams; starting `startup-smoke` through `POST /api/runs` produced streamed events through two tasks and final `succeeded`.
+- Browser verification against the built frontend at local uvicorn port 8765 passed for `/` and `/schedule` with no console/page errors. Initial Playwright `networkidle` wait timed out because SSE keeps the connection open; reran successfully with `domcontentloaded`.

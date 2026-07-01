@@ -2,11 +2,12 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from linux_maa.maa import MaaRunRequest
 from linux_maa.web.responses import state_or_idle
+from linux_maa.web.sse import state_event_stream
 from linux_maa.web.services import WebServices
 
 
@@ -44,6 +45,10 @@ def create_run_router(services: WebServices) -> APIRouter:
     @router.get("/current")
     def current_run() -> dict[str, object]:
         return state_or_idle(runs.current())
+
+    @router.get("/current/events")
+    def current_run_events(request: Request):
+        return state_event_stream(request, runs.current)
 
     @router.get("/{run_id}")
     def get_run(run_id: str) -> dict[str, object]:
