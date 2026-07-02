@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from linux_maa.config import ConfigValidationFailure
-from linux_maa.web.responses import state_or_idle, validation_exception
+from linux_maa.web.responses import validation_exception
 from linux_maa.web.sse import state_event_stream
 from linux_maa.web.services import WebServices
 
@@ -46,11 +46,11 @@ def create_schedule_router(services: WebServices) -> APIRouter:
 
     @router.get("/current")
     def current_scheduled_run() -> dict[str, object]:
-        return state_or_idle(scheduler.current())
+        return scheduler.current_response()
 
     @router.get("/current/events")
     def current_scheduled_run_events(request: Request):
-        return state_event_stream(request, scheduler.current, scheduler.wait_for_change)
+        return state_event_stream(request, scheduler.current_response, scheduler.wait_for_change)
 
     @router.post("/current/stop")
     def stop_scheduled_run() -> dict[str, object]:

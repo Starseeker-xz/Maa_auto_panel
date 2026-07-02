@@ -22,6 +22,30 @@ class MaaRuntime:
         return self.repo_root / "config" / "linux-maa"
 
     @property
+    def debug_dir(self) -> Path:
+        return self.repo_root / "debug"
+
+    @property
+    def framework_log_dir(self) -> Path:
+        return self.debug_dir / "linux-maa"
+
+    @property
+    def framework_event_log_dir(self) -> Path:
+        return self.framework_log_dir / "events"
+
+    @property
+    def framework_external_log_dir(self) -> Path:
+        return self.framework_log_dir / "external"
+
+    @property
+    def maa_cli_log_dir(self) -> Path:
+        return self.framework_external_log_dir / "maa-cli"
+
+    @property
+    def maacore_capture_log_dir(self) -> Path:
+        return self.framework_external_log_dir / "maacore"
+
+    @property
     def schedule_config_dir(self) -> Path:
         return self.framework_config_dir / "schedules"
 
@@ -51,11 +75,15 @@ class MaaRuntime:
 
     @property
     def framework_state_dir(self) -> Path:
-        return self.repo_root / "runtime" / "linux-maa"
+        return self.repo_root / "state" / "linux-maa"
 
     @property
-    def scheduler_db_path(self) -> Path:
-        return self.framework_state_dir / "scheduler.sqlite3"
+    def run_state_dir(self) -> Path:
+        return self.framework_state_dir / "run-history"
+
+    @property
+    def scheduler_state_dir(self) -> Path:
+        return self.framework_state_dir / "scheduler"
 
     def env(self) -> dict[str, str]:
         env = os.environ.copy()

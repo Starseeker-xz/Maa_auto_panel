@@ -71,7 +71,7 @@ src/linux_maa/
   logparse/               # maa-cli log parsing and failure classification
   retry/                  # Retry/fallback policy engine
   config/                 # Schemas, loading, validation, migration
-  storage/                # SQLite/filesystem persistence
+  storage/                # Text/file persistence and retention
   notify/                 # Bot/webhook/email notification adapters
   integrations/
     maa_cli.py            # maa-cli adapter
@@ -104,7 +104,7 @@ State/config separation:
 
 - `var/config`: user config.
 - `var/runs`: workflow run records.
-- `var/logs`: raw logs and parsed event logs.
+- `var/logs`: detailed framework/process logs plus parsed high-level event logs.
 - `var/cache`: APKs, MaaCore/resource caches, downloaded assets.
 
 ## Backend Technology Direction
@@ -117,8 +117,14 @@ Current backend stack:
 
 Still recommended:
 
-- SQLite plus SQLModel or SQLAlchemy for persistent run history.
-- APScheduler for the first scheduling implementation.
+- Text-first run history and logs for this project's current scale; avoid adding
+  SQL unless query complexity clearly requires it.
+- Keep framework state and diagnostic logs as separate concerns. State files
+  should use readable JSON documents under a state root; diagnostic logs should
+  use framework logging/event/external-process log modules under a debug/log
+  root.
+- APScheduler for future scheduling only if the current lightweight loop becomes
+  too limited.
 - Async subprocess execution once concurrent process control, log streaming, or cancellation grows beyond the current single-run model.
 - `tomlkit` if preserving comments/formatting in TOML becomes important.
 

@@ -7,22 +7,25 @@ import uuid
 from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime
-from pathlib import Path
 from typing import Any
 
 from linux_maa.config import ConfigManager, FrameworkSettingsManager
+from linux_maa.diagnostics import Diagnostics, get_logger
 from linux_maa.maa.logs import MaaCliLogTranslator
 from linux_maa.maa.process import run_maa_cli_process
 from linux_maa.maa.runner import load_task_file, prepare_maa_cli_task, resolve_task_file
 from linux_maa.maa.runtime import MaaRuntime
+from linux_maa.run_state import RunStateStore
 from linux_maa.scheduler.config import ScheduleConfigManager
 from linux_maa.scheduler.models import DailyTaskStats, ScheduleConfig, ScheduleEntry, TaskPolicy
 from linux_maa.scheduler.policy import initial_task_selection, retry_task_ids, task_policies_from_config
 from linux_maa.scheduler.scripts import ScheduleScriptManager
-from linux_maa.scheduler.store import ScheduleStore
 from linux_maa.scheduler.time import effective_timezone, extract_client_type, game_day_info, game_day_key, sort_entries_for_game_day
-from linux_maa.state import state_or_idle
+from linux_maa.state import idle_response
 from linux_maa.utils import relative_path
+
+
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -42,14 +45,17 @@ class ScheduleRunState:
     trigger: str
     return_code: int | None = None
     log_file: str | None = None
+    log_files: dict[str, str] = field(default_factory=dict)
+    maacore_log_file: str | None = None
+    maacore_log_start: int = 0
     lines: deque[str] = field(default_factory=lambda: deque(maxlen=3000))
     log_translator: MaaCliLogTranslator = field(default_factory=MaaCliLogTranslator)
     process: subprocess.Popen[str] | None = field(default=None, repr=False)
     stop_requested: bool = False
     thread: threading.Thread | None = field(default=None, repr=False)
 
-    def to_dict(self) -> dict[str, object]:
-        return {
+    def to_dict(self, *, include_logs: bool = True) -> dict[str, object]:
+        data: dict[str, object] = {
             "id": self.id,
             "schedule_id": self.schedule_id,
             "schedule_name": self.schedule_name,
@@ -65,10 +71,18 @@ class ScheduleRunState:
             "trigger": self.trigger,
             "return_code": self.return_code,
             "log_file": self.log_file,
-            "output": list(self.lines),
-            "task_results": self.log_translator.task_results(),
-            "log_entries": self.log_translator.entries(),
+            "log_files": dict(self.log_files),
+            "maacore_log_file": self.maacore_log_file,
         }
+        if include_logs:
+            data.update(
+                {
+                    "output": list(self.lines),
+                    "task_results": self.log_translator.task_results(),
+                    "log_entries": self.log_translator.entries(),
+                }
+            )
+        return data
 
 
 class SchedulerService:
@@ -78,12 +92,15 @@ class SchedulerService:
         configs: ConfigManager,
         framework_settings: FrameworkSettingsManager,
         schedules: ScheduleConfigManager,
+        run_state: RunStateStore | None = None,
+        diagnostics: Diagnostics | None = None,
     ) -> None:
         self.runtime = runtime
         self.configs = configs
         self.framework_settings = framework_settings
         self.schedules = schedules
-        self.store = ScheduleStore(runtime.scheduler_db_path)
+        self.store = run_state or RunStateStore(runtime)
+        self.diagnostics = diagnostics or Diagnostics(runtime)
         self.scripts = ScheduleScriptManager(runtime)
         self._lock = threading.Lock()
         self._condition = threading.Condition(self._lock)
@@ -97,11 +114,10 @@ class SchedulerService:
         settings = self.framework_settings.read()
         scheduler_settings = _nested(settings.get("data"), ["framework", "scheduler"])
         enabled = bool(scheduler_settings.get("enabled")) if isinstance(scheduler_settings, dict) else False
-        current = self.current()
         return {
             "enabled": enabled,
             "status": "running" if enabled else "disabled",
-            "current_run": state_or_idle(current),
+            "current_run": self.current_response(include_logs=False),
             "recent_runs": [run.to_dict() for run in self.store.recent_runs(limit=8)],
         }
 
@@ -140,6 +156,7 @@ class SchedulerService:
             default_profile=profile.get("data") if isinstance(profile.get("data"), dict) else {},
             task_ids=task_ids,
         )
+        logger.info("schedule created schedule_id=%s name=%s task_config=%s", config.id, name, selected_task_config)
         return self._schedule_response(config)
 
     def save_schedule(self, schedule_id: str, payload: dict[str, Any]) -> dict[str, object]:
@@ -154,9 +171,11 @@ class SchedulerService:
 
                 raise ConfigValidationFailure(validation)
         config = self.schedules.write(schedule_id, payload)
+        logger.info("schedule saved schedule_id=%s", schedule_id)
         return self._schedule_response(config)
 
     def delete_schedule(self, schedule_id: str) -> dict[str, object]:
+        logger.warning("schedule deleted schedule_id=%s", schedule_id)
         return {"deleted": self.schedules.delete(schedule_id).to_dict()}
 
     def start_now(self, schedule_id: str, entry_id: str | None = None) -> ScheduleRunState:
@@ -168,6 +187,17 @@ class SchedulerService:
     def current(self) -> ScheduleRunState | None:
         with self._lock:
             return self._current
+
+    def current_response(self, schedule_id: str | None = None, *, include_logs: bool = True) -> dict[str, object]:
+        with self._lock:
+            current = self._current
+            version = self._version
+            if current is None or (schedule_id is not None and current.schedule_id != schedule_id):
+                payload = idle_response()
+            else:
+                payload = current.to_dict(include_logs=include_logs)
+        payload["stream_version"] = version
+        return payload
 
     def wait_for_change(self, last_version: int, timeout: float | None = None) -> int:
         with self._condition:
@@ -182,13 +212,13 @@ class SchedulerService:
             self._current.stop_requested = True
             if self._current.process and self._current.process.poll() is None:
                 self._current.process.terminate()
+            logger.warning("scheduled run stop requested run_id=%s schedule_id=%s", self._current.id, self._current.schedule_id)
             self._current.status = "stopping"
             self._current.updated_at = _now()
             self._notify_locked()
             return self._current
 
     def _schedule_response(self, config: ScheduleConfig) -> dict[str, object]:
-        current = self.current()
         task_config_data = self.configs.read_task_config(config.task_config)
         task_data = task_config_data.get("data") if isinstance(task_config_data.get("data"), dict) else {}
         client = extract_client_type(task_data)
@@ -210,7 +240,7 @@ class SchedulerService:
             },
             "recent_runs": [run.to_dict() for run in self.store.recent_runs(config.id, limit=12)],
             "scripts": [script.to_dict() for script in self.scripts.list_scripts()],
-            "current_run": current.to_dict() if current and current.schedule_id == config.id else state_or_idle(None),
+            "current_run": self.current_response(config.id, include_logs=False),
         }
 
     def _loop(self) -> None:
@@ -223,6 +253,7 @@ class SchedulerService:
                     continue
                 self._start_due_entries()
             except Exception:
+                logger.exception("scheduler loop failed")
                 continue
 
     def _start_due_entries(self) -> None:
@@ -273,8 +304,12 @@ class SchedulerService:
                 game_day=game_day,
                 trigger=trigger,
             )
+            state.log_file = self.diagnostics.maa_cli_log_file(run_id)
+            state.log_files = self.diagnostics.maa_cli_log_files(run_id)
+            state.maacore_log_start = self.diagnostics.maacore_log_offset()
             self._current = state
             self._notify_locked()
+            logger.info("scheduled run started run_id=%s schedule_id=%s entry_id=%s trigger=%s", run_id, config.id, entry.id, trigger)
 
         thread = threading.Thread(target=self._execute_run, args=(state, config, entry), daemon=True)
         state.thread = thread
@@ -282,7 +317,6 @@ class SchedulerService:
         return state
 
     def _execute_run(self, state: ScheduleRunState, config: ScheduleConfig, entry: ScheduleEntry) -> None:
-        self.runtime.run_log_dir.mkdir(parents=True, exist_ok=True)
         task_data = load_task_file(resolve_task_file(self.runtime, config.task_config))
         client = extract_client_type(task_data)
         timezone_name = str(self.framework_settings.read()["effective_timezone"]["name"])
@@ -303,12 +337,25 @@ class SchedulerService:
             game_day=state.game_day,
             trigger=state.trigger,
             selected_task_ids=selected,
+            log_file=state.log_file,
+            log_files=state.log_files,
+            event_log_file=self.diagnostics.event_log_file(state.id),
         )
 
         if not selected:
             self._append_event(state, "本次没有需要运行的子任务。", tone="info")
             self._append_skip_events(state, policy_by_id, selection.skipped, entry)
-            self.store.finish_run(state.id, status="skipped", attempt_count=0, retry_group_count=0, log_file=None, summary={"reason": "no-selected-tasks"})
+            self.store.finish_run(
+                state.id,
+                status="skipped",
+                attempt_count=0,
+                retry_group_count=0,
+                log_file=state.log_file,
+                log_files=state.log_files,
+                summary={"reason": "no-selected-tasks"},
+            )
+            self.store.enforce_retention()
+            self.diagnostics.enforce_retention()
             self._set_done(state, "skipped", 0)
             return
 
@@ -385,13 +432,28 @@ class SchedulerService:
             "attempts": attempt_index,
             "retry_groups": retry_group,
         }
+        maacore_log_file = self.diagnostics.capture_maacore_log(state.id, state.maacore_log_start)
+        if maacore_log_file is not None:
+            state.maacore_log_file = maacore_log_file
         self.store.finish_run(
             state.id,
             status=final_status,
             attempt_count=attempt_index,
             retry_group_count=retry_group,
             log_file=final_log_file,
+            log_files=state.log_files,
             summary=summary,
+            maacore_log_file=maacore_log_file,
+        )
+        self.store.enforce_retention()
+        self.diagnostics.enforce_retention()
+        logger.info(
+            "scheduled run finished run_id=%s schedule_id=%s status=%s attempts=%s return_code=%s",
+            state.id,
+            state.schedule_id,
+            final_status,
+            attempt_index,
+            final_return_code,
         )
         self._set_done(state, final_status, final_return_code)
 
@@ -405,18 +467,13 @@ class SchedulerService:
         retry_group: int,
         policy_by_id: dict[str, TaskPolicy],
     ) -> dict[str, Any]:
-        started_at = datetime.now().strftime("%Y%m%d-%H%M%S")
-        log_file = self.runtime.run_log_dir / f"{started_at}-{config.id}-{state.entry_id}-attempt-{attempt_index}.log"
-        with self._lock:
-            state.log_file = relative_path(log_file, self.runtime.repo_root) if state.log_level > 0 else state.log_file
-            self._notify_locked()
-
         prepare_messages: list[str] = []
         generated_profile = config.profile_name or f"{config.id}-profile"
+        generated_run_id = f"schedule-{state.id}"
         run_task, run_env = prepare_maa_cli_task(
             self.runtime,
             config.task_config,
-            run_id=f"schedule-{state.id}",
+            run_id=generated_run_id,
             attempt=attempt_index,
             messages=prepare_messages,
             selected_task_ids=set(task_ids),
@@ -441,12 +498,13 @@ class SchedulerService:
             self._append_event(state, message, tone="info")
         attempt_started = _now()
         translator_start = len(state.log_translator.task_results())
+        log_entry_start = len(state.log_translator.entries())
         result = run_maa_cli_process(
             self.runtime,
             cmd,
             env=run_env,
-            output_log_file=log_file if state.log_level > 0 else None,
-            on_output=lambda text: self._append_maa_log(state, text),
+            on_output=lambda text: None,
+            on_stream_output=lambda stream, text: self._append_maa_log(state, text, stream),
             on_process=lambda proc: self._set_process(state, proc),
             should_stop=lambda: state.stop_requested,
             timeout_seconds=config.timeouts.run_kill_seconds or None,
@@ -457,6 +515,7 @@ class SchedulerService:
         )
         self._flush_maa_log(state)
         task_results = state.log_translator.task_results()[translator_start:]
+        log_entries = state.log_translator.entries()[log_entry_start:]
         status_by_task_id = _status_by_task_id(task_ids, policy_by_id, task_results)
         attempt_status = "succeeded" if result.return_code == 0 and all(status == "succeeded" for status in status_by_task_id.values()) else "failed"
         if result.stopped or state.stop_requested:
@@ -475,11 +534,14 @@ class SchedulerService:
             return_code=result.return_code,
             task_ids=task_ids,
             task_results=task_results,
-            log_entries=state.log_translator.entries(),
+            log_entries=log_entries,
+            log_file=state.log_file,
+            log_files=state.log_files,
+            generated_config_dir=relative_path(self.runtime.generated_config_dir / generated_run_id, self.runtime.repo_root),
         )
         return {
             "return_code": result.return_code,
-            "log_file": relative_path(log_file, self.runtime.repo_root) if state.log_level > 0 else None,
+            "log_file": state.log_file,
             "status_by_task_id": status_by_task_id,
         }
 
@@ -523,10 +585,18 @@ class SchedulerService:
             self._notify_locked()
 
     def _append_event(self, state: ScheduleRunState, text: str, *, tone: str = "info") -> None:
+        self.diagnostics.append_run_event(state.id, "schedule", "framework", text, tone=tone)
+        if tone == "danger":
+            logger.error("scheduled run event run_id=%s text=%s", state.id, text)
+        elif tone == "warning":
+            logger.warning("scheduled run event run_id=%s text=%s", state.id, text)
+        else:
+            logger.info("scheduled run event run_id=%s text=%s", state.id, text)
         translated = state.log_translator.add_event(text, time=datetime.now().strftime("%H:%M:%S"), tone=tone)  # type: ignore[arg-type]
         self._append(state, translated)
 
-    def _append_maa_log(self, state: ScheduleRunState, text: str) -> None:
+    def _append_maa_log(self, state: ScheduleRunState, text: str, stream: str = "output") -> None:
+        self.diagnostics.append_maa_cli_output(state.id, stream, text)
         translated = state.log_translator.translate(text)
         if translated:
             self._append(state, translated)

@@ -43,6 +43,10 @@ class MaaCliLogTranslator:
 
     panel_rules: ClassVar[tuple[LogRule, ...]] = DEFAULT_PANEL_RULES
 
+    max_log_entries: int = 1000
+    max_task_records: int = 500
+    max_record_messages: int = 300
+    max_record_lines: int = 300
     task_records: list[MaaTaskLogRecord] = field(default_factory=list)
     log_entries: list[LogEntry] = field(default_factory=list)
     _current: MaaTaskLogRecord | None = None
@@ -98,7 +102,7 @@ class MaaCliLogTranslator:
         segments: list[dict[str, object]] | None = None,
     ) -> str:
         message = MaaLogMessage(text=text, time=time, tone=tone, segments=segments or [])
-        self.log_entries.append(message)
+        self._append_entry(message)
         return f"{format_time_prefix(time)}{text}\n"
 
     def begin_task_sequence(self, tasks: list[dict[str, str]]) -> None:
@@ -142,7 +146,7 @@ class MaaCliLogTranslator:
         if self._current is not None:
             output += self._close_current("unknown")
         record = MaaSummaryLogRecord(lines=[raw])
-        self.log_entries.append(record)
+        self._append_entry(record)
         self._current_summary = record
         return f"{output}运行摘要\n"
 
@@ -152,8 +156,10 @@ class MaaCliLogTranslator:
         message = translate_summary_message(body)
         self._current_summary.lines.append(raw)
         if message is None:
+            self._trim_record(self._current_summary)
             return ""
         self._current_summary.messages.append(message)
+        self._trim_record(self._current_summary)
         if message.tone == "danger":
             self._current_summary.status = "failed"
         elif message.tone == "warning" and self._current_summary.status != "failed":
@@ -179,8 +185,7 @@ class MaaCliLogTranslator:
                 started_at=parsed["time"],
                 lines=[raw],
             )
-            self.task_records.append(record)
-            self.log_entries.append(record)
+            self._append_task_record(record)
             self._current = record
             self._current_started_monotonic = time.monotonic()
             return f"{output}{format_time_prefix(parsed['time'])}已开始任务: {display_name}\n"
@@ -189,6 +194,7 @@ class MaaCliLogTranslator:
             return self._record_unmatched_task_end(raw, parsed, matched, task_name, status)
 
         self._current.lines.append(raw)
+        self._trim_record(self._current)
         self._current.status = status
         self._current.ended_at = parsed["time"]
         return self._close_current(status)
@@ -216,8 +222,7 @@ class MaaCliLogTranslator:
             ended_at=parsed["time"],
             lines=[raw],
         )
-        self.task_records.append(record)
-        self.log_entries.append(record)
+        self._append_task_record(record)
         return f"{output}{format_time_prefix(parsed['time'])}任务 {display_name} {STATUS_LABEL[status]}\n"
 
     def _handle_default_line(self, raw: str, parsed: ParsedLine) -> str:
@@ -235,7 +240,7 @@ class MaaCliLogTranslator:
                 raw=None if translated.translated else raw,
                 segments=translated.segments,
             )
-            self.log_entries.append(message)
+            self._append_entry(message)
             return f"{format_time_prefix(message.time)}{message.text}\n"
 
         message = MaaLogMessage(
@@ -246,6 +251,7 @@ class MaaCliLogTranslator:
         )
         self._current.messages.append(message)
         self._current.lines.append(raw)
+        self._trim_record(self._current)
         return f"{format_time_prefix(message.time)}{message.text}\n"
 
     def _close_current(self, status: TaskStatus) -> str:
@@ -257,6 +263,27 @@ class MaaCliLogTranslator:
         self._current = None
         self._current_started_monotonic = None
         return f"{format_time_prefix(ended_at)}任务 {task_name} {STATUS_LABEL[status]}\n"
+
+    def _append_task_record(self, record: MaaTaskLogRecord) -> None:
+        self.task_records.append(record)
+        self._append_entry(record)
+
+    def _append_entry(self, entry: LogEntry) -> None:
+        self.log_entries.append(entry)
+        self._trim()
+
+    def _trim(self) -> None:
+        _trim_list(self.log_entries, self.max_log_entries)
+        _trim_list(self.task_records, self.max_task_records)
+        for entry in self.log_entries:
+            if isinstance(entry, MaaTaskLogRecord | MaaSummaryLogRecord):
+                self._trim_record(entry)
+        for record in self.task_records:
+            self._trim_record(record)
+
+    def _trim_record(self, record: MaaTaskLogRecord | MaaSummaryLogRecord) -> None:
+        _trim_list(record.messages, self.max_record_messages)
+        _trim_list(record.lines, self.max_record_lines)
 
     def _next_expected_task(self, source_name: str) -> dict[str, str]:
         for index in range(self._expected_task_index, len(self._expected_tasks)):
@@ -277,6 +304,14 @@ def translate_maa_cli_log(text: str) -> str:
 
 def format_time_prefix(time_text: str | None) -> str:
     return f"{time_text} " if time_text else ""
+
+
+def _trim_list(values: list[object], max_items: int) -> None:
+    if max_items < 0:
+        return
+    overflow = len(values) - max_items
+    if overflow > 0:
+        del values[:overflow]
 
 
 def _translate_global_line(body: str) -> str:

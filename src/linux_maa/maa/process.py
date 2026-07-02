@@ -12,6 +12,7 @@ from linux_maa.maa.runtime import MaaRuntime
 
 
 OutputCallback = Callable[[str], None]
+StreamOutputCallback = Callable[[str, str], None]
 ProcessCallback = Callable[[subprocess.Popen[str]], None]
 ShouldStopCallback = Callable[[], bool]
 TimeoutCallback = Callable[[str, float], None]
@@ -31,6 +32,7 @@ def run_maa_cli_process(
     *,
     env: dict[str, str],
     on_output: OutputCallback,
+    on_stream_output: StreamOutputCallback | None = None,
     output_log_file: Path | None = None,
     on_process: ProcessCallback | None = None,
     should_stop: ShouldStopCallback | None = None,
@@ -45,7 +47,7 @@ def run_maa_cli_process(
         cwd=runtime.repo_root,
         env=env,
         stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
+        stderr=subprocess.PIPE,
         text=True,
         encoding="utf-8",
         errors="replace",
@@ -54,6 +56,11 @@ def run_maa_cli_process(
         on_process(proc)
 
     assert proc.stdout is not None
+    assert proc.stderr is not None
+    streams = {
+        proc.stdout: "stdout",
+        proc.stderr: "stderr",
+    }
     start = time.monotonic()
     warned = False
     dangered = False
@@ -63,13 +70,17 @@ def run_maa_cli_process(
     log_context = output_log_file.open("a", encoding="utf-8", errors="replace") if output_log_file is not None else nullcontext(None)
     with log_context as log_sink:
         while True:
-            output_chunks = []
-            ready, _, _ = select.select([proc.stdout], [], [], 0.2)
-            if ready:
-                line = proc.stdout.readline()
+            if streams:
+                ready, _, _ = select.select(list(streams), [], [], 0.2)
+            else:
+                time.sleep(0.2)
+                ready = []
+            for pipe in ready:
+                line = pipe.readline()
                 if line:
-                    output_chunks.append(line)
-            _emit_output(output_chunks, on_output, log_sink)
+                    _emit_output(line, streams[pipe], on_output, on_stream_output, log_sink)
+                else:
+                    streams.pop(pipe, None)
             if on_tick is not None:
                 on_tick()
 
@@ -93,23 +104,31 @@ def run_maa_cli_process(
                 _terminate_process(proc)
 
             if proc.poll() is not None:
-                output_chunks = []
-                remainder = proc.stdout.read()
-                if remainder:
-                    output_chunks.append(remainder)
-                _emit_output(output_chunks, on_output, log_sink)
+                for pipe, stream in streams.items():
+                    remainder = pipe.read()
+                    if remainder:
+                        _emit_output(remainder, stream, on_output, on_stream_output, log_sink)
                 break
 
     return MaaCliProcessResult(return_code=proc.wait(), timed_out=timed_out, stopped=stopped)
 
 
-def _emit_output(chunks: list[str], on_output: OutputCallback, log_sink: TextIO | None = None) -> None:
-    if not chunks:
+def _emit_output(
+    text: str,
+    stream: str,
+    on_output: OutputCallback,
+    on_stream_output: StreamOutputCallback | None,
+    log_sink: TextIO | None = None,
+) -> None:
+    if not text:
         return
-    text = "".join(chunks)
     if log_sink is not None:
-        log_sink.write(text)
+        log_sink.write(f"[{stream}]\n{text}")
+        if not text.endswith("\n"):
+            log_sink.write("\n")
         log_sink.flush()
+    if on_stream_output is not None:
+        on_stream_output(stream, text)
     on_output(text)
 
 

@@ -1,6 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { STATUS_LABELS } from "@/lib/logs";
 import type { MaaLogEntry, MaaLogLineEntry, MaaLogMessage, MaaLogSummaryEntry, MaaLogTaskEntry, RunState } from "@/lib/types";
+import React from "react";
 
 type LogPaneProps = {
   run: RunState;
@@ -43,6 +44,24 @@ const MESSAGE_TONE_CLASS: Record<string, string> = {
 
 export function LogPane({ run, error, title = "日志", emptyText = "等待 maa-cli info 日志..." }: LogPaneProps) {
   const entries = normalizeEntries(run);
+  const viewportRef = React.useRef<HTMLDivElement>(null);
+  const followTailRef = React.useRef(true);
+
+  React.useEffect(() => {
+    followTailRef.current = true;
+  }, [run.id]);
+
+  React.useLayoutEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport || !followTailRef.current) return;
+    viewport.scrollTop = viewport.scrollHeight;
+  }, [entries.length, run.id, run.stream_version, run.updated_at]);
+
+  function handleScroll(event: React.UIEvent<HTMLDivElement>) {
+    const viewport = event.currentTarget;
+    const distanceFromBottom = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight;
+    followTailRef.current = distanceFromBottom < 48;
+  }
 
   return (
     <Card className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden p-0 max-xl:col-span-2 max-md:col-span-1 max-xl:min-h-80">
@@ -54,11 +73,13 @@ export function LogPane({ run, error, title = "日志", emptyText = "等待 maa-
           </div>
           <div className="grid max-w-56 justify-items-end gap-1 text-xs text-muted-foreground">
             <span>info</span>
-            {run.log_file ? <span className="break-anywhere text-right">{run.log_file}</span> : null}
+            {run.log_files?.stdout ? <LogFilePath label="stdout" path={run.log_files.stdout} /> : null}
+            {run.log_files?.stderr ? <LogFilePath label="stderr" path={run.log_files.stderr} /> : null}
+            {!run.log_files?.stdout && run.log_file ? <span className="break-anywhere text-right">{run.log_file}</span> : null}
           </div>
         </div>
       </CardHeader>
-      <div className="m-0 min-h-0 overflow-auto bg-card p-3">
+      <div ref={viewportRef} onScroll={handleScroll} className="m-0 min-h-0 overflow-auto bg-card p-3">
         {entries.length ? (
           <div className="grid gap-1.5">
             {entries.map((entry, index) => (
@@ -71,6 +92,15 @@ export function LogPane({ run, error, title = "日志", emptyText = "等待 maa-
       </div>
       {error ? <CardContent className="border-t p-2 text-xs text-destructive break-anywhere">{error}</CardContent> : null}
     </Card>
+  );
+}
+
+function LogFilePath({ label, path }: { label: string; path: string }) {
+  return (
+    <span className="grid justify-items-end gap-0.5">
+      <span className="text-[10px] uppercase tracking-normal text-muted-foreground/70">{label}</span>
+      <span className="break-anywhere text-right">{path}</span>
+    </span>
   );
 }
 

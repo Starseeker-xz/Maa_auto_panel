@@ -17,6 +17,12 @@ Editable maa-cli/framework configuration lives separately under `config/maa/`.
 - `runtime/maa/data/maa/MaaResource`: hot-update resource repository.
 - `runtime/maa/cache/maa`: downloaded archives and metadata cache.
 - `runtime/maa/state/maa/debug`: default log directory.
+- `debug/linux-maa`: registered diagnostic log root. It is safe to delete when
+  only diagnostics are needed temporarily. It contains `framework.log`,
+  high-level run-event JSONL files, and external maa-cli/MaaCore log captures.
+- `state/linux-maa`: registered framework state root. It stores recent run
+  records and scheduler bookkeeping that should not be treated as disposable
+  debug output.
 
 Use `scripts/maa-env` to run `maa` with these paths:
 
@@ -123,20 +129,26 @@ The frontend currently submits profile `default` and info-level logs. Main-page
 manual runs are single-shot: they do not apply a WebUI-level timeout or retry
 loop. Detailed retry policy is expected to come later from the workflow engine.
 Low-level MaaCore debug logs remain under `runtime/maa/state/maa/debug/` for
-diagnosis and are not streamed as normal UI output.
+diagnosis and are not streamed as normal UI output. The framework records the
+`asst.log` offset before a WebUI/scheduled run and stores the run-time delta
+under `debug/linux-maa/external/maacore/` when MaaCore writes new content.
 
 The WebUI captures two visible process channels:
 
-- `maa-cli` stdout and stderr are merged with `stderr=subprocess.STDOUT` and read
-  from the process pipe. maa-cli writes logs to stderr by default, so this is
-  the real-time UI log source. It also captures output such as git fetch text
-  and the final `Summary`.
-- When info logs are enabled, the framework tees the merged process stream into
-  its own `runtime/maa/run-logs/...` artifact. It does not pass `--log-file` to
-  maa-cli for WebUI/scheduled live runs, because that can move info callback
-  logs out of stderr in the observed maa-cli runtime. Runtime environments force
-  `MAA_LOG_PREFIX=Always` so stderr logs keep the timestamp/level prefix expected
-  by the structured log parser.
+- `maa-cli` stdout and stderr are read from separate pipes. The UI still shows a
+  merged live view, but detailed per-run text logs store the original streams in
+  separate `debug/linux-maa/external/maa-cli/<run-id>.stdout.log` and
+  `debug/linux-maa/external/maa-cli/<run-id>.stderr.log` files. These paths are
+  not split by manual/scheduled origin because they are maa-cli process logs.
+- WebUI/scheduled live runs do not pass `--log-file` to `maa-cli`, because that
+  can move info callback logs out of stderr in the observed maa-cli runtime.
+  Runtime environments force `MAA_LOG_PREFIX=Always` so stderr logs keep the
+  timestamp/level prefix expected by the structured log parser.
+- Framework-level events are written to high-level JSONL event files and to the
+  global detailed framework log `debug/linux-maa/framework.log`. `framework.log`
+  uses Python's standard `logging` module with DEBUG, INFO, WARNING, ERROR, and
+  CRITICAL levels and records API operations through middleware. Raw child
+  process output is kept only in the external maa-cli stdout/stderr files.
 
 The WebUI run manager does not pass raw `maa-cli` log chunks straight through.
 The `src/linux_maa/maa/logs/` package parses framework-level semantics from
@@ -256,9 +268,21 @@ Each config binds one maa-cli task config and stores its own Profile copy. The
 default Profile in Settings is only the template used for new schedules and for
 manual main-page runs.
 
-The scheduler persists run records, attempts, same-day task counters, and
-trigger de-duplication in `runtime/linux-maa/scheduler.sqlite3`. The runtime
-directory remains ignored by git.
+The scheduler persists state as readable JSON under `state/linux-maa/`:
+
+- `state/linux-maa/run-history/recent-run-records.json`: recent WebUI,
+  scheduled, and maintenance run records. Schedule overview "recent runs" is
+  derived from this file.
+- `state/linux-maa/run-history/scheduled-run-attempts.json`: per-attempt records
+  for scheduled runs.
+- `state/linux-maa/scheduler/daily-task-stats.json`: per-schedule daily
+  child-task run/success counters used by retry/skip policy.
+- `state/linux-maa/scheduler/triggered-schedule-entries.json`: schedule entries
+  already triggered for a game day, used to avoid duplicate execution.
+
+The `debug/` and `state/` directories remain ignored by git, but they have
+different semantics: `debug/` is disposable diagnostics; `state/` is framework
+runtime state.
 
 Schedule entries store their own `task_ids`; these are independent from the
 main task editor's `enable` checkbox. When a scheduled attempt is generated, the

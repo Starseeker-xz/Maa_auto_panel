@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 from pathlib import Path
+import time
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse
 
+from linux_maa.diagnostics import get_logger
 from linux_maa.web.routes import (
     create_config_router,
+    create_history_router,
     create_maa_router,
     create_maintenance_router,
     create_run_router,
@@ -16,13 +19,48 @@ from linux_maa.web.routes import (
 from linux_maa.web.services import create_services
 
 
+logger = get_logger(__name__)
+
+
 def create_app(repo_root: Path | None = None) -> FastAPI:
     services = create_services(repo_root)
     frontend_dist = services.runtime.repo_root / "frontend" / "dist"
     frontend_assets = frontend_dist / "assets"
 
     app = FastAPI(title="Linux MAA WebUI")
+
+    @app.middleware("http")
+    async def api_request_logging(request: Request, call_next):
+        if not request.url.path.startswith("/api/"):
+            return await call_next(request)
+        started = time.monotonic()
+        client = request.client.host if request.client else "-"
+        logger.info("api request started method=%s path=%s client=%s", request.method, request.url.path, client)
+        try:
+            response = await call_next(request)
+        except Exception:
+            elapsed_ms = (time.monotonic() - started) * 1000
+            logger.exception(
+                "api request failed method=%s path=%s client=%s elapsed_ms=%.1f",
+                request.method,
+                request.url.path,
+                client,
+                elapsed_ms,
+            )
+            raise
+        elapsed_ms = (time.monotonic() - started) * 1000
+        logger.info(
+            "api request finished method=%s path=%s status=%s elapsed_ms=%.1f client=%s",
+            request.method,
+            request.url.path,
+            response.status_code,
+            elapsed_ms,
+            client,
+        )
+        return response
+
     app.include_router(create_config_router(services))
+    app.include_router(create_history_router(services))
     app.include_router(create_settings_router(services))
     app.include_router(create_maintenance_router(services))
     app.include_router(create_maa_router(services))

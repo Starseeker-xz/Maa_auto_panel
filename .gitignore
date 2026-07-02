@@ -32,3 +32,6 @@ frontend/.codex/
 
 # Local debugging captures
 debug/
+
+# Local framework state: recent runs and scheduler bookkeeping
+state/

@@ -12,8 +12,14 @@ from typing import Any
 
 import requests
 
+from linux_maa.diagnostics import Diagnostics, get_logger
+from linux_maa.maa.process import run_maa_cli_process
 from linux_maa.maa.runtime import MaaRuntime
+from linux_maa.run_state import RunStateStore
 from linux_maa.utils import dict_value, extract_version, is_newer_version
+
+
+logger = get_logger(__name__)
 
 
 MAINTENANCE_COMMANDS = {
@@ -35,6 +41,8 @@ class MaintenanceActionState:
     created_at: str
     updated_at: str
     return_code: int | None = None
+    log_file: str | None = None
+    log_files: dict[str, str] = field(default_factory=dict)
     output: deque[str] = field(default_factory=lambda: deque(maxlen=1000))
     process: subprocess.Popen[str] | None = field(default=None, repr=False)
 
@@ -47,13 +55,22 @@ class MaintenanceActionState:
             "created_at": self.created_at,
             "updated_at": self.updated_at,
             "return_code": self.return_code,
+            "log_file": self.log_file,
+            "log_files": dict(self.log_files),
             "output": list(self.output),
         }
 
 
 class MaintenanceActionManager:
-    def __init__(self, runtime: MaaRuntime) -> None:
+    def __init__(
+        self,
+        runtime: MaaRuntime,
+        run_state: RunStateStore | None = None,
+        diagnostics: Diagnostics | None = None,
+    ) -> None:
         self.runtime = runtime
+        self.run_state = run_state or RunStateStore(runtime)
+        self.diagnostics = diagnostics or Diagnostics(runtime)
         self._lock = threading.Lock()
         self._current: MaintenanceActionState | None = None
 
@@ -79,7 +96,18 @@ class MaintenanceActionManager:
                 created_at=now,
                 updated_at=now,
             )
+            state.log_file = self.diagnostics.maa_cli_log_file(state.id)
+            state.log_files = self.diagnostics.maa_cli_log_files(state.id)
+            self.run_state.create_maintenance_run(
+                run_id=state.id,
+                kind=kind,
+                title=title,
+                log_file=state.log_file,
+                log_files=state.log_files,
+                event_log_file=self.diagnostics.event_log_file(state.id),
+            )
             self._current = state
+            logger.info("maintenance action started run_id=%s kind=%s title=%s", state.id, kind, title)
 
         thread = threading.Thread(target=self._run, args=(state, args), daemon=True)
         thread.start()
@@ -102,7 +130,12 @@ class MaintenanceActionManager:
             "errors": errors,
         }
 
-    def _append(self, state: MaintenanceActionState, text: str) -> None:
+    def _append(self, state: MaintenanceActionState, text: str, source: str = "framework") -> None:
+        if source.startswith("maa-cli:"):
+            self.diagnostics.append_maa_cli_output(state.id, source.split(":", 1)[1], text)
+        else:
+            self.diagnostics.append_run_event(state.id, "maintenance", source, text)
+            logger.info("maintenance event run_id=%s source=%s text=%s", state.id, source, text.strip())
         with self._lock:
             state.output.append(text)
             state.updated_at = datetime.now().isoformat(timespec="seconds")
@@ -113,31 +146,33 @@ class MaintenanceActionManager:
             state.return_code = return_code
             state.updated_at = datetime.now().isoformat(timespec="seconds")
             state.process = None
+        self.run_state.finish_generic_run(state.id, status=status, return_code=return_code)
+        self.run_state.enforce_retention()
+        self.diagnostics.enforce_retention()
+        logger.info("maintenance action finished run_id=%s status=%s return_code=%s", state.id, status, return_code)
 
     def _run(self, state: MaintenanceActionState, args: list[str]) -> None:
         cmd = [str(self.runtime.maa_bin), *args]
         self._append(state, f"$ {' '.join(cmd)}\n")
         try:
-            proc = subprocess.Popen(
+            result = run_maa_cli_process(
+                self.runtime,
                 cmd,
-                cwd=self.runtime.repo_root,
                 env=self.runtime.env(),
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
+                on_output=lambda text: None,
+                on_stream_output=lambda stream, text: self._append(state, text, f"maa-cli:{stream}"),
+                on_process=lambda proc: self._set_process(state, proc),
             )
-            with self._lock:
-                state.process = proc
-            assert proc.stdout is not None
-            for line in proc.stdout:
-                self._append(state, line)
-            return_code = proc.wait()
+            return_code = result.return_code
             self._set_done(state, "succeeded" if return_code == 0 else "failed", return_code)
         except Exception as exc:
             self._append(state, f"维护动作失败: {exc}\n")
+            logger.exception("maintenance action failed run_id=%s", state.id)
             self._set_done(state, "failed", None)
+
+    def _set_process(self, state: MaintenanceActionState, proc: subprocess.Popen[str]) -> None:
+        with self._lock:
+            state.process = proc
 
 
 def _current_versions(runtime: MaaRuntime, errors: list[str]) -> dict[str, object]:

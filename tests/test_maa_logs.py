@@ -168,3 +168,21 @@ def test_labels_duplicate_task_types_from_expected_sequence() -> None:
         ("fight-a", "剿灭", "Fight", "succeeded"),
         ("fight-b", "刷理智", "Fight", "succeeded"),
     ]
+
+
+def test_translator_keeps_bounded_structured_tail() -> None:
+    translator = MaaCliLogTranslator(max_log_entries=2, max_task_records=1, max_record_messages=1, max_record_lines=2)
+
+    translator.translate(
+        "[2026-06-30 21:57:03 INFO ] StartUp Start\n"
+        "[2026-06-30 21:57:04 INFO ] Some first line\n"
+        "[2026-06-30 21:57:05 INFO ] Some second line\n"
+        "[2026-06-30 21:57:06 INFO ] Some third line\n"
+        "[2026-06-30 21:57:07 INFO ] StartUp Completed\n"
+        "[2026-06-30 21:57:08 INFO ] Mall Start\n"
+        "[2026-06-30 21:57:09 INFO ] Mall Completed\n"
+    )
+
+    assert len(translator.entries()) == 2
+    assert len(translator.task_results()) == 1
+    assert translator.task_results()[0]["name"] == "Mall"

@@ -83,10 +83,32 @@ export type RunState = {
   log_level?: number;
   return_code?: number | null;
   log_file?: string | null;
+  log_files?: Record<string, string>;
+  stream_version?: number;
   output?: string[];
   task_results?: MaaTaskResult[];
   log_entries?: MaaLogEntry[];
 };
+
+export type RunArrayPatch<T> = {
+  replace_from: number;
+  items: T[];
+};
+
+export type RunStatePatchEvent = {
+  type: "patch";
+  stream_version?: number;
+  state?: Partial<RunState>;
+  output?: RunArrayPatch<string>;
+  task_results?: RunArrayPatch<MaaTaskResult>;
+  log_entries?: RunArrayPatch<MaaLogEntry>;
+};
+
+export type RunStateResetEvent = RunState & {
+  type: "reset";
+};
+
+export type RunStateStreamEvent = RunStatePatchEvent | RunStateResetEvent | RunState;
 
 export type SchedulerStatus = {
   enabled: boolean;
@@ -181,6 +203,7 @@ export type ScheduledRunSummary = {
   attempt_count: number;
   retry_group_count: number;
   log_file?: string | null;
+  log_files?: Record<string, string>;
   selected_task_ids: string[];
   summary: Record<string, unknown>;
 };

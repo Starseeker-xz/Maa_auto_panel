@@ -82,9 +82,12 @@ local recycle folder, edit default Profile/framework/maa-cli settings, trigger
 manual resource or maa-cli updates, start `maa run <task> --batch --profile
 default`, define scheduled execution configs under `/schedule`, show the
 info-level maa-cli log/status in the right pane, and stop the active process.
-Scheduled run history and same-day child-task counters are stored under
-`runtime/linux-maa/scheduler.sqlite3`. Low-level MaaCore debug logs such as `asst.log` stay in the
-runtime directory for diagnosis and are not streamed in the WebUI.
+Framework state and diagnostics are separated. Recent runs and scheduler
+bookkeeping live as readable JSON under `state/linux-maa/`. Deletable diagnostic
+logs live under `debug/linux-maa/`: `framework.log` is the standard Python
+logging output for framework/API internals, human-level run events are JSONL
+under `events/`, and per-run `maa-cli` stdout/stderr plus MaaCore `asst.log`
+excerpts are under `external/`.
 
 Current WebUI routes:
 

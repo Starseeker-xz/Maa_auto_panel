@@ -3,7 +3,8 @@ import { useNavigate, useParams } from "react-router-dom";
 
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { DirtyActions } from "@/components/DirtyActions";
-import { currentRunEventsUrl, deleteConfig, listConfigs, readTaskConfig, saveTaskConfig, startRun, stopRun } from "@/lib/api";
+import { currentRunEventsUrl, deleteConfig, getCurrentRun, listConfigs, readTaskConfig, saveTaskConfig, startRun, stopRun } from "@/lib/api";
+import { applyRunStateEvent, runEventsUrl } from "@/lib/runStream";
 import { createTaskItem } from "@/lib/taskItemDefaults";
 import {
   deleteTaskItem,
@@ -144,16 +145,35 @@ export function MainPage() {
   }, [draftsByConfig, taskConfig]);
 
   React.useEffect(() => {
-    const events = new EventSource(currentRunEventsUrl);
-    events.onmessage = (event) => {
-      setRun(JSON.parse(event.data) as RunState);
-      setError((current) => (current === RUN_EVENTS_ERROR ? "" : current));
-    };
-    events.onerror = () => {
-      setError((current) => current || RUN_EVENTS_ERROR);
-    };
+    let cancelled = false;
+    let events: EventSource | null = null;
+
+    async function connectRunStream() {
+      let snapshot: RunState | null = null;
+      try {
+        snapshot = await getCurrentRun();
+        if (cancelled) return;
+        setRun(snapshot);
+        setError((current) => (current === RUN_EVENTS_ERROR ? "" : current));
+      } catch (exc) {
+        if (!cancelled) setError((current) => current || String(exc));
+      }
+
+      if (cancelled) return;
+      events = new EventSource(runEventsUrl(currentRunEventsUrl, snapshot));
+      events.onmessage = (event) => {
+        setRun((current) => applyRunStateEvent(current, JSON.parse(event.data)));
+        setError((current) => (current === RUN_EVENTS_ERROR ? "" : current));
+      };
+      events.onerror = () => {
+        setError((current) => current || RUN_EVENTS_ERROR);
+      };
+    }
+
+    void connectRunStream();
     return () => {
-      events.close();
+      cancelled = true;
+      events?.close();
     };
   }, []);
 

@@ -1,4 +1,5 @@
 from pathlib import Path
+import asyncio
 
 import pytest
 
@@ -141,7 +142,14 @@ def test_schedule_response_uses_single_current_snapshot_for_matching_run() -> No
         def list_scripts(self) -> list[object]:
             return []
 
+    def current_response(schedule_id: str | None = None, *, include_logs: bool = True) -> dict[str, object]:
+        snapshot = current()
+        if snapshot is None or schedule_id != "target-schedule":
+            return {"status": "idle", "output": []}
+        return snapshot.to_dict(include_logs=include_logs)
+
     service.current = current  # type: ignore[method-assign]
+    service.current_response = current_response  # type: ignore[method-assign]
     service.configs = FakeConfigs()
     service.framework_settings = FakeSettings()
     service.schedules = FakeSchedules()
@@ -170,6 +178,56 @@ def test_create_app_exposes_expected_api_paths(tmp_path: Path) -> None:
     assert "/api/configs" in paths
     assert "/api/settings" in paths
     assert "/api/maintenance/current" in paths
+    assert "/api/history/runs" in paths
     assert "/api/maa/stages" in paths
     assert "/api/schedules/current" in paths
     assert "/api/runs/current" in paths
+
+
+def test_api_requests_are_written_to_framework_log(tmp_path: Path) -> None:
+    app = create_app(tmp_path)
+
+    status = asyncio.run(_asgi_get_status(app, "/api/history/runs"))
+
+    assert status == 200
+    framework_log = tmp_path / "debug/linux-maa/framework.log"
+    content = framework_log.read_text(encoding="utf-8")
+    assert "INFO" in content
+    assert "api request started method=GET path=/api/history/runs" in content
+    assert "api request finished method=GET path=/api/history/runs status=200" in content
+
+
+async def _asgi_get_status(app, path: str) -> int:
+    messages: list[dict[str, object]] = []
+    received = False
+
+    async def receive() -> dict[str, object]:
+        nonlocal received
+        if not received:
+            received = True
+            return {"type": "http.request", "body": b"", "more_body": False}
+        return {"type": "http.disconnect"}
+
+    async def send(message: dict[str, object]) -> None:
+        messages.append(message)
+
+    await app(
+        {
+            "type": "http",
+            "http_version": "1.1",
+            "method": "GET",
+            "scheme": "http",
+            "path": path,
+            "raw_path": path.encode("ascii"),
+            "query_string": b"",
+            "headers": [],
+            "client": ("127.0.0.1", 12345),
+            "server": ("testserver", 80),
+        },
+        receive,
+        send,
+    )
+    for message in messages:
+        if message.get("type") == "http.response.start":
+            return int(message["status"])
+    raise AssertionError("ASGI response did not start")

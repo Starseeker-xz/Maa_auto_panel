@@ -24,7 +24,7 @@ cpu_ocr = true
 touch_mode = "MaaTouch"
 deployment_with_pause = false
 adb_lite_enabled = false
-kill_adb_on_exit = false
+kill_adb_on_exit = true
 
 [retry]
 max_attempts_per_group = 5

@@ -116,7 +116,7 @@
           }
         ],
         "default": "_NotUse",
-        "description": "无人机用途。mode = 10000 时该字段无效。",
+        "description": "无人机用途。自定义排班无效。",
         "x-disabledWhen": [
           {
             "field": "mode",
@@ -130,7 +130,7 @@
         "default": 0.3,
         "minimum": 0,
         "maximum": 1,
-        "description": "心情阈值，范围 0 到 1。mode = 10000 时仅针对 autofill 有效；mode = 20000 时无效。",
+        "description": "心情阈值，范围 0 到 1。自定义排班时仅针对 autofill 有效；一键轮换时无效。",
         "x-disabledWhen": [
           {
             "field": "mode",
@@ -178,7 +178,7 @@
         "type": "string",
         "title": "自定义排班文件",
         "default": "",
-        "description": "自定义配置文件路径，仅在 mode = 10000 时生效；不选择时基建计划失效。",
+        "description": "自定义配置文件路径，仅在自定义排班时生效。",
         "x-optionsSource": "infrast-files",
         "x-disabledWhen": [
           {
@@ -195,7 +195,7 @@
         "type": "string",
         "title": "基建计划",
         "default": "__linux_maa_runtime__:infrast_plan_index",
-        "description": "选择自定义排班计划；未选择自定义排班文件时失效。时间轮换会在运行前由框架根据排班 JSON 的 period 自动解析为 plan_index。",
+        "description": "选择自定义排班计划；未选择自定义排班文件时失效。选择时间轮换时会在运行开始时自动选择当前时间对应的计划。",
         "x-linuxMaaManaged": "runtime-value",
         "x-optionsSource": "infrast-plans",
         "x-disabledWhen": [

@@ -29,7 +29,7 @@ This is the compact handoff state for future sessions. It intentionally omits ol
 ## Runtime And Environment
 
 - Confirmed (`2026-06-26_1702-setup-maa-cli-test`): Project-local `maa-cli` and MaaCore runtime are installed under ignored `runtime/maa/`.
-- Confirmed (`2026-07-01_1312-explain-log-flow`): WebUI is currently deployed on `http://0.0.0.0:8000/` via detached `setsid uv run linux-maa webui --host 0.0.0.0 --port 8000`. Wrapper PID is recorded in ignored `runtime/linux-maa/webui.pid` (`20585` after the notification-SSE redeploy), with logs at `runtime/linux-maa/webui.log`.
+- Confirmed (`2026-07-01_2153-manage-service-history`): The old detached WebUI listener on `http://0.0.0.0:8000/` was stopped after verifying `127.0.0.1:8000/api/settings` served this project. The stale ignored PID file `runtime/linux-maa/webui.pid` contained `4` and was removed. WebUI lifecycle is now temporarily managed by systemd unit `/etc/systemd/system/linux-maa-webui.service`, command `/root/.local/bin/uv run linux-maa webui --host 0.0.0.0 --port 8000`, working directory `/root/Linux_maa`. The unit is registered, valid, `disabled`, and currently `inactive`; port 8000 is free.
 - Confirmed (`2026-06-30_2318-gpu-ocr-research`): `scripts/maa-env maa version` reported `maa-cli v0.7.5` and `MaaCore v6.13.0`.
 - Confirmed (`2026-06-30_2056-scheduled-execution`): Default profile currently targets ADB serial `192.168.5.151:5555`, package `com.hypergryph.arknights.bilibili`, client `Bilibili`, connection config `CompatPOSIXShell`, touch mode `MaaTouch`, and CPU OCR.
 - Confirmed (`2026-06-30_2318-gpu-ocr-research`): Current machine has NVIDIA RTX 2080 Ti and Intel iGPU visible, but the packaged MaaCore runtime only exposes CPU ONNXRuntime provider symbols. GPU OCR config reaches MaaCore but logs `use_gpu No GPU execution provider available`.
@@ -42,7 +42,8 @@ This is the compact handoff state for future sessions. It intentionally omits ol
   - `game/`: Bilibili package metadata, APK/patch download, install/update flow.
   - `config/`: maa-cli config discovery, parsed task items, metadata/schema validation, app settings.
   - `maa/`: runtime discovery, process primitive, manual run manager, log translation, maintenance/update info, stage and Infrast dynamic option services.
-  - `scheduler/`: schedule config, game-day time calculation, retry policy, script hooks, SQLite persistence, scheduled-run orchestration.
+  - `scheduler/`: schedule config, game-day time calculation, retry policy, script hooks, text-backed scheduled-run orchestration.
+  - `history.py`: framework text/JSONL run history, high-level event logs, detailed process logs, scheduler counters/triggers, and retention.
   - `storage/`: recycle-bin/trash behavior for managed config files.
   - `web/`: FastAPI app factory, service bundle, response helpers, route modules.
 - Confirmed (`2026-06-30_2342-full-project-audit`): Shared backend helper modules now exist:
@@ -69,6 +70,8 @@ This is the compact handoff state for future sessions. It intentionally omits ol
   - `GET /api/maintenance/current`
   - `GET /api/maintenance/update-info`
   - `POST /api/maintenance/{kind}`
+  - `GET /api/history/runs`
+  - `GET /api/history/runs/{run_id}`
   - `GET /api/maa/stages`
   - `GET /api/maa/infrast/files`
   - `GET /api/maa/infrast/plans`
@@ -78,12 +81,15 @@ This is the compact handoff state for future sessions. It intentionally omits ol
 
 - Confirmed (`2026-06-30_2056-scheduled-execution`): Manual WebUI runs use `MaaRunManager`; scheduled execution uses `SchedulerService`. Both rely on shared maa-cli process primitives.
 - Confirmed (`2026-07-01_1312-explain-log-flow`): maa-cli log handling now lives under the `src/linux_maa/maa/logs/` package: `rules.py` for summary/task/default-line chunk rules, `translation.py` for text translation, `records.py` for structured entries, and `translator.py` for the stateful translator. Current behavior is preserved: `log_entries` top-level entries are `line`, `task`, and `summary`; lines inside an active task remain child messages. Existing imports from `linux_maa.maa.logs` still work through package exports.
-- Confirmed (`2026-07-01_1312-explain-log-flow`): maa-cli logs to stderr by default, but with the current `maa-cli v0.7.5`, passing `--log-file` caused info lifecycle logs to be absent from stderr/stdout in a real `startup-smoke` run. WebUI/scheduled live runs therefore no longer pass `--log-file`; live logs come from the merged stdout/stderr process pipe, and `run_maa_cli_process()` tees that same stream to the framework-owned `state.log_file` artifact. `MaaRuntime.env()` forces `MAA_LOG_PREFIX=Always` for parser-compatible stderr prefixes. Real verification run `18e8db502e5c` produced a `StartUp` task entry and succeeded.
-- Confirmed (`2026-07-01_1312-explain-log-flow`): Manual and scheduled current-run UI state now streams over SSE endpoints `GET /api/runs/current/events` and `GET /api/schedules/current/events`. The previous JSON current endpoints remain for one-shot reads. Frontend `MainPage` and `SchedulePage` use `EventSource` instead of 1-second polling for logs/current run state. Backend SSE no longer polls every 0.5s; `MaaRunManager` and `SchedulerService` use condition-variable version notifications and only wake streams on actual state changes or 15-second keep-alives.
+- Confirmed (`2026-07-01_2153-manage-service-history`): maa-cli logs to stderr by default, but with the current `maa-cli v0.7.5`, passing `--log-file` caused info lifecycle logs to be absent from stderr/stdout in a real `startup-smoke` run. WebUI/scheduled live runs therefore no longer pass `--log-file`. `run_maa_cli_process()` now reads stdout and stderr from separate pipes; live UI still receives a merged ordered view for parsing/display, while detailed text logs store stdout and stderr in separate `debug/linux-maa/external/maa-cli/<run-id>.stdout.log` / `<run-id>.stderr.log` files. `MaaRuntime.env()` forces `MAA_LOG_PREFIX=Always` for parser-compatible stderr prefixes.
+- Confirmed (`2026-07-01_1506-sse-log-delta`): Manual and scheduled current-run UI state now uses one full JSON snapshot plus incremental SSE. `GET /api/runs/current` and `GET /api/schedules/current` return full current state with `stream_version`; frontend opens `GET /api/runs/current/events` or `GET /api/schedules/current/events` with version/array cursors. SSE data events are `patch` payloads with `replace_from/items` for `output`, `task_results`, and `log_entries`; `reset` is reserved for no-cursor or recovery cases. Frontend merges patches locally. Scheduler overview/detail responses now embed only light current-run state without log arrays.
+- Confirmed (`2026-07-01_1506-sse-log-delta`): `LogPane` now follows the newest log entry while the user is already near the bottom, and stops auto-scrolling when the user scrolls up. This fixed the observed case where `StartUp Start` was present in the backend log at `15:19:49` but not visible in the fixed-height log pane until later.
 - Confirmed (`2026-06-30_1752-maa-cli-sequential-analysis`): Manual WebUI runs are single-shot and no longer apply a WebUI-level timeout/retry loop. The standalone CLI wrapper `linux-maa run-maa-task` still has coarse attempts/timeout behavior.
 - Confirmed (`2026-06-30_1626-maa-stage-candidates`): Task params can be framework-managed through `linux_maa.managed_params`. Runtime placeholders are resolved before generating raw maa-cli task config.
 - Confirmed (`2026-06-30_1626-maa-stage-candidates`): Fight stage candidates and Infrast plan options are backend-driven and exposed through `/api/maa/...` endpoints.
-- Confirmed (`2026-06-30_2056-scheduled-execution`): Scheduled run records, attempts, same-day task counters, and trigger de-duplication persist in ignored `runtime/linux-maa/scheduler.sqlite3`.
+- Superseded (`2026-07-01_2153-manage-service-history`): An intermediate text-backed design stored run/scheduler state under `debug/linux-maa/history/` and mirrored human run events into `framework.log`; this was rejected because `debug/` must be disposable diagnostics and `framework.log` must be real framework debug logging.
+- Confirmed (`2026-07-01_2153-manage-service-history`): Framework state and diagnostics are now separate. State lives under ignored `state/linux-maa/`: `run-history/recent-run-records.json`, `run-history/scheduled-run-attempts.json`, `scheduler/daily-task-stats.json`, and `scheduler/triggered-schedule-entries.json`. The old ignored `runtime/linux-maa/scheduler.sqlite3` was intentionally deleted with no migration.
+- Confirmed (`2026-07-01_2153-manage-service-history`): Diagnostics live under ignored `debug/linux-maa/`. `framework.log` is configured through Python `logging` with DEBUG/INFO/WARNING/ERROR/CRITICAL and API request middleware. Human-level run events are JSONL under `debug/linux-maa/events/<run-id>.jsonl`. External logs are grouped by source, not manual/scheduled origin: `debug/linux-maa/external/maa-cli/<run-id>.stdout.log`, `<run-id>.stderr.log`, and `debug/linux-maa/external/maacore/<run-id>.log`.
 - Confirmed (`2026-06-30_2056-scheduled-execution`): Scheduled retry policy uses `important`, `unlimited_runs`, `min_daily_successes`, and `retry_even_success` metadata.
 - Confirmed (`2026-06-30_0124-config-save-delete`): Config deletes move files into `.trash` records instead of hard deleting.
 - Confirmed (`2026-06-30_0124-config-save-delete`): Maintenance actions are separate from normal runs and cover MaaCore/base resources, hot resources, and maa-cli self-update.
@@ -100,6 +106,7 @@ This is the compact handoff state for future sessions. It intentionally omits ol
   - `pages/schedule/ScheduleDetailPanels.tsx`
 - Confirmed (`2026-06-30_2342-full-project-audit`): `SchedulePage` was split from roughly 797 lines to roughly 382 lines; page-level logic remains there, while left/detail panes moved under `pages/schedule/`.
 - Confirmed (`2026-06-30_2342-full-project-audit`): Frontend audit report is `FRONTEND_AUDIT.md`.
+- Confirmed (`2026-07-02_1933-config-sync-ui-schema`): `frontend/src/config/task-editor-schemas/*.json` is only the frontend visual editor schema for task params. Backend task config read/write/validation does not import those files. Removing a key from a task editor schema hides that field from JSON Forms but does not automatically remove an existing param from old configs; old params can round-trip through `task_items` unless explicit cleanup/migration is added. If a schema property is removed, also remove its key from the template's `general`/`advanced` list to avoid a dangling JSON Forms control.
 
 ## Full Audit Fixes
 
@@ -128,13 +135,17 @@ This is the compact handoff state for future sessions. It intentionally omits ol
 
 ## Remaining Risks
 
-- Likely (`2026-06-30_2342-full-project-audit`): `SettingsPage` is still large and should eventually split into framework/profile/maintenance cards.
-- Likely (`2026-06-30_2342-full-project-audit`): `PrimitiveArrayEditor` is high-functionality but still high-density; split only if it grows again.
-- Likely (`2026-06-30_2342-full-project-audit`): `ConfigEditorPane` and schedule dirty checks still use `JSON.stringify`; acceptable for current controlled objects, but replace with stable deep equality if arbitrary user JSON editing expands.
-- Likely (`2026-06-30_2342-full-project-audit`): Frontend bundle still triggers Vite's 500 kB chunk warning; consider lazy routes/manual chunks later.
+- Confirmed (`2026-07-01_2153-manage-service-history`): `SettingsPage` is still large at 658 lines; it remains a candidate to split into framework/profile/maintenance cards.
+- Confirmed (`2026-07-01_2153-manage-service-history`): `PrimitiveArrayEditor` is still high-density at 390 lines; split only if it grows again or logic becomes harder to test.
+- Confirmed (`2026-07-01_2153-manage-service-history`): `ConfigEditorPane` and schedule/settings dirty checks still use `JSON.stringify` (`ConfigEditorPane.tsx`, `SchedulePage.tsx`, `SettingsPage.tsx`). This remains acceptable for current controlled objects, but replace with stable deep equality if arbitrary user JSON editing expands.
+- Confirmed (`2026-07-01_2153-manage-service-history`): Frontend bundle still triggers Vite's 500 kB chunk warning. `npm run build` produced `dist/assets/index-DvZApfPE.js` at 752.15 kB minified / 240.10 kB gzip; consider lazy routes/manual chunks later.
+- Confirmed (`2026-07-01_2153-manage-service-history`): Live structured `log_entries`, task records, task messages, and record raw lines are now bounded in `MaaCliLogTranslator`; detailed diagnosis belongs in `debug/linux-maa/framework.log`, external maa-cli stdout/stderr logs, and MaaCore `asst.log` excerpts rather than unbounded UI state.
 
 ## Latest Verification
 
 - Confirmed (`2026-06-30_2342-full-project-audit`): After backend refactor, `uv run python -m compileall -q src tests` passed and `uv run pytest -q` passed 25 tests.
 - Confirmed (`2026-06-30_2342-full-project-audit`): After frontend refactor, `cd frontend && npm run build` passed with only the existing Vite large chunk warning.
 - Confirmed (`2026-06-30_2342-full-project-audit`): Vite preview plus Playwright mock-API smoke passed for `/tasks/test/items/startup`, `/schedule/daily-test`, and `/settings` at desktop `1440x1000` and mobile `390x844`, with no horizontal overflow detected.
+- Confirmed (`2026-07-01_1506-sse-log-delta`): After log-delta SSE changes and LogPane follow-tail fix, `uv run python -m compileall -q src tests`, `uv run pytest -q` (28 tests), and `cd frontend && npm run build` passed. Runtime smoke on restarted WebUI confirmed `/api/runs/current` and `/api/schedules/current` return `stream_version`, and an SSE request with `after=0` while idle produced no immediate full data payload before a 2-second timeout. Running WebUI `/` serves frontend bundle `assets/index-DvZApfPE.js`.
+- Confirmed (`2026-07-01_2153-manage-service-history`): `systemd-analyze verify /etc/systemd/system/linux-maa-webui.service` passed; `systemctl status linux-maa-webui` shows the temporary unit registered and inactive; `systemctl is-enabled linux-maa-webui` returns `disabled`; `ss -H -ltn sport = :8000` returns no listener. `npm run build` in `frontend/` passed with the existing Vite large chunk warning.
+- Confirmed (`2026-07-01_2153-manage-service-history`): After replacing scheduler SQLite persistence with text/JSONL history and adding separated process logging, `uv run python -m compileall -q src tests` passed and `uv run pytest -q` passed 31 tests.

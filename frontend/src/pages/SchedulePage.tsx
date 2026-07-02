@@ -12,6 +12,7 @@ import {
   createSchedule,
   currentScheduleRunEventsUrl,
   deleteSchedule,
+  getCurrentScheduleRun,
   listConfigs,
   listSchedules,
   readSchedule,
@@ -21,6 +22,7 @@ import {
   stopCurrentScheduleRun
 } from "@/lib/api";
 import { STATUS_LABELS } from "@/lib/logs";
+import { applyRunStateEvent, runEventsUrl } from "@/lib/runStream";
 import type { ConfigFile, ConfigResponse, RunState, ScheduleConfig, ScheduleEntry, ScheduleResponse, SchedulesResponse } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { LogPane } from "@/pages/main/LogPane";
@@ -40,7 +42,6 @@ export function SchedulePage() {
   const [draftTaskConfig, setDraftTaskConfig] = React.useState<ConfigResponse | null>(null);
   const [selectedEntryId, setSelectedEntryId] = React.useState("");
   const [globalRun, setGlobalRun] = React.useState<RunState>(() => idleRun());
-  const [run, setRun] = React.useState<RunState>(() => idleRun());
   const [newName, setNewName] = React.useState("日常定时");
   const [centerTab, setCenterTab] = React.useState<CenterTab>("settings");
   const [pendingTaskConfig, setPendingTaskConfig] = React.useState("");
@@ -70,7 +71,6 @@ export function SchedulePage() {
       setDetail(null);
       setDraft(null);
       setDraftTaskConfig(null);
-      setRun(idleRun());
       return;
     }
     readSchedule(scheduleId)
@@ -80,7 +80,6 @@ export function SchedulePage() {
         setDraft(cloneConfig(data.config));
         setDraftTaskConfig(null);
         setSelectedEntryId(data.config.entries[0]?.id || "");
-        setRun(runForSchedule(data.current_run, scheduleId));
         setError("");
       })
       .catch((exc) => {
@@ -92,20 +91,37 @@ export function SchedulePage() {
   }, [scheduleId]);
 
   React.useEffect(() => {
-    const events = new EventSource(currentScheduleRunEventsUrl);
-    events.onmessage = (event) => {
-      const currentRun = JSON.parse(event.data) as RunState;
-      setGlobalRun(currentRun);
-      setRun(runForSchedule(currentRun, scheduleId));
-      setError((current) => (current === SCHEDULE_RUN_EVENTS_ERROR ? "" : current));
-    };
-    events.onerror = () => {
-      setError((current) => current || SCHEDULE_RUN_EVENTS_ERROR);
-    };
+    let cancelled = false;
+    let events: EventSource | null = null;
+
+    async function connectScheduleRunStream() {
+      let snapshot: RunState | null = null;
+      try {
+        snapshot = await getCurrentScheduleRun();
+        if (cancelled) return;
+        setGlobalRun(snapshot);
+        setError((current) => (current === SCHEDULE_RUN_EVENTS_ERROR ? "" : current));
+      } catch (exc) {
+        if (!cancelled) setError((current) => current || String(exc));
+      }
+
+      if (cancelled) return;
+      events = new EventSource(runEventsUrl(currentScheduleRunEventsUrl, snapshot));
+      events.onmessage = (event) => {
+        setGlobalRun((current) => applyRunStateEvent(current, JSON.parse(event.data)));
+        setError((current) => (current === SCHEDULE_RUN_EVENTS_ERROR ? "" : current));
+      };
+      events.onerror = () => {
+        setError((current) => current || SCHEDULE_RUN_EVENTS_ERROR);
+      };
+    }
+
+    void connectScheduleRunStream();
     return () => {
-      events.close();
+      cancelled = true;
+      events?.close();
     };
-  }, [scheduleId]);
+  }, []);
 
   const dirty = Boolean(detail && draft && JSON.stringify(detail.config) !== JSON.stringify(draft));
 
@@ -122,7 +138,6 @@ export function SchedulePage() {
     setDraft(cloneConfig(data.config));
     setDraftTaskConfig(null);
     setSelectedEntryId((current) => (data.config.entries.some((entry) => entry.id === current) ? current : data.config.entries[0]?.id || ""));
-    setRun(runForSchedule(data.current_run, id));
   }
 
   async function handleCreate() {
@@ -208,7 +223,6 @@ export function SchedulePage() {
     try {
       const startedRun = await startScheduleRun(draft.id, selectedEntryId || draft.entries[0]?.id);
       setGlobalRun(startedRun);
-      setRun(runForSchedule(startedRun, draft.id));
     } catch (exc) {
       setError(String(exc));
     }
@@ -218,7 +232,6 @@ export function SchedulePage() {
     try {
       const stoppedRun = await stopCurrentScheduleRun();
       setGlobalRun(stoppedRun);
-      setRun(runForSchedule(stoppedRun, draft?.id));
     } catch (exc) {
       setError(String(exc));
     }
@@ -287,6 +300,7 @@ export function SchedulePage() {
 
   const selectedEntry = draft.entries.find((entry) => entry.id === selectedEntryId) || draft.entries[0];
   const taskItems = (draftTaskConfig || detail.task_config).task_items || [];
+  const run = runForSchedule(globalRun, scheduleId);
   const active = isRunActive(run);
   const schedulerBusy = isRunActive(globalRun);
   const sortedEntries = sortEntriesByReset(draft.entries, detail.timeline.reset_local_time);

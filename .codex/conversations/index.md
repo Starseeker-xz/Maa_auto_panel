@@ -26,3 +26,6 @@
 - `2026-06-30_2342-full-project-audit`: Full backend/frontend/project-history audit execution. Added Chinese root audit reports, split backend routes/services, consolidated shared helpers, refactored frontend shared fields/polling/schedule panes, and cleaned large old scratch artifacts.
 
 - `2026-07-01_1312-explain-log-flow`: Explain current log translation, chunking, and frontend response/display flow.
+- `2026-07-01_1506-sse-log-delta`: Continue log SSE work by moving from full-state SSE payloads toward one full snapshot fetch plus incremental event pushes, while recording the project execution policy.
+- `2026-07-01_2153-manage-service-history`: Stop the current WebUI process without manual PID searching, add temporary systemd management, replace SQLite scheduler state with readable state files, split framework diagnostics from runtime state, and restart the WebUI service.
+- `2026-07-02_1933-config-sync-ui-schema`: Investigate frontend/backend task config synchronization and whether deprecated task editor schema UI fields can be removed safely.
