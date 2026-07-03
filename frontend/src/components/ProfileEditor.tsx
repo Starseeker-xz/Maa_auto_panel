@@ -1,9 +1,6 @@
 import { CheckboxField, NumberField, SelectField, TextField } from "@/components/FormFields";
+import { CONNECTION_CONFIGS, CONNECTION_TYPES, TOUCH_MODES } from "@/lib/constants";
 import { DELETE_VALUE, booleanAt, optionalNumberAt, setNestedValue, stringAt } from "@/lib/objectPath";
-
-const CONNECTION_TYPES = ["ADB", "PlayCover", "MuMuPro", "Waydroid"];
-const CONNECTION_CONFIGS = ["", "CompatPOSIXShell", "General", "MacPlayTools"];
-const TOUCH_MODES = ["ADB", "MiniTouch", "MaaTouch", "MacPlayTools", "MaaFwAdb"];
 
 type ProfileEditorProps = {
   value: Record<string, unknown>;

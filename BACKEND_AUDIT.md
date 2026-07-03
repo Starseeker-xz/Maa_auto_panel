@@ -236,3 +236,27 @@ OpenAPI smoke 已确认上述路径仍挂载。
 - `uv run pytest -q`：25 个测试通过。
 - FastAPI OpenAPI smoke：确认 `/api/configs`、`/api/settings`、`/api/maintenance/current`、`/api/maa/stages`、`/api/schedules/current`、`/api/runs/current` 等路径仍挂载。
 
+---
+
+## Post-Audit Changes（审计后变更，session `2026-07-03_1200-audit-and-refactor-codex`）
+
+以下变更发生在原始审计之后，本文件部分描述已过时：
+
+### 已删除模块
+- ~~`src/linux_maa/adb.py`、`constants.py`、`game_update.py`、`maa_runner.py`~~ — 兼容 re-export
+- ~~`src/linux_maa/maa/logs/`~~ — 兼容导出目录
+- ~~`MaaLogMessage`、`MaaSummaryLogRecord`、`MaaTaskLogRecord`、`MaaCliLogTranslator`~~ — 兼容别名
+
+### 模块位置变更
+- 日志翻译从 `maa/logs.py` 提升为顶级包 `logs/`（translator、rules、translation、records、state）
+- 子进程原语从 `maa/process.py` 提升为顶级 `process.py`
+- 运行状态持久化从 SQLite `scheduler/store.py` 迁移至 `run_state.py`（JSON 文件）
+- `scheduler/store.py` 现为死代码（`ScheduleStore = RunStateStore` 别名，零导入）
+
+### 新增模块
+- `logs/` 包（6 文件）、`tools/` 包（2 文件）、`process.py`、`run_state.py`
+- `web/sse.py`（SSE 引擎）、`web/routes/tools.py`、`web/routes/history.py`
+- `scheduler/scripts.py`
+
+### 当前测试数：45（原 25）
+

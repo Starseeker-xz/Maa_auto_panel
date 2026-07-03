@@ -228,6 +228,25 @@ Session: `2026-06-30_2342-full-project-audit`
 - `cd frontend && npm run build`
   - 通过。
   - Vite 仍提示单 chunk 超过 500 kB，这是既有体积警告，不是本轮引入的构建失败。
+
+---
+
+## Post-Audit Changes（审计后变更，session `2026-07-03_1200-audit-and-refactor-codex`）
+
+以下变更发生在原始审计之后：
+
+### 已删除
+- ~~`frontend/src/lib/logs.ts` 中 `translateLogLine()`~~ — 已删除（无调用者）
+
+### 新增
+- `frontend/src/pages/ToolsPage.tsx` + `tools/ToolListPane.tsx` + `tools/ToolConfigPane.tsx` — 小工具页面
+- `frontend/src/lib/runStream.ts` — SSE 流事件处理
+- `LogPane` 重构：增量 SSE 补丁、详情按钮（显示 run id、日志路径、预处理选项）
+
+### 当前发现（本轮审计）
+- 未使用导入：`TaskListPane.tsx` 和 `PrimitiveArrayEditor.tsx` 中的 `buttonVariants`
+- 重复常量：`CONNECTION_TYPES`/`TOUCH_MODES` 在 `SettingsPage.tsx` 和 `ProfileEditor.tsx` 中重复定义
+- `SettingsPage` 仍 700+ 行，建议拆三个卡片组件
 - Vite preview + Playwright mock API smoke
   - 检查 `/tasks/test/items/startup`、`/schedule/daily-test`、`/settings`。
   - 桌面 `1440x1000` 与移动 `390x844` 视口均通过。

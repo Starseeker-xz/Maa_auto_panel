@@ -1,35 +1,34 @@
 # Conversation Index
 
-- `2026-06-26_1620-maa-cli-framework-docs`: Initial project state setup, environment probing, PVE topology memory, and MAA documentation mirroring/reading for future maa-cli framework design.
-- `2026-06-26_1702-setup-maa-cli-test`: Installed project-local `maa-cli`/MaaCore runtime, converted uploaded Windows GUI `test` basics into maa-cli profile/task config, and started first real `test` run.
+## Active Sessions（活跃引用 — 含架构决策或已知未解决问题）
 
-- `2026-06-26_1727-webui-config-runner`: Started minimal WebUI/config-runner/src-organization task.
+- `2026-07-03_2049-review-latest-change`: 审查最近更改；确认测试/构建通过，发现审计文档中 `buttonVariants` 未使用导入说法已过时。
+- `2026-06-30_1626-maa-stage-candidates`: `linux_maa.managed_params` 架构设计，Fight stage 候选和 Infrast plan 动态选项 API。
+- `2026-06-30_1752-maa-cli-sequential-analysis`: 上游 maa-cli 调用模型分析（单 Assistant vs 逐子任务调用）。
+- `2026-06-30_1934-scheduled-retry-architecture`: `retry_even_success` 元数据和定时重试编排架构。
+- `2026-06-30_2318-gpu-ocr-research`: MaaCore GPU OCR 可用性测试 — 确认仅 CPU ONNX Runtime。
+- `2026-07-01_1506-sse-log-delta`: SSE 增量推送模式（全量快照 + patch）和 `PROJECT_EXECUTION_POLICY.md`。
+- `2026-07-02_1933-config-sync-ui-schema`: 前后端配置同步规则分析，废弃字段安全删除规则。
+- `2026-07-02_2144-manual-stop-delay`: **已知未解决问题** — MaaCore 冷 ADB 60 秒超时根因分析与复现数据。
+- `2026-07-03_0105-audit-log-module`: `RunLogBuffer` / `RunLogTranslator` 架构 — 所有 WebUI 可见日志的共享基础。
+- `2026-07-03_1200-audit-and-refactor-codex`: **当前会话** — 项目全面审计、`.codex` 状态文件重构、会话归档。
 
-- `2026-06-26_2030-separate-frontend`: Separate the simple WebUI into the planned React/Vite frontend and reshape the UI around task list, config center, and maa-cli info logs.
+## Archived Sessions（已归档 — 任务已完成，发现已汇入 project-history.md）
 
-- `2026-06-29_1929-shadcn-sidebar`: Replace the Mantine frontend pass with shadcn-style local components and clean Mantine out fully.
-
-- `2026-06-29_2137-project-state-docs`: Inspect current repository state and refresh concise project history/documentation handoff records.
-
-- `2026-06-29_2232-config-editing`: Implement backend task-config validation and parsed config API; add JSON Forms based frontend task editor, metadata fields, schema-drift/fallback editing UI, and left-pane edit/drag affordance.
-
-- `2026-06-30_0014-task-editor-fixes`: Fix task editor metadata semantics, drag ordering UX, checkbox/tooltip styling, dependency logic, and enum labels.
-
-- `2026-06-30_0124-config-save-delete`: Implement backend-backed config saving/reset/delete from the main page, fix route lock/sidebar spacing, and add/refine parallel settings panels for framework timezone/theme, default Profile, maa-cli/resource settings, maintenance actions, tooltips, and resource/update-info semantics.
-- `2026-06-30_1626-maa-stage-candidates`: Implement MAA GUI-style Fight stage candidates, managed task-param placeholders, dynamic Fight/Infrast option APIs, and frontend managed array/dropdown rendering.
-- `2026-06-30_1743-fix-infrast-plan-select`: Investigate and fix Infrast plan dropdown label not updating immediately after selecting an API-provided option.
-- `2026-06-30_1752-maa-cli-sequential-analysis`: Read local runner and upstream maa-cli source to compare one full custom-task invocation with one-child-per-invocation orchestration.
-
-- `2026-06-30_1934-scheduled-retry-architecture`: Implement retry_even_success metadata support, inspect current code for scheduled execution/retry architecture, and make low-risk architecture cleanup.
-- `2026-06-30_2056-scheduled-execution`: Audit existing architecture/code before implementing scheduled execution, then build the scheduler domain/API/UI described in `TEMP/定时执行功能.md`.
-- `2026-06-30_2318-gpu-ocr-research`: Investigate and test MaaCore GPU OCR availability in the current Linux MAA runtime, with Docker packaging notes.
-- `2026-06-30_2342-full-project-audit`: Full backend/frontend/project-history audit execution. Added Chinese root audit reports, split backend routes/services, consolidated shared helpers, refactored frontend shared fields/polling/schedule panes, and cleaned large old scratch artifacts.
-
-- `2026-07-01_1312-explain-log-flow`: Explain current log translation, chunking, and frontend response/display flow.
-- `2026-07-01_1506-sse-log-delta`: Continue log SSE work by moving from full-state SSE payloads toward one full snapshot fetch plus incremental event pushes, while recording the project execution policy.
-- `2026-07-01_2153-manage-service-history`: Stop the current WebUI process without manual PID searching, add temporary systemd management, replace SQLite scheduler state with readable state files, split framework diagnostics from runtime state, and restart the WebUI service.
-- `2026-07-02_1933-config-sync-ui-schema`: Investigate frontend/backend task config synchronization and whether deprecated task editor schema UI fields can be removed safely.
-- `2026-07-02_2144-manual-stop-delay`: Investigate delayed manual stop after user stop request, especially apparent hang around MaaCore "connected" step.
-- `2026-07-02_2245-tools-page`: Build the initial reusable three-column tools page with fixed tool list, update-game config, run action, and common log panel integration.
-- `2026-07-03_0105-audit-log-module`: Audited WebUI-visible log boundaries, then moved the implementation to top-level `linux_maa.logs`, added shared `RunLogBuffer`, wired manual/scheduled/tool/maintenance logs through it, and changed schedule restart-script hooks to stream stdout/stderr into visible logs plus `debug/linux-maa/external/scripts/`.
-- `2026-07-03_1926-project-review`: Full project review and compatibility cleanup. Deleted 4 dead re-export modules, `maa/logs/` compat directory, and `MaaLogMessage`/`MaaSummaryLogRecord`/`MaaTaskLogRecord`/`MaaCliLogTranslator` aliases. Removed dead `translateLogLine` from frontend `logs.ts`. 45 tests pass, frontend builds clean.
+16 个已完成会话已归档至 `~/.codex/archived_sessions/linux-maa/`：
+- `2026-06-26_1620-maa-cli-framework-docs` — 初始环境探测与 MAA 文档镜像
+- `2026-06-26_1702-setup-maa-cli-test` — maa-cli/MaaCore 运行时安装
+- `2026-06-26_1727-webui-config-runner` — 最小 FastAPI WebUI
+- `2026-06-26_2030-separate-frontend` — React/Vite 前端分离
+- `2026-06-29_1929-shadcn-sidebar` — shadcn 组件替换 Mantine
+- `2026-06-29_2137-project-state-docs` — 项目文档刷新
+- `2026-06-29_2232-config-editing` — JSON Forms 任务编辑器
+- `2026-06-30_0014-task-editor-fixes` — 编辑器元数据和 UX 修复
+- `2026-06-30_0124-config-save-delete` — 后端保存/删除/回收站
+- `2026-06-30_1743-fix-infrast-plan-select` — Infrast 下拉标签修复
+- `2026-06-30_2056-scheduled-execution` — 定时执行完整实现
+- `2026-06-30_2342-full-project-audit` — 首次全量审计
+- `2026-07-01_1312-explain-log-flow` — 日志翻译重构为领域包
+- `2026-07-01_2153-manage-service-history` — Systemd 服务管理 + SQLite→JSON 迁移
+- `2026-07-02_2245-tools-page` — 三栏工具页面
+- `2026-07-03_1926-project-review` — 死代码清理

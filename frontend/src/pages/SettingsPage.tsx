@@ -7,6 +7,7 @@ import { CheckboxField, NumberField, PathLine, ReadOnlyLine, SectionTitle, Selec
 import { Button } from "@/components/ui/button";
 import { Card, CardTitle } from "@/components/ui/card";
 import { getCurrentMaintenanceAction, getSettings, getUpdateInfo, saveSettings, startMaintenanceAction } from "@/lib/api";
+import { CONNECTION_CONFIGS, CONNECTION_TYPES, TOUCH_MODES } from "@/lib/constants";
 import { DELETE_VALUE, booleanAt, isRecord, optionalNumberAt, setNestedValue, stringAt, valueAt, type DeleteValue } from "@/lib/objectPath";
 import { loadStoredTheme, saveActiveTheme, setActiveTheme, themeColors, themeFromFrameworkSettings, themeModes, type ThemeColor, type ThemeMode } from "@/lib/theme";
 import type { ConfigValidation, MaintenanceActionState, SaveSettingsPayload, SettingsResponse, UpdateInfoResponse } from "@/lib/types";
@@ -17,9 +18,6 @@ type SettingsDraft = SaveSettingsPayload;
 type DraftSection = keyof SettingsDraft;
 
 const CHANNELS = ["Stable", "Beta", "Alpha"];
-const CONNECTION_TYPES = ["ADB", "PlayCover", "MuMuPro", "Waydroid"];
-const CONNECTION_CONFIGS = ["", "CompatPOSIXShell", "General", "MacPlayTools"];
-const TOUCH_MODES = ["ADB", "MiniTouch", "MaaTouch", "MacPlayTools", "MaaFwAdb"];
 const TIMEZONE_MODES = [
   ["auto", "自动使用后端时区"],
   ["client", "使用浏览器时区"],
