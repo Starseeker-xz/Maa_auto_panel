@@ -9,7 +9,7 @@ from linux_maa.maa.runtime import MaaRuntime
 from linux_maa.storage.files import read_json_object, write_json_object
 
 
-RunKind = Literal["manual", "schedule", "maintenance"]
+RunKind = Literal["manual", "schedule", "maintenance", "tool"]
 
 
 @dataclass(frozen=True)
@@ -49,6 +49,8 @@ class StoredRun:
     task: str = ""
     profile: str = ""
     maintenance_kind: str = ""
+    tool_id: str = ""
+    tool_title: str = ""
 
     def to_dict(self) -> dict[str, object]:
         data: dict[str, object] = {
@@ -81,6 +83,8 @@ class StoredRun:
             "task": self.task,
             "profile": self.profile,
             "maintenance_kind": self.maintenance_kind,
+            "tool_id": self.tool_id,
+            "tool_title": self.tool_title,
         }
         data.update({key: value for key, value in optional.items() if value})
         return data
@@ -167,6 +171,32 @@ class RunStateStore:
                 "created_at": _now(),
                 "started_at": _now(),
                 "maintenance_kind": kind,
+                "log_file": log_file,
+                "log_files": log_files or {},
+                "event_log_file": event_log_file,
+            }
+        )
+
+    def create_tool_run(
+        self,
+        *,
+        run_id: str,
+        tool_id: str,
+        title: str,
+        log_file: str | None = None,
+        log_files: dict[str, str] | None = None,
+        event_log_file: str | None = None,
+    ) -> None:
+        self._upsert_run(
+            {
+                "id": run_id,
+                "kind": "tool",
+                "status": "running",
+                "title": title,
+                "created_at": _now(),
+                "started_at": _now(),
+                "tool_id": tool_id,
+                "tool_title": title,
                 "log_file": log_file,
                 "log_files": log_files or {},
                 "event_log_file": event_log_file,
@@ -431,7 +461,7 @@ class RunStateStore:
         records = [run for run in runs if run is not None]
         records.sort(key=lambda run: run.created_at, reverse=True)
         data = {
-            "description": "Recent WebUI, scheduled, and maintenance run records. The WebUI derives recent runs from this file.",
+            "description": "Recent WebUI, scheduled, maintenance, and tool run records. The WebUI derives recent runs from this file.",
             "updated_at": _now(),
             "runs": [run.to_dict() for run in records[: self.retention.max_run_records]],
         }
@@ -490,7 +520,7 @@ class RunStateStore:
 def _stored_run_from_data(data: dict[str, object]) -> StoredRun | None:
     run_id = str(data.get("id") or "")
     kind = str(data.get("kind") or "manual")
-    if not run_id or kind not in {"manual", "schedule", "maintenance"}:
+    if not run_id or kind not in {"manual", "schedule", "maintenance", "tool"}:
         return None
     selected = data.get("selected_task_ids")
     summary = data.get("summary")
@@ -523,6 +553,8 @@ def _stored_run_from_data(data: dict[str, object]) -> StoredRun | None:
         task=str(data.get("task") or ""),
         profile=str(data.get("profile") or ""),
         maintenance_kind=str(data.get("maintenance_kind") or ""),
+        tool_id=str(data.get("tool_id") or ""),
+        tool_title=str(data.get("tool_title") or ""),
     )
 
 

@@ -29,3 +29,5 @@
 - `2026-07-01_1506-sse-log-delta`: Continue log SSE work by moving from full-state SSE payloads toward one full snapshot fetch plus incremental event pushes, while recording the project execution policy.
 - `2026-07-01_2153-manage-service-history`: Stop the current WebUI process without manual PID searching, add temporary systemd management, replace SQLite scheduler state with readable state files, split framework diagnostics from runtime state, and restart the WebUI service.
 - `2026-07-02_1933-config-sync-ui-schema`: Investigate frontend/backend task config synchronization and whether deprecated task editor schema UI fields can be removed safely.
+- `2026-07-02_2144-manual-stop-delay`: Investigate delayed manual stop after user stop request, especially apparent hang around MaaCore "connected" step.
+- `2026-07-02_2245-tools-page`: Build the initial reusable three-column tools page with fixed tool list, update-game config, run action, and common log panel integration.

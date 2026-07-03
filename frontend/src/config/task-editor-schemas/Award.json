@@ -6,38 +6,32 @@
       "award": {
         "type": "boolean",
         "title": "领取每日/每周任务奖励",
-        "default": true,
-        "description": "领取每日/每周任务奖励。"
+        "default": true
       },
       "mail": {
         "type": "boolean",
         "title": "领取邮件奖励",
-        "default": false,
-        "description": "领取邮件奖励。"
+        "default": false
       },
       "recruit": {
         "type": "boolean",
         "title": "领取限定池每日免费单抽",
-        "default": false,
-        "description": "领取限定池每日免费单抽。"
+        "default": false
       },
       "orundum": {
         "type": "boolean",
         "title": "领取幸运墙合成玉",
-        "default": false,
-        "description": "领取幸运墙合成玉奖励。"
+        "default": false
       },
       "mining": {
         "type": "boolean",
         "title": "领取限时开采许可",
-        "default": false,
-        "description": "领取限时开采许可奖励。"
+        "default": false
       },
       "specialaccess": {
         "type": "boolean",
-        "title": "领取月卡奖励",
-        "default": false,
-        "description": "领取特殊活动或月卡奖励。"
+        "title": "领取周年赠送月卡奖励",
+        "default": false
       }
     }
   },

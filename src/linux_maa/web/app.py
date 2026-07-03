@@ -15,6 +15,7 @@ from linux_maa.web.routes import (
     create_run_router,
     create_schedule_router,
     create_settings_router,
+    create_tools_router,
 )
 from linux_maa.web.services import create_services
 
@@ -64,6 +65,7 @@ def create_app(repo_root: Path | None = None) -> FastAPI:
     app.include_router(create_settings_router(services))
     app.include_router(create_maintenance_router(services))
     app.include_router(create_maa_router(services))
+    app.include_router(create_tools_router(services))
     app.include_router(create_schedule_router(services))
     app.include_router(create_run_router(services))
 

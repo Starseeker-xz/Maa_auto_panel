@@ -8,6 +8,7 @@ from linux_maa.diagnostics import Diagnostics
 from linux_maa.maa import MaaInfrastService, MaaRunManager, MaaRuntime, MaaStageService, MaintenanceActionManager, find_repo_root
 from linux_maa.run_state import RunStateStore
 from linux_maa.scheduler import ScheduleConfigManager, SchedulerService
+from linux_maa.tools import ToolRunManager
 
 
 @dataclass(frozen=True)
@@ -19,6 +20,7 @@ class WebServices:
     framework_settings: FrameworkSettingsManager
     runs: MaaRunManager
     maintenance: MaintenanceActionManager
+    tools: ToolRunManager
     stages: MaaStageService
     infrast: MaaInfrastService
     schedule_configs: ScheduleConfigManager
@@ -43,6 +45,7 @@ def create_services(repo_root: Path | None = None) -> WebServices:
         framework_settings=framework_settings,
         runs=MaaRunManager(runtime, run_state, diagnostics),
         maintenance=MaintenanceActionManager(runtime, run_state, diagnostics),
+        tools=ToolRunManager(runtime, configs, run_state, diagnostics),
         stages=MaaStageService(runtime),
         infrast=MaaInfrastService(runtime),
         schedule_configs=schedule_configs,

@@ -7,7 +7,6 @@
         "type": "string",
         "title": "客户端",
         "default": "Bilibili",
-        "description": "客户端版本。",
         "oneOf": [
           {
             "const": "Official",
@@ -38,8 +37,7 @@
       "start_game_enabled": {
         "type": "boolean",
         "title": "自动启动客户端",
-        "default": false,
-        "description": "是否自动启动游戏客户端。"
+        "default": false
       },
       "account_name": {
         "type": "string",
@@ -51,9 +49,7 @@
   },
   "general": [
     "client_type",
-    "start_game_enabled"
-  ],
-  "advanced": [
+    "start_game_enabled",
     "account_name"
   ]
 }

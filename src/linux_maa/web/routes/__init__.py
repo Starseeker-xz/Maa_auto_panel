@@ -5,6 +5,7 @@ from linux_maa.web.routes.maa import create_maa_router
 from linux_maa.web.routes.runs import create_run_router
 from linux_maa.web.routes.schedules import create_schedule_router
 from linux_maa.web.routes.settings import create_settings_router
+from linux_maa.web.routes.tools import create_tools_router
 
 __all__ = [
     "create_config_router",
@@ -14,4 +15,5 @@ __all__ = [
     "create_run_router",
     "create_schedule_router",
     "create_settings_router",
+    "create_tools_router",
 ]

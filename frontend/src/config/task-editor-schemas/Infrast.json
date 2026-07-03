@@ -141,38 +141,33 @@
       "replenish": {
         "type": "boolean",
         "title": "贸易站源石碎片补货",
-        "default": false,
-        "description": "贸易站源石碎片自动补货。"
+        "default": false
       },
       "dorm_notstationed_enabled": {
         "type": "boolean",
         "title": "宿舍未进驻筛选",
         "default": false,
-        "description": "启用宿舍未进驻筛选。"
+        "description": "勾选则不会将艾丽妮等干员从训练室移除，但也会导致加工站干员不能进入宿舍。"
       },
       "dorm_trust_enabled": {
         "type": "boolean",
-        "title": "宿舍填入信赖未满干员",
-        "default": false,
-        "description": "宿舍剩余位置填入信赖未满干员。"
+        "title": "宿舍空余位置蹭信赖",
+        "default": false
       },
       "reception_message_board": {
         "type": "boolean",
         "title": "领取会客室信息板信用",
-        "default": true,
-        "description": "领取会客室信息板信用。"
+        "default": true
       },
       "reception_clue_exchange": {
         "type": "boolean",
         "title": "进行线索交流",
-        "default": true,
-        "description": "进行线索交流。"
+        "default": true
       },
       "reception_send_clue": {
         "type": "boolean",
         "title": "赠送线索",
-        "default": true,
-        "description": "赠送线索。"
+        "default": true
       },
       "filename": {
         "type": "string",

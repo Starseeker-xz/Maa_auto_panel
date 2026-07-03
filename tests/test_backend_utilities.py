@@ -1,12 +1,16 @@
 from pathlib import Path
 import asyncio
+import os
+import sys
 
 import pytest
 
 from linux_maa.config.manager import ConfigManager
 from linux_maa.maa.runtime import MaaRuntime
+from linux_maa.process import run_streaming_process
 from linux_maa.scheduler.models import ScheduleConfig, ScheduleEntry
 from linux_maa.scheduler.service import SchedulerService, ScheduleRunState
+from linux_maa.tools.manager import ToolRunManager, ToolRunState, _build_game_update_command
 from linux_maa.utils import is_newer_version, write_text_atomic
 from linux_maa.web.app import create_app
 
@@ -36,6 +40,56 @@ def test_version_compare_accepts_v_prefix_and_suffix() -> None:
     assert is_newer_version("v6.13.0", "6.14.0")
     assert not is_newer_version("6.14.0", "v6.13.0")
     assert not is_newer_version("v0.7.5", "0.7.5")
+
+
+def test_streaming_process_preserves_carriage_returns_for_log_translator(tmp_path: Path) -> None:
+    runtime = MaaRuntime(tmp_path)
+    chunks: list[str] = []
+
+    result = run_streaming_process(
+        runtime,
+        [
+            sys.executable,
+            "-c",
+            "import sys; sys.stderr.write('first\\rsecond\\n'); sys.stderr.flush()",
+        ],
+        env=os.environ.copy(),
+        on_output=lambda text: None,
+        on_stream_output=lambda stream, text: chunks.append(text),
+    )
+
+    assert result.return_code == 0
+    assert "first\r" in chunks
+    assert "second\n" in chunks
+
+
+def test_game_update_tool_runs_python_unbuffered(tmp_path: Path) -> None:
+    runtime = MaaRuntime(tmp_path)
+    manager = ToolRunManager(runtime, ConfigManager(runtime))
+
+    command = _build_game_update_command(manager, {"address": "127.0.0.1:5555"})
+
+    assert command.cmd[:4] == [sys.executable, "-u", "-m", "linux_maa.cli"]
+    assert command.cmd[4] == "update-game"
+
+
+def test_tool_start_rejects_stopping_current_run(tmp_path: Path) -> None:
+    runtime = MaaRuntime(tmp_path)
+    manager = ToolRunManager(runtime, ConfigManager(runtime))
+    state = ToolRunState(
+        id="run-1",
+        tool_id="game-update",
+        tool_title="更新游戏",
+        status="stopping",
+        created_at="2026-07-03T00:00:00",
+        updated_at="2026-07-03T00:00:00",
+    )
+    with manager._lock:
+        manager._runs[state.id] = state
+        manager._current_run_id = state.id
+
+    with pytest.raises(RuntimeError):
+        manager.start("game-update", {})
 
 
 def test_create_schedule_keeps_explicit_task_config_when_listing_is_empty() -> None:
@@ -178,6 +232,7 @@ def test_create_app_exposes_expected_api_paths(tmp_path: Path) -> None:
     assert "/api/configs" in paths
     assert "/api/settings" in paths
     assert "/api/maintenance/current" in paths
+    assert "/api/tools/current" in paths
     assert "/api/history/runs" in paths
     assert "/api/maa/stages" in paths
     assert "/api/schedules/current" in paths

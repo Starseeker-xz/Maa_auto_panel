@@ -14,7 +14,7 @@ def create_history_router(services: WebServices) -> APIRouter:
 
     @router.get("/runs")
     def list_runs(
-        kind: Literal["manual", "schedule", "maintenance"] | None = None,
+        kind: Literal["manual", "schedule", "maintenance", "tool"] | None = None,
         limit: int = Query(default=50, ge=1, le=500),
     ) -> dict[str, object]:
         return {"runs": [run.to_dict() for run in run_state.runs(kind=kind, limit=limit)]}

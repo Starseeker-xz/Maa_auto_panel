@@ -15,9 +15,9 @@ from linux_maa.android import ADBDevice
 from linux_maa.config.tasks import TASK_SUFFIXES, prepare_framework_task_config
 from linux_maa.diagnostics import Diagnostics, get_logger
 from linux_maa.maa.logs import MaaCliLogTranslator, translate_maa_cli_log
-from linux_maa.maa.process import run_maa_cli_process
 from linux_maa.settings import DEFAULT_DEVICE_SERIAL, DEFAULT_TARGET_PACKAGE
 from linux_maa.maa.runtime import MaaRuntime, find_repo_root
+from linux_maa.process import run_streaming_process
 from linux_maa.run_state import RunStateStore
 from linux_maa.state import idle_response
 from linux_maa.utils import relative_path, resolve_existing_named_file, slugify, write_text_atomic
@@ -372,7 +372,7 @@ class MaaRunManager:
 
     def _append_maa_log(self, state: MaaRunState, text: str, stream: str = "output") -> None:
         self.diagnostics.append_maa_cli_output(state.id, stream, text)
-        translated = state.log_translator.translate(text)
+        translated = state.log_translator.translate(text, source=stream)
         if translated:
             self._append(state, translated)
 
@@ -450,7 +450,7 @@ class MaaRunManager:
         self._set_done(state, "failed", return_code)
 
     def _run_process(self, state: MaaRunState, cmd: list[str], env: dict[str, str]) -> int | None:
-        result = run_maa_cli_process(
+        result = run_streaming_process(
             self.runtime,
             cmd,
             env=env,

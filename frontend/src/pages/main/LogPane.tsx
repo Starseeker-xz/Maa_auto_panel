@@ -1,3 +1,6 @@
+import { Info } from "lucide-react";
+
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { STATUS_LABELS } from "@/lib/logs";
 import type { MaaLogEntry, MaaLogLineEntry, MaaLogMessage, MaaLogSummaryEntry, MaaLogTaskEntry, RunState } from "@/lib/types";
@@ -44,11 +47,14 @@ const MESSAGE_TONE_CLASS: Record<string, string> = {
 
 export function LogPane({ run, error, title = "日志", emptyText = "等待 maa-cli info 日志..." }: LogPaneProps) {
   const entries = normalizeEntries(run);
+  const details = runDetails(run, entries);
+  const [detailsOpen, setDetailsOpen] = React.useState(false);
   const viewportRef = React.useRef<HTMLDivElement>(null);
   const followTailRef = React.useRef(true);
 
   React.useEffect(() => {
     followTailRef.current = true;
+    setDetailsOpen(false);
   }, [run.id]);
 
   React.useLayoutEffect(() => {
@@ -64,18 +70,12 @@ export function LogPane({ run, error, title = "日志", emptyText = "等待 maa-
   }
 
   return (
-    <Card className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden p-0 max-xl:col-span-2 max-md:col-span-1 max-xl:min-h-80">
+    <Card className="relative grid min-h-0 grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden p-0 max-xl:col-span-2 max-md:col-span-1 max-xl:min-h-80">
       <CardHeader className="border-b px-3 py-2.5">
         <div className="flex items-start justify-between gap-3">
           <div className="grid gap-1">
             <CardTitle>{title}</CardTitle>
             <span className={`status-pill ${run.status}`}>{STATUS_LABELS[run.status] || run.status}</span>
-          </div>
-          <div className="grid max-w-56 justify-items-end gap-1 text-xs text-muted-foreground">
-            <span>info</span>
-            {run.log_files?.stdout ? <LogFilePath label="stdout" path={run.log_files.stdout} /> : null}
-            {run.log_files?.stderr ? <LogFilePath label="stderr" path={run.log_files.stderr} /> : null}
-            {!run.log_files?.stdout && run.log_file ? <span className="break-anywhere text-right">{run.log_file}</span> : null}
           </div>
         </div>
       </CardHeader>
@@ -90,17 +90,45 @@ export function LogPane({ run, error, title = "日志", emptyText = "等待 maa-
           <div className="rounded-md border bg-background px-3 py-2 text-xs text-muted-foreground">{emptyText}</div>
         )}
       </div>
+      {detailsOpen ? <RunDetailsPanel details={details} /> : null}
+      <Button
+        type="button"
+        variant="outline"
+        size="icon"
+        className="absolute bottom-2 left-2 z-20 size-7 rounded-full bg-background/95 text-muted-foreground shadow-md hover:text-foreground"
+        aria-label="本次运行详情"
+        aria-expanded={detailsOpen}
+        onClick={() => setDetailsOpen((current) => !current)}
+      >
+        <Info className="size-3.5" />
+      </Button>
       {error ? <CardContent className="border-t p-2 text-xs text-destructive break-anywhere">{error}</CardContent> : null}
     </Card>
   );
 }
 
-function LogFilePath({ label, path }: { label: string; path: string }) {
+type RunDetailItem = {
+  label: string;
+  value: string;
+};
+
+function RunDetailsPanel({ details }: { details: RunDetailItem[] }) {
   return (
-    <span className="grid justify-items-end gap-0.5">
-      <span className="text-[10px] uppercase tracking-normal text-muted-foreground/70">{label}</span>
-      <span className="break-anywhere text-right">{path}</span>
-    </span>
+    <div className="absolute bottom-10 left-2 z-20 grid max-h-[45%] w-[min(28rem,calc(100%-1rem))] gap-2 overflow-auto rounded-md border bg-popover p-3 text-xs text-popover-foreground shadow-lg">
+      <div className="font-medium">本次运行详情</div>
+      {details.length ? (
+        <div className="grid gap-2">
+          {details.map((item) => (
+            <div key={`${item.label}:${item.value}`} className="grid gap-0.5">
+              <div className="text-[10px] uppercase tracking-normal text-muted-foreground">{item.label}</div>
+              <div className="break-anywhere leading-5">{item.value}</div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="text-muted-foreground">暂无详细信息</div>
+      )}
+    </div>
   );
 }
 
@@ -112,6 +140,58 @@ function normalizeEntries(run: RunState): MaaLogEntry[] {
     .split(/\r?\n/)
     .filter(Boolean)
     .map((text) => ({ type: "line", text, tone: "default" }));
+}
+
+function runDetails(run: RunState, entries: MaaLogEntry[]): RunDetailItem[] {
+  const details: RunDetailItem[] = [];
+  if (run.id) details.push({ label: "Run ID", value: run.id });
+  if (run.schedule_name) details.push({ label: "Schedule", value: run.schedule_name });
+  if (run.entry_name) details.push({ label: "Entry", value: run.entry_name });
+
+  for (const [label, path] of Object.entries(run.log_files || {})) {
+    if (path) details.push({ label: `${label} log`, value: path });
+  }
+  if (!run.log_files?.stdout && run.log_file) {
+    details.push({ label: "log", value: run.log_file });
+  }
+
+  const selections = selectionDetails(entries);
+  for (const [label, values] of selections) {
+    details.push({ label, value: values.join(" / ") });
+  }
+  return details;
+}
+
+function selectionDetails(entries: MaaLogEntry[]) {
+  const selections = new Map<string, string[]>();
+  const prefixes: Array<[string, string]> = [
+    ["选择战斗关卡:", "战斗关卡"],
+    ["选择基建计划:", "基建计划"]
+  ];
+
+  for (const message of flattenMessages(entries)) {
+    for (const [prefix, label] of prefixes) {
+      if (!message.text.startsWith(prefix)) continue;
+      const value = message.text.slice(prefix.length).trim();
+      if (!value) continue;
+      const values = selections.get(label) || [];
+      if (!values.includes(value)) values.push(value);
+      selections.set(label, values);
+    }
+  }
+  return selections;
+}
+
+function flattenMessages(entries: MaaLogEntry[]): Array<MaaLogMessage | MaaLogLineEntry> {
+  const messages: Array<MaaLogMessage | MaaLogLineEntry> = [];
+  for (const entry of entries) {
+    if (entry.type === "line") {
+      messages.push(entry);
+      continue;
+    }
+    if (entry.messages?.length) messages.push(...entry.messages);
+  }
+  return messages;
 }
 
 function LogEntryView({ entry }: { entry: MaaLogEntry }) {

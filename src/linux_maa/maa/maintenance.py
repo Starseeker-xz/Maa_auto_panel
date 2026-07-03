@@ -13,8 +13,8 @@ from typing import Any
 import requests
 
 from linux_maa.diagnostics import Diagnostics, get_logger
-from linux_maa.maa.process import run_maa_cli_process
 from linux_maa.maa.runtime import MaaRuntime
+from linux_maa.process import run_streaming_process
 from linux_maa.run_state import RunStateStore
 from linux_maa.utils import dict_value, extract_version, is_newer_version
 
@@ -155,7 +155,7 @@ class MaintenanceActionManager:
         cmd = [str(self.runtime.maa_bin), *args]
         self._append(state, f"$ {' '.join(cmd)}\n")
         try:
-            result = run_maa_cli_process(
+            result = run_streaming_process(
                 self.runtime,
                 cmd,
                 env=self.runtime.env(),

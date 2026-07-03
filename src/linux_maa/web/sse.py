@@ -77,11 +77,14 @@ def build_cursor_patch(current: dict[str, object], cursors: dict[str, int], vers
     }
     for field in LOG_LIST_FIELDS:
         current_items = _list_field(current, field)
-        replace_from = cursors.get(field, 0)
-        if replace_from > len(current_items):
+        if field == "log_entries":
             replace_from = 0
-        elif field in MUTABLE_TAIL_FIELDS and replace_from > 0:
-            replace_from -= 1
+        else:
+            replace_from = cursors.get(field, 0)
+            if replace_from > len(current_items):
+                replace_from = 0
+            elif field in MUTABLE_TAIL_FIELDS and replace_from > 0:
+                replace_from -= 1
         if replace_from < len(current_items):
             payload[field] = {
                 "replace_from": replace_from,

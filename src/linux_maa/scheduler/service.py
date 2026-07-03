@@ -12,9 +12,9 @@ from typing import Any
 from linux_maa.config import ConfigManager, FrameworkSettingsManager
 from linux_maa.diagnostics import Diagnostics, get_logger
 from linux_maa.maa.logs import MaaCliLogTranslator
-from linux_maa.maa.process import run_maa_cli_process
 from linux_maa.maa.runner import load_task_file, prepare_maa_cli_task, resolve_task_file
 from linux_maa.maa.runtime import MaaRuntime
+from linux_maa.process import run_streaming_process
 from linux_maa.run_state import RunStateStore
 from linux_maa.scheduler.config import ScheduleConfigManager
 from linux_maa.scheduler.models import DailyTaskStats, ScheduleConfig, ScheduleEntry, TaskPolicy
@@ -499,7 +499,7 @@ class SchedulerService:
         attempt_started = _now()
         translator_start = len(state.log_translator.task_results())
         log_entry_start = len(state.log_translator.entries())
-        result = run_maa_cli_process(
+        result = run_streaming_process(
             self.runtime,
             cmd,
             env=run_env,
@@ -597,7 +597,7 @@ class SchedulerService:
 
     def _append_maa_log(self, state: ScheduleRunState, text: str, stream: str = "output") -> None:
         self.diagnostics.append_maa_cli_output(state.id, stream, text)
-        translated = state.log_translator.translate(text)
+        translated = state.log_translator.translate(text, source=stream)
         if translated:
             self._append(state, translated)
 

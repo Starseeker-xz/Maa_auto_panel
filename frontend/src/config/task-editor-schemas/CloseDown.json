@@ -5,9 +5,8 @@
     "properties": {
       "client_type": {
         "type": "string",
-        "title": "客户端",
+        "title": "客户端版本",
         "default": "Bilibili",
-        "description": "客户端版本。",
         "oneOf": [
           {
             "const": "Official",

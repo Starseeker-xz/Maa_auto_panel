@@ -84,3 +84,26 @@ def test_cursor_patch_uses_client_offsets_and_resends_mutable_tail() -> None:
     assert patch["output"] == {"replace_from": 2, "items": ["line 3\n"]}
     assert patch["task_results"] == {"replace_from": 0, "items": current["task_results"]}
     assert patch["log_entries"] == {"replace_from": 0, "items": current["log_entries"]}
+
+
+def test_cursor_patch_resends_full_log_entries_even_when_client_length_matches() -> None:
+    current = {
+        "id": "run-1",
+        "status": "running",
+        "output": ["line 1\n"],
+        "task_results": [],
+        "log_entries": [
+            {"type": "summary", "title": "运行摘要", "status": "succeeded", "messages": [], "lines": ["Summary"]},
+            {"type": "line", "text": "done", "tone": "info"},
+        ],
+    }
+
+    patch = build_cursor_patch(
+        current,
+        {"output": 1, "task_results": 0, "log_entries": 2},
+        8,
+    )
+
+    assert "output" not in patch
+    assert "task_results" not in patch
+    assert patch["log_entries"] == {"replace_from": 0, "items": current["log_entries"]}

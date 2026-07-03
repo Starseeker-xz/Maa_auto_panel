@@ -47,7 +47,10 @@ export function SchedulePage() {
   const [pendingTaskConfig, setPendingTaskConfig] = React.useState("");
   const [deleteOpen, setDeleteOpen] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
+  const [runBusy, setRunBusy] = React.useState(false);
   const [error, setError] = React.useState("");
+  const previousGlobalRunRef = React.useRef<RunState | null>(null);
+  const refreshedRunIdRef = React.useRef("");
 
   React.useEffect(() => {
     let cancelled = false;
@@ -125,6 +128,16 @@ export function SchedulePage() {
 
   const dirty = Boolean(detail && draft && JSON.stringify(detail.config) !== JSON.stringify(draft));
 
+  React.useEffect(() => {
+    const previous = previousGlobalRunRef.current;
+    previousGlobalRunRef.current = globalRun;
+    const completed = completedScheduleRun(previous, globalRun);
+    if (!completed || refreshedRunIdRef.current === completed.runId) return;
+
+    refreshedRunIdRef.current = completed.runId;
+    void refreshAfterScheduleRun(completed.scheduleId);
+  }, [globalRun, scheduleId]);
+
   async function refreshOverview() {
     const data = await listSchedules();
     setOverview(data);
@@ -138,6 +151,21 @@ export function SchedulePage() {
     setDraft(cloneConfig(data.config));
     setDraftTaskConfig(null);
     setSelectedEntryId((current) => (data.config.entries.some((entry) => entry.id === current) ? current : data.config.entries[0]?.id || ""));
+  }
+
+  async function refreshAfterScheduleRun(finishedScheduleId: string) {
+    try {
+      const overviewPromise = listSchedules();
+      const detailPromise = finishedScheduleId === scheduleId ? readSchedule(finishedScheduleId) : null;
+      const [overviewData, detailData] = await Promise.all([overviewPromise, detailPromise]);
+      setOverview(overviewData);
+      if (detailData) {
+        setDetail((current) => (current?.config.id === detailData.config.id ? mergeScheduleRuntimeFields(current, detailData) : current));
+      }
+      setError((current) => (current === SCHEDULE_RUN_EVENTS_ERROR ? "" : current));
+    } catch (exc) {
+      setError((current) => current || String(exc));
+    }
   }
 
   async function handleCreate() {
@@ -218,22 +246,30 @@ export function SchedulePage() {
   }
 
   async function handleStart() {
-    if (!draft) return;
+    const entryId = selectedEntryId || draft?.entries[0]?.id || "";
+    if (!draft || runBusy || scheduleStartDisabledReason(globalRun, dirty, entryId)) return;
+    setRunBusy(true);
     setError("");
     try {
-      const startedRun = await startScheduleRun(draft.id, selectedEntryId || draft.entries[0]?.id);
+      const startedRun = await startScheduleRun(draft.id, entryId);
       setGlobalRun(startedRun);
     } catch (exc) {
       setError(String(exc));
+    } finally {
+      setRunBusy(false);
     }
   }
 
   async function handleStop() {
+    if (runBusy) return;
+    setRunBusy(true);
     try {
       const stoppedRun = await stopCurrentScheduleRun();
       setGlobalRun(stoppedRun);
     } catch (exc) {
       setError(String(exc));
+    } finally {
+      setRunBusy(false);
     }
   }
 
@@ -302,7 +338,7 @@ export function SchedulePage() {
   const taskItems = (draftTaskConfig || detail.task_config).task_items || [];
   const run = runForSchedule(globalRun, scheduleId);
   const active = isRunActive(run);
-  const schedulerBusy = isRunActive(globalRun);
+  const startDisabledReason = scheduleStartDisabledReason(globalRun, dirty, selectedEntry?.id || "");
   const sortedEntries = sortEntriesByReset(draft.entries, detail.timeline.reset_local_time);
 
   return (
@@ -345,11 +381,11 @@ export function SchedulePage() {
           )}
         </ScrollArea>
         <div className="grid grid-cols-[1fr_1fr_auto] gap-2">
-          <Button onClick={handleStart} disabled={schedulerBusy || !selectedEntry}>
+          <Button onClick={handleStart} disabled={runBusy || Boolean(startDisabledReason)} title={startDisabledReason || undefined}>
             <Play className="size-4" />
             运行当前时间点
           </Button>
-          <Button variant="outline" onClick={handleStop} disabled={!active}>
+          <Button variant="outline" onClick={handleStop} disabled={runBusy || !active}>
             <Square className="size-4" />
             停止
           </Button>
@@ -402,12 +438,40 @@ function idleRun(): RunState {
   return { status: "idle", output: [] };
 }
 
+function mergeScheduleRuntimeFields(current: ScheduleResponse, latest: ScheduleResponse): ScheduleResponse {
+  return {
+    ...current,
+    file: latest.file,
+    task_config: latest.task_config,
+    task_policies: latest.task_policies,
+    timeline: latest.timeline,
+    daily_stats: latest.daily_stats,
+    recent_runs: latest.recent_runs,
+    scripts: latest.scripts,
+    current_run: latest.current_run
+  };
+}
+
 function runForSchedule(run: RunState, scheduleId?: string): RunState {
   return scheduleId && run.schedule_id === scheduleId ? run : idleRun();
 }
 
 function isRunActive(run: RunState): boolean {
   return run.status === "running" || run.status === "stopping";
+}
+
+function completedScheduleRun(previous: RunState | null, current: RunState): { runId: string; scheduleId: string } | null {
+  if (!previous || !isRunActive(previous) || isRunActive(current)) return null;
+  if (!previous.id || !previous.schedule_id) return null;
+  if (current.id && current.id !== previous.id) return null;
+  return { runId: previous.id, scheduleId: previous.schedule_id };
+}
+
+function scheduleStartDisabledReason(globalRun: RunState, dirty: boolean, selectedEntryId: string): string {
+  if (isRunActive(globalRun)) return "已有定时运行正在执行";
+  if (dirty) return "请先保存或复位当前定时配置";
+  if (!selectedEntryId) return "没有可运行的时间点";
+  return "";
 }
 
 function sortEntriesByReset(entries: ScheduleEntry[], resetTime: string) {

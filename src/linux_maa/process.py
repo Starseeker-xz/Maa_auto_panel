@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 from contextlib import nullcontext
+import io
 import select
 import subprocess
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, TextIO
+from typing import Callable, TextIO, cast
 
 from linux_maa.maa.runtime import MaaRuntime
 
@@ -20,13 +21,13 @@ TickCallback = Callable[[], None]
 
 
 @dataclass(frozen=True)
-class MaaCliProcessResult:
+class StreamingProcessResult:
     return_code: int | None
     timed_out: bool = False
     stopped: bool = False
 
 
-def run_maa_cli_process(
+def run_streaming_process(
     runtime: MaaRuntime,
     cmd: list[str],
     *,
@@ -41,25 +42,24 @@ def run_maa_cli_process(
     danger_seconds: int | None = None,
     on_timeout: TimeoutCallback | None = None,
     on_tick: TickCallback | None = None,
-) -> MaaCliProcessResult:
+) -> StreamingProcessResult:
     proc = subprocess.Popen(
         cmd,
         cwd=runtime.repo_root,
         env=env,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
     )
     if on_process is not None:
-        on_process(proc)
+        on_process(cast(subprocess.Popen[str], proc))
 
     assert proc.stdout is not None
     assert proc.stderr is not None
+    stdout = io.TextIOWrapper(proc.stdout, encoding="utf-8", errors="replace", newline="")
+    stderr = io.TextIOWrapper(proc.stderr, encoding="utf-8", errors="replace", newline="")
     streams = {
-        proc.stdout: "stdout",
-        proc.stderr: "stderr",
+        stdout: "stdout",
+        stderr: "stderr",
     }
     start = time.monotonic()
     warned = False
@@ -110,7 +110,7 @@ def run_maa_cli_process(
                         _emit_output(remainder, stream, on_output, on_stream_output, log_sink)
                 break
 
-    return MaaCliProcessResult(return_code=proc.wait(), timed_out=timed_out, stopped=stopped)
+    return StreamingProcessResult(return_code=proc.wait(), timed_out=timed_out, stopped=stopped)
 
 
 def _emit_output(

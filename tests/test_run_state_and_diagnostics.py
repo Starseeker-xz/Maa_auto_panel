@@ -80,7 +80,7 @@ def test_run_state_store_writes_readable_state_outside_debug(tmp_path: Path) -> 
     attempts = (tmp_path / "state/linux-maa/run-history/scheduled-run-attempts.json").read_text(encoding="utf-8")
     daily_stats = (tmp_path / "state/linux-maa/scheduler/daily-task-stats.json").read_text(encoding="utf-8")
     triggers = (tmp_path / "state/linux-maa/scheduler/triggered-schedule-entries.json").read_text(encoding="utf-8")
-    assert "Recent WebUI, scheduled, and maintenance run records" in recent_runs
+    assert "Recent WebUI, scheduled, maintenance, and tool run records" in recent_runs
     assert "Per-attempt records for scheduled runs" in attempts
     assert "Per-schedule daily child-task run/success counters" in daily_stats
     assert "avoid duplicate scheduled execution" in triggers
@@ -108,6 +108,16 @@ def test_diagnostics_writes_framework_and_external_logs(tmp_path: Path) -> None:
     assert diagnostics.run_events("run-1")[0]["text"] == "人读事件"
     assert (tmp_path / "debug/linux-maa/external/maa-cli/run-1.stdout.log").read_text(encoding="utf-8") == "stdout line\n"
     assert (tmp_path / "debug/linux-maa/external/maa-cli/run-1.stderr.log").read_text(encoding="utf-8") == "stderr line\n"
+
+    tool_log_files = diagnostics.tool_log_files("tool-1")
+    diagnostics.append_tool_output("tool-1", "stdout", "tool stdout\n")
+    diagnostics.append_tool_output("tool-1", "stderr", "tool stderr\n")
+    assert tool_log_files == {
+        "stdout": "debug/linux-maa/external/tools/tool-1.stdout.log",
+        "stderr": "debug/linux-maa/external/tools/tool-1.stderr.log",
+    }
+    assert (tmp_path / "debug/linux-maa/external/tools/tool-1.stdout.log").read_text(encoding="utf-8") == "tool stdout\n"
+    assert (tmp_path / "debug/linux-maa/external/tools/tool-1.stderr.log").read_text(encoding="utf-8") == "tool stderr\n"
 
 
 def test_diagnostics_retention_prunes_debug_artifacts(tmp_path: Path) -> None:

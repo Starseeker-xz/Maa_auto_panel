@@ -86,7 +86,7 @@
         "type": "boolean",
         "title": "设置招募时限",
         "default": true,
-        "description": "是否设置招募时限。仅在招募次数为 0 时生效。",
+        "description": "是否设置招募时限。招募次数不为 0 时即使为 false 也会设置招募时限。该字段仅用于“公招识别”中自动设置招募时限。",
         "x-enabledWhen": [
           {
             "field": "times",
@@ -98,7 +98,7 @@
         "type": "boolean",
         "title": "使用加急许可",
         "default": false,
-        "description": "是否使用加急许可。"
+        "description": "是否使用加急许可。不建议勾选。"
       },
       "expedite_times": {
         "type": "integer",
@@ -112,12 +112,6 @@
             "equals": true
           }
         ]
-      },
-      "skip_robot": {
-        "type": "boolean",
-        "title": "识别到小车词条时跳过",
-        "default": false,
-        "description": "识别到小车词条时跳过。已弃用"
       },
       "recruitment_time": {
         "type": "object",
@@ -193,15 +187,14 @@
     "select",
     "confirm",
     "preserve_tags",
-    "times",
-    "set_time"
+    "times"
   ],
   "advanced": [
+    "set_time",
     "first_tags",
     "extra_tags_mode",
     "expedite",
     "expedite_times",
-    "skip_robot",
     "recruitment_time",
     "report_to_penguin",
     "penguin_id",

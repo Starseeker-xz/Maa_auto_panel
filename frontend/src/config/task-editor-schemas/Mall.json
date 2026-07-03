@@ -6,14 +6,12 @@
       "visit_friends": {
         "type": "boolean",
         "title": "访问好友基建",
-        "default": true,
-        "description": "访问好友基建以获得信用。"
+        "default": true
       },
       "shopping": {
         "type": "boolean",
         "title": "信用商店购物",
-        "default": true,
-        "description": "进入信用商店购物。"
+        "default": true
       },
       "buy_first": {
         "type": "array",
@@ -22,7 +20,6 @@
           "type": "string"
         },
         "default": [],
-        "description": "优先购买商品名列表。",
         "x-linuxMaaManaged": "array"
       },
       "blacklist": {
@@ -32,26 +29,22 @@
           "type": "string"
         },
         "default": [],
-        "description": "第二轮购物避开的商品名列表。",
         "x-linuxMaaManaged": "array"
       },
       "force_shopping_if_credit_full": {
         "type": "boolean",
         "title": "信用溢出时无视黑名单",
-        "default": false,
-        "description": "信用即将溢出时无视黑名单。"
+        "default": false
       },
       "only_buy_discount": {
         "type": "boolean",
         "title": "只购买折扣物品",
-        "default": false,
-        "description": "第二轮只购买折扣物品。"
+        "default": false
       },
       "reserve_max_credit": {
         "type": "boolean",
         "title": "低于 300 信用时停止购买",
-        "default": false,
-        "description": "信用点低于 300 时停止购买。"
+        "default": false
       },
       "credit_fight": {
         "type": "boolean",

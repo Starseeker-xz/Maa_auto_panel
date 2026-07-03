@@ -7,7 +7,7 @@
         "type": "array",
         "title": "关卡计划",
         "default": [],
-        "description": "按顺序配置候选关卡；运行前由框架选择第一个当前可用关卡，再写入 MaaCore 的单个 stage 参数。",
+        "description": "按顺序配置候选关卡；运行前由框架选择第一个当前可用关卡。",
         "x-linuxMaaManaged": "runtime-array",
         "x-optionsSource": "fight-stages",
         "items": {
@@ -18,43 +18,31 @@
         "type": "integer",
         "title": "最大使用理智药",
         "default": 0,
-        "minimum": 0,
-        "description": "最大使用理智药数量。"
-      },
-      "expiring_medicine": {
-        "type": "integer",
-        "title": "最大使用即将过期理智药（已废弃）",
-        "default": 0,
-        "minimum": 0,
-        "description": "旧版字段，MaaCore 文档已标记 Deprecated；新配置请使用理智药过期天数阈值。",
-        "deprecated": true
+        "minimum": 0
       },
       "medicine_expire_days": {
         "type": "integer",
         "title": "理智药过期天数阈值",
         "default": 2,
         "minimum": 0,
-        "description": "过期理智药天数阈值；当前 maa-cli 文档示例中存在该参数。"
+        "description": "无视最大使用理智药上限，无限使用过期时间小于该阈值的理智药。"
       },
       "stone": {
         "type": "integer",
         "title": "最大使用源石",
         "default": 0,
-        "minimum": 0,
-        "description": "最大使用源石数量。"
+        "minimum": 0
       },
       "times": {
         "type": "integer",
         "title": "战斗次数",
         "default": 2147483647,
-        "minimum": 0,
-        "description": "战斗次数上限。"
+        "minimum": 0
       },
       "series": {
         "type": "integer",
         "title": "连战次数",
         "default": 0,
-        "description": "连战次数。-1 禁用切换，0 自动切换为当前可用的最大次数，1-6 为指定连战次数。",
         "oneOf": [
           {
             "const": -1,
@@ -100,8 +88,7 @@
       "report_to_penguin": {
         "type": "boolean",
         "title": "汇报企鹅物流",
-        "default": false,
-        "description": "是否汇报企鹅物流数据。"
+        "default": false
       },
       "penguin_id": {
         "type": "string",
@@ -118,8 +105,7 @@
       "report_to_yituliu": {
         "type": "boolean",
         "title": "汇报一图流",
-        "default": false,
-        "description": "是否汇报一图流数据。"
+        "default": false
       },
       "yituliu_id": {
         "type": "string",
@@ -137,7 +123,7 @@
         "type": "string",
         "title": "服务器",
         "default": "CN",
-        "description": "服务器，会影响掉落识别及上传。",
+        "description": "影响掉落识别与上传。",
         "oneOf": [
           {
             "const": "CN",
@@ -161,7 +147,6 @@
         "type": "string",
         "title": "崩溃重连客户端",
         "default": "Bilibili",
-        "description": "客户端版本。",
         "oneOf": [
           {
             "const": "Official",
@@ -193,7 +178,7 @@
         "type": "boolean",
         "title": "节省理智碎石模式",
         "default": false,
-        "description": "节省理智碎石模式。"
+        "description": "勾选后 MAA 会在恰好回复 1 理智时碎石以避免浪费。"
       }
     }
   },
@@ -203,17 +188,16 @@
     "medicine_expire_days",
     "stone",
     "times",
-    "series"
+    "series",
+    "client_type"
   ],
   "advanced": [
-    "expiring_medicine",
     "drops",
     "report_to_penguin",
     "penguin_id",
     "report_to_yituliu",
     "yituliu_id",
     "server",
-    "client_type",
     "DrGrandet"
   ]
 }

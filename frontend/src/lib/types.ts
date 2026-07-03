@@ -69,6 +69,8 @@ export type ConfigResponse = {
 
 export type RunState = {
   id?: string;
+  tool_id?: string;
+  tool_title?: string;
   schedule_id?: string;
   schedule_name?: string;
   entry_id?: string;
@@ -85,6 +87,7 @@ export type RunState = {
   log_file?: string | null;
   log_files?: Record<string, string>;
   stream_version?: number;
+  config?: Record<string, unknown>;
   output?: string[];
   task_results?: MaaTaskResult[];
   log_entries?: MaaLogEntry[];
@@ -398,6 +401,27 @@ export type SettingsResponse = {
   profile: ConfigResponse;
   maa_cli: ConfigResponse;
   maintenance: MaintenanceActionState;
+};
+
+export type ToolField = {
+  id: string;
+  label: string;
+  kind: string;
+  required?: boolean;
+  placeholder?: string;
+};
+
+export type ToolDefinition = {
+  id: string;
+  title: string;
+  description?: string;
+  fields: ToolField[];
+  default_config?: Record<string, unknown>;
+};
+
+export type ToolsResponse = {
+  tools: ToolDefinition[];
+  current_run: RunState;
 };
 
 export type DynamicOption = {

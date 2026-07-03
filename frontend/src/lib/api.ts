@@ -12,11 +12,13 @@ import type {
   SaveSettingsPayload,
   SaveTaskConfigPayload,
   SettingsResponse,
+  ToolsResponse,
   UpdateInfoResponse
 } from "@/lib/types";
 
 export const currentRunEventsUrl = "/api/runs/current/events";
 export const currentScheduleRunEventsUrl = "/api/schedules/current/events";
+export const currentToolRunEventsUrl = "/api/tools/current/events";
 
 async function readJson<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, init);
@@ -173,6 +175,26 @@ export function getUpdateInfo() {
 
 export function startMaintenanceAction(kind: string) {
   return readJson<MaintenanceActionState>(`/api/maintenance/${encodeURIComponent(kind)}`, { method: "POST" });
+}
+
+export function listTools() {
+  return readJson<ToolsResponse>("/api/tools");
+}
+
+export function getCurrentToolRun() {
+  return readJson<RunState>("/api/tools/current");
+}
+
+export function startToolRun(toolId: string, config: Record<string, unknown>) {
+  return readJson<RunState>(`/api/tools/${encodeURIComponent(toolId)}/run`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ config })
+  });
+}
+
+export function stopCurrentToolRun() {
+  return readJson<RunState>("/api/tools/current/stop", { method: "POST" });
 }
 
 export function getMaaStages(client = "Bilibili") {

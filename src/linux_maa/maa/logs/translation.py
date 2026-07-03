@@ -6,14 +6,49 @@ from dataclasses import dataclass, field
 from linux_maa.maa.logs.records import LogTone, MaaLogMessage
 
 
+TIME_VALUE_RE = r"(?:\d{4}-\d{2}-\d{2}\s+)?\d{2}:\d{2}:\d{2}"
 SUMMARY_TASK_RE = re.compile(
     r"^\[(?P<task>.+?)\]\s+"
-    r"(?P<started>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+-\s+"
-    r"(?P<ended>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+"
+    rf"(?P<started>{TIME_VALUE_RE})\s+-\s+"
+    rf"(?P<ended>{TIME_VALUE_RE})\s+"
     r"\((?P<elapsed>[^)]*)\)\s+"
     r"(?P<status>Completed|Error|Stopped|Unknown)\s*$"
 )
 SUMMARY_FIGHT_DROPS_RE = re.compile(r"^Fight\s+(?P<stage>\S+)\s+(?P<times>\d+)\s+times,\s+drops:\s*$")
+MISSION_STARTED_RE = re.compile(r"^Mission started \((?P<times>\d+) times, use (?P<sanity>\d+) sanity\)$")
+RECRUIT_TAGS_REFRESHED_RE = re.compile(r"^RecruitTagsRefreshed:\s+\d+\s+times$")
+SUMMARY_COUNT_RE = re.compile(r"^(?P<kind>Recruited|Refreshed)\s+(?P<count>\d+)\s+times$")
+ENTER_FACILITY_RE = re.compile(r"^EnterFacility\s+(?P<facility>[A-Za-z]+)(?:\s+(?P<index>#\d+))?$")
+INFRABASE_SUMMARY_RE = re.compile(r"^(?P<facility>[A-Za-z]+)(?:\((?P<product>[^)]+)\))?\s+with operators:\s+(?P<operators>.*)$")
+
+PRODUCT_LABELS = {
+    "PureGold": "赤金",
+    "SyntheticJade": "合成玉",
+    "SkillLevel": "技能专精",
+    "Money": "龙门币",
+    "MoodAddition": "心情增益",
+    "Drone": "无人机",
+    "General": "线索收集",
+    "HR": "公招刷新",
+    "OriginStone": "源石碎片",
+}
+
+FACILITY_LABELS = {
+    "Mfg": "制造站",
+    "Trade": "贸易站",
+    "Power": "发电站",
+    "Control": "控制中枢",
+    "Reception": "会客室",
+    "Office": "办公室",
+    "Dorm": "宿舍",
+    "Training": "训练室",
+}
+
+COMMON_TERM_LABELS = {
+    "furni": "家具",
+    "Refreshed": "已刷新",
+    "Recruited": "已招募",
+}
 
 
 @dataclass(frozen=True)
@@ -51,27 +86,56 @@ def translate_global_message(body: str) -> TranslatedMessage:
     return TranslatedMessage(body)
 
 
-def translate_task_line(body: str) -> str:
+def translate_task_line(body: str) -> str | None:
     translations = {
         "GameOffline": "游戏掉线",
         "ProductUnknown": "产物识别失败",
         "ProductIncorrect": "产物不匹配",
+        "ProductChanged": "产物已切换",
         "NotEnoughStaff": "干员不足",
         "MissionStart": "作战开始",
         "MissionCompleted": "作战完成",
         "MissionFailed": "作战失败",
-        "Refresh Tags": "刷新标签",
+        "Refresh Tags": "刷新公招标签",
         "Recruit": "确认招募",
+        "InfrastDormDoubleConfirmed": "宿舍换班二次确认",
     }
-    if body.startswith("EnterFacility "):
-        return body.replace("EnterFacility", "进入设施", 1)
-    if body.startswith("ProductOfFacility: "):
-        return body.replace("ProductOfFacility", "设施产物", 1)
-    if body.startswith("CustomInfrastRoomOperators: "):
-        return body.replace("CustomInfrastRoomOperators", "自定义排班干员", 1)
+
+    mission_match = MISSION_STARTED_RE.match(body)
+    if mission_match is not None:
+        return f"开始行动 ({mission_match.group('times')}次，-{mission_match.group('sanity')}理智)"
+
+    if body.startswith("Current sanity: "):
+        return body.replace("Current sanity", "当前理智", 1)
+
+    if body.startswith("Drops: "):
+        return replace_common_terms(body.replace("Drops", "掉落统计", 1))
+
+    if RECRUIT_TAGS_REFRESHED_RE.match(body):
+        return None
+
+    if body.startswith("RecruitResult: "):
+        return body.replace("RecruitResult", "公招识别结果", 1)
     if body.startswith("RecruitResult "):
-        return body.replace("RecruitResult", "招募结果", 1)
-    return translations.get(body, body)
+        return body.replace("RecruitResult", "公招识别结果", 1)
+
+    if body.startswith("RecruitTagsSelected: "):
+        return body.replace("RecruitTagsSelected", "选择公招标签", 1)
+
+    facility_match = ENTER_FACILITY_RE.match(body)
+    if facility_match is not None:
+        facility = facility_label(facility_match.group("facility"))
+        index = facility_match.group("index")
+        return f"进入设施: {facility}{f' {index}' if index else ''}"
+
+    if body.startswith("ProductOfFacility: "):
+        product = body.split(": ", 1)[1]
+        return f"设施产物: {product_label(product)}"
+
+    if body.startswith("CustomInfrastRoomOperators: "):
+        return body.replace("CustomInfrastRoomOperators", "换班干员", 1)
+
+    return replace_common_terms(translations.get(body, body))
 
 
 def translate_summary_message(body: str) -> MaaLogMessage | None:
@@ -112,13 +176,27 @@ def translate_summary_message(body: str) -> MaaLogMessage | None:
             ],
         )
 
+    if body == "Detected tags:":
+        return MaaLogMessage(text="识别到的公招标签：", tone="info", raw=body)
     if body == "total drops:":
         return MaaLogMessage(text="合计掉落：", tone="info", raw=body)
+    if body.startswith("total drops: "):
+        return MaaLogMessage(text=replace_common_terms(body.replace("total drops", "合计掉落", 1)), tone="info", raw=body)
+
+    count_match = SUMMARY_COUNT_RE.match(body)
+    if count_match is not None:
+        label = "已招募" if count_match.group("kind") == "Recruited" else "已刷新"
+        return MaaLogMessage(text=f"{label} {count_match.group('count')} 次", tone="info", raw=body)
+
+    infrast_line = translate_infrast_summary_line(body)
+    if infrast_line != body:
+        return MaaLogMessage(text=infrast_line, tone="info", raw=body)
+
     if body.startswith("Error:"):
         return MaaLogMessage(text="存在失败任务，maa-cli 返回错误。", tone="danger", raw=body)
     if body.startswith("Warning:"):
         return MaaLogMessage(text=body.replace("Warning:", "警告:", 1), tone="warning", raw=body)
-    return MaaLogMessage(text=body, tone="default")
+    return MaaLogMessage(text=replace_common_terms(body), tone="default")
 
 
 def summary_status(status: str) -> tuple[str, LogTone]:
@@ -137,3 +215,30 @@ def is_global_line_translated(body: str) -> bool:
 
 def is_task_line_translated(body: str) -> bool:
     return translate_task_line(body) != body
+
+
+def replace_common_terms(text: str) -> str:
+    output = text
+    for source, target in COMMON_TERM_LABELS.items():
+        output = output.replace(source, target)
+    return output
+
+
+def product_label(value: str) -> str:
+    return PRODUCT_LABELS.get(value, value)
+
+
+def facility_label(value: str) -> str:
+    return FACILITY_LABELS.get(value, value)
+
+
+def translate_infrast_summary_line(body: str) -> str:
+    match = INFRABASE_SUMMARY_RE.match(body)
+    if match is None:
+        return body
+    facility = facility_label(match.group("facility"))
+    product = match.group("product")
+    operators = match.group("operators")
+    if product:
+        return f"{facility}（{product_label(product)}）: {operators}"
+    return f"{facility}: {operators}"
