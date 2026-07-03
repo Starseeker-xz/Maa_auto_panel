@@ -21,9 +21,8 @@ Session: `2026-06-30_2342-full-project-audit`
     - `run-maa-task`
     - `webui`
   - 只做参数解析和分发，结构清晰。
-- `src/linux_maa/adb.py`、`constants.py`、`game_update.py`、`maa_runner.py`
-  - 兼容 re-export 模块。
-  - 当前保留合理，但后续正式发布前可以在 changelog 中标注 deprecated，减少长期维护面。
+- ~~`src/linux_maa/adb.py`、`constants.py`、`game_update.py`、`maa_runner.py`~~
+  - 已删除 (`2026-07-03_1926-project-review`)：兼容 re-export 模块，全局零引用。
 
 ### ADB 与游戏更新
 

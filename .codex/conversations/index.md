@@ -32,4 +32,4 @@
 - `2026-07-02_2144-manual-stop-delay`: Investigate delayed manual stop after user stop request, especially apparent hang around MaaCore "connected" step.
 - `2026-07-02_2245-tools-page`: Build the initial reusable three-column tools page with fixed tool list, update-game config, run action, and common log panel integration.
 - `2026-07-03_0105-audit-log-module`: Audited WebUI-visible log boundaries, then moved the implementation to top-level `linux_maa.logs`, added shared `RunLogBuffer`, wired manual/scheduled/tool/maintenance logs through it, and changed schedule restart-script hooks to stream stdout/stderr into visible logs plus `debug/linux-maa/external/scripts/`.
-- `2026-07-03_0526-init`: Startup-only initialization for a new session; read global/project state and created the session folder.
+- `2026-07-03_1926-project-review`: Full project review and compatibility cleanup. Deleted 4 dead re-export modules, `maa/logs/` compat directory, and `MaaLogMessage`/`MaaSummaryLogRecord`/`MaaTaskLogRecord`/`MaaCliLogTranslator` aliases. Removed dead `translateLogLine` from frontend `logs.ts`. 45 tests pass, frontend builds clean.

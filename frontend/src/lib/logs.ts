@@ -8,7 +8,3 @@ export const STATUS_LABELS: Record<string, string> = {
   soft_failed: "部分失败",
   skipped: "已跳过"
 };
-
-export function translateLogLine(line: string): string {
-  return line;
-}

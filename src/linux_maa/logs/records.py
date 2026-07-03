@@ -86,8 +86,3 @@ class SummaryLogRecord:
 
 
 LogEntry = RunLogMessage | SummaryLogRecord | TaskLogRecord
-
-# Compatibility aliases for older imports and API-adjacent type names.
-MaaLogMessage = RunLogMessage
-MaaSummaryLogRecord = SummaryLogRecord
-MaaTaskLogRecord = TaskLogRecord
