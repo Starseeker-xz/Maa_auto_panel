@@ -13,6 +13,7 @@ INFRAST_PLAN_INDEX_PLACEHOLDER = f"{RUNTIME_PLACEHOLDER_PREFIX}infrast_plan_inde
 
 
 def strip_framework_task_metadata(data: dict[str, object]) -> dict[str, object]:
+    """Return task config copy with all linux_maa framework metadata removed."""
     sanitized = dict(data)
     tasks = sanitized.get("tasks")
     if not isinstance(tasks, list):
@@ -61,12 +62,14 @@ def prepare_framework_task_config(data: dict[str, object], runtime: object, mess
 
 
 def task_items_to_config_data(base_data: dict[str, Any], task_items: list[dict[str, Any]]) -> dict[str, Any]:
+    """Merge base config data with task items list into full maa-cli task config dict."""
     data = {key: deepcopy(value) for key, value in base_data.items() if key != "tasks"}
     data["tasks"] = [task_item_to_config_task(item) for item in task_items]
     return data
 
 
 def task_item_to_config_task(item: dict[str, Any]) -> dict[str, Any]:
+    """Convert a frontend task item dict back to a native maa-cli task dict."""
     task: dict[str, Any] = {
         "name": str(item.get("name") or item.get("type") or "Task"),
         "type": str(item.get("type") or "Unknown"),
@@ -100,6 +103,7 @@ def task_item_to_config_task(item: dict[str, Any]) -> dict[str, Any]:
 
 
 def ensure_managed_metadata(task_type: str, params: dict[str, Any], metadata: dict[str, Any]) -> dict[str, Any]:
+    """Ensure managed_params exist in metadata, auto-filling defaults for known task types."""
     next_metadata = deepcopy(metadata)
     managed = _managed_params(next_metadata)
 
@@ -135,6 +139,7 @@ def ensure_managed_metadata(task_type: str, params: dict[str, Any], metadata: di
 
 
 def inflate_managed_params_for_edit(task_type: str, params: dict[str, Any], metadata: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Expand managed param placeholders to actual values for display in edit UI."""
     next_metadata = ensure_managed_metadata(task_type, params, metadata)
     next_params = deepcopy(params)
     for key, spec in _managed_params(next_metadata).items():
@@ -220,10 +225,12 @@ def _apply_managed_params_for_runtime(
 
 
 def managed_array_placeholder(key: str) -> str:
+    """Return the standard managed array placeholder string for a given key."""
     return f"{MANAGED_ARRAY_PLACEHOLDER_PREFIX}{key}"
 
 
 def resolve_managed_array(metadata: dict[str, Any], key: str) -> list[Any]:
+    """Resolve a managed array from metadata, returning only enabled items."""
     spec = _managed_params(metadata).get(key)
     if not isinstance(spec, dict) or spec.get("type") != "array":
         raise ValueError(f"metadata.{MANAGED_PARAMS_KEY}.{key} is not a managed array")

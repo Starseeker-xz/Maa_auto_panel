@@ -24,6 +24,7 @@ logger = get_logger(__name__)
 
 @dataclass(frozen=True)
 class ToolField:
+    """Describes a single input field for a tool config form."""
     id: str
     label: str
     kind: str = "text"
@@ -42,6 +43,7 @@ class ToolField:
 
 @dataclass(frozen=True)
 class ToolDefinition:
+    """Metadata for a registered tool: id, title, description, and input fields."""
     id: str
     title: str
     description: str
@@ -59,6 +61,7 @@ class ToolDefinition:
 
 @dataclass(frozen=True)
 class ToolCommand:
+    """Holds shell command (argv list) and environment variables for executing a tool process."""
     cmd: list[str]
     env: dict[str, str]
 
@@ -68,12 +71,14 @@ ToolCommandBuilder = Callable[["ToolRunManager", dict[str, object]], ToolCommand
 
 @dataclass(frozen=True)
 class ToolSpec:
+    """Binds a ToolDefinition to its command-builder, forming a complete tool registration."""
     definition: ToolDefinition
     build_command: ToolCommandBuilder
 
 
 @dataclass
 class ToolRunState:
+    """Mutable runtime state for a single tool execution: status, config, return code, logs."""
     id: str
     tool_id: str
     tool_title: str
@@ -107,6 +112,7 @@ class ToolRunState:
 
 
 class ToolRunManager:
+    """Manages lifecycle of external tool processes: register, start, stop, status, SSE."""
     def __init__(
         self,
         runtime: MaaRuntime,

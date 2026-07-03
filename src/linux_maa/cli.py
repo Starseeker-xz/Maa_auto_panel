@@ -8,6 +8,7 @@ from linux_maa.settings import DEFAULT_DEVICE_SERIAL, DEFAULT_GAME_ID, DEFAULT_T
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Build and return the argparse argument parser for linux-maa CLI."""
     parser = argparse.ArgumentParser(prog="linux-maa")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -44,6 +45,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Parse CLI args, dispatch to subcommand (update-game, get-download-link, run-maa-task, webui)."""
     args = build_parser().parse_args(argv)
 
     if args.command == "update-game":

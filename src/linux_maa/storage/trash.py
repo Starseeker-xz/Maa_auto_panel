@@ -12,6 +12,7 @@ from linux_maa.utils import relative_path
 
 @dataclass(frozen=True)
 class TrashRecord:
+    """Immutable record of a file moved to trash: original path, trash path, timestamp, size, label."""
     original_path: str
     trash_path: str
     deleted_at: str

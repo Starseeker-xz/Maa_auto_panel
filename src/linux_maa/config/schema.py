@@ -79,6 +79,7 @@ LINUX_MAA_METADATA_SCHEMA: dict[str, Any] = {
 
 @dataclass(frozen=True)
 class ConfigValidationError:
+    """Single JSON Schema validation error with path, message, and source."""
     path: str
     message: str
     source: str
@@ -89,6 +90,7 @@ class ConfigValidationError:
 
 @dataclass(frozen=True)
 class ConfigValidationResult:
+    """Immutable validation result: valid flag and list of ConfigValidationError."""
     valid: bool
     errors: list[ConfigValidationError]
 
@@ -100,6 +102,7 @@ class ConfigValidationResult:
 
 
 class ConfigSchemaValidator:
+    """Validates maa-cli configs against JSON schemas and linux-maa metadata schema."""
     def __init__(self, runtime: MaaRuntime) -> None:
         self.runtime = runtime
 

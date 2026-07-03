@@ -78,6 +78,7 @@ class ScheduleRunState:
 
 
 class SchedulerService:
+    """Background scheduler: checks enabled schedules, triggers runs, manages retries and state."""
     def __init__(
         self,
         runtime: MaaRuntime,

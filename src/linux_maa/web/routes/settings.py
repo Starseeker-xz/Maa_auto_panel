@@ -18,6 +18,7 @@ class SaveSettingsPayload(BaseModel):
 
 
 def create_settings_router(services: WebServices) -> APIRouter:
+    """Create APIRouter with endpoints for the settings API group."""
     router = APIRouter(prefix="/api/settings", tags=["settings"])
     configs = services.configs
     framework_settings = services.framework_settings

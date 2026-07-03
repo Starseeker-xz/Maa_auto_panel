@@ -7,6 +7,7 @@ from linux_maa.web.services import WebServices
 
 
 def create_maintenance_router(services: WebServices) -> APIRouter:
+    """Create APIRouter with endpoints for the maintenance API group."""
     router = APIRouter(prefix="/api/maintenance", tags=["maintenance"])
     configs = services.configs
     maintenance = services.maintenance

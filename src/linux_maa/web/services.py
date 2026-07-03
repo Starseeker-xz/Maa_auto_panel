@@ -13,6 +13,7 @@ from linux_maa.tools import ToolRunManager
 
 @dataclass(frozen=True)
 class WebServices:
+    """Immutable aggregate holding all long-lived service instances needed by the web layer."""
     runtime: MaaRuntime
     run_state: RunStateStore
     diagnostics: Diagnostics
@@ -28,6 +29,7 @@ class WebServices:
 
 
 def create_services(repo_root: Path | None = None) -> WebServices:
+    """Instantiate and wire together all backend services; return populated WebServices container."""
     runtime = MaaRuntime(repo_root.resolve() if repo_root is not None else find_repo_root())
     diagnostics = Diagnostics(runtime)
     diagnostics.configure_logging()

@@ -22,6 +22,7 @@ TickCallback = Callable[[], None]
 
 @dataclass(frozen=True)
 class StreamingProcessResult:
+    """Immutable result: return code, timeout flag, and stopped flag from a streaming subprocess run."""
     return_code: int | None
     timed_out: bool = False
     stopped: bool = False
@@ -43,6 +44,7 @@ def run_streaming_process(
     on_timeout: TimeoutCallback | None = None,
     on_tick: TickCallback | None = None,
 ) -> StreamingProcessResult:
+    """Run subprocess with real-time stdout/stderr streaming, staged timeouts, and stop signal. Returns StreamingProcessResult."""
     proc = subprocess.Popen(
         cmd,
         cwd=runtime.repo_root,

@@ -6,6 +6,7 @@ from linux_maa.web.services import WebServices
 
 
 def create_maa_router(services: WebServices) -> APIRouter:
+    """Create APIRouter with endpoints for the maa API group."""
     router = APIRouter(prefix="/api/maa", tags=["maa"])
     stages = services.stages
     infrast = services.infrast

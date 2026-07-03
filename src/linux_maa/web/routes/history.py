@@ -8,6 +8,7 @@ from linux_maa.web.services import WebServices
 
 
 def create_history_router(services: WebServices) -> APIRouter:
+    """Create APIRouter with endpoints for the history API group."""
     router = APIRouter(prefix="/api/history", tags=["history"])
     run_state = services.run_state
     diagnostics = services.diagnostics

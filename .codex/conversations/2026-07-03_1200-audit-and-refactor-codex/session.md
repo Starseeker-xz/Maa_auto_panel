@@ -49,7 +49,17 @@
 - `.codex/conversations/index.md` 已重写
 
 ## Next Steps (Suggested)
-1. 删除 `scheduler/store.py` 死代码
-2. 合并前端重复常量 `CONNECTION_TYPES`/`TOUCH_MODES` 到 `lib/constants.ts`
-3. 修复前端未使用导入（`buttonVariants`）
+1. ~~删除 `scheduler/store.py` 死代码~~ → 已删除
+2. ~~合并前端重复常量 `CONNECTION_TYPES`/`TOUCH_MODES` 到 `lib/constants.ts`~~ → 已完成
+3. ~~修复前端未使用导入（`buttonVariants`）~~ → 经核实并非未使用
 4. 拆分 `scheduler/service.py`（760 行）和 `SettingsPage.tsx`（700+ 行）
+5. 为 `scheduler/service.py` 和 `diagnostics.py` 中的方法添加更细粒度 docstring
+
+### 追加工作（session 续）
+- **WebUI 服务验证**：`systemctl start linux-maa-webui` → 已运行 19h，settings/configs/frontend API 均正常
+- **大规模注释添加**：8 个 subagent 并行审计 → 汇总 → 用 Python 脚本批量注入 115 条 docstring 到 39 个文件
+  - 初次尝试用 `re.sub` + `\1` backreference 失败（产生 `\x01` 损坏），已从 git 恢复
+  - 第二次尝试用逐行插入但未处理跨行签名，产生缩进错误，已从 git 恢复
+  - 第三次成功：找签名结束处（`:` 行），之后插入 docstring
+  - 验证：`compileall` ✅、`pytest` 45/45 ✅、`npm run build` ✅
+- 遗留：`diagnostics.py`、`scheduler/service.py` 内部方法、`run_state.py` 方法待补充 docstring

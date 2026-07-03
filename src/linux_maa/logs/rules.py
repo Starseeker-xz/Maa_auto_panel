@@ -23,6 +23,7 @@ TASK_EVENT_RE = re.compile(
 
 @dataclass(frozen=True)
 class LogRuleMatch:
+    """Immutable result of matching a parsed log line against a LogRule."""
     kind: RuleKind
     rule_id: str
     panel_kind: str
@@ -33,6 +34,7 @@ class LogRuleMatch:
 
 @dataclass(frozen=True)
 class LogRule:
+    """Abstract base rule for classifying parsed log lines into panel kinds."""
     id: str
     kind: RuleKind
     panel_kind: str
@@ -43,6 +45,7 @@ class LogRule:
 
 @dataclass(frozen=True)
 class SummaryLogRule(LogRule):
+    """Rule matching lines whose body equals a configurable summary marker."""
     marker: str = "Summary"
 
     def match(self, parsed: ParsedLine) -> LogRuleMatch | None:
@@ -53,6 +56,7 @@ class SummaryLogRule(LogRule):
 
 @dataclass(frozen=True)
 class TaskLifecycleLogRule(LogRule):
+    """Rule matching task start/end events via regex, mapping end events to TaskStatus."""
     event_pattern: re.Pattern[str] = TASK_EVENT_RE
     start_events: frozenset[str] = frozenset({"Start"})
     end_status_by_event: dict[str, TaskStatus] | None = None
@@ -93,6 +97,7 @@ class TaskLifecycleLogRule(LogRule):
 
 @dataclass(frozen=True)
 class DefaultLineLogRule(LogRule):
+    """Catch-all rule classifying any unmatched line as a generic line-panel entry."""
     def match(self, parsed: ParsedLine) -> LogRuleMatch:
         return LogRuleMatch(kind=self.kind, rule_id=self.id, panel_kind=self.panel_kind)
 
@@ -114,6 +119,7 @@ DEFAULT_PANEL_RULES: tuple[LogRule, ...] = (
 
 
 def parse_log_line(raw: str) -> ParsedLine:
+    """Parse a raw MAA log line into a dict with time, level, and body fields."""
     match = LOG_LINE_RE.match(raw)
     if match is None:
         return {"time": None, "level": None, "body": raw}
@@ -125,6 +131,7 @@ def parse_log_line(raw: str) -> ParsedLine:
 
 
 def match_log_rule(parsed: ParsedLine, rules: tuple[LogRule, ...] = DEFAULT_PANEL_RULES) -> LogRuleMatch:
+    """Run a parsed log line through rules, returning first match or default line match."""
     for rule in rules:
         matched = rule.match(parsed)
         if matched is not None:

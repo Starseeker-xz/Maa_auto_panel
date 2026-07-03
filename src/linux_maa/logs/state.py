@@ -13,6 +13,7 @@ LogParser = Literal["maa", "plain"]
 
 @dataclass
 class RunLogBuffer:
+    """Bounded in-memory buffer feeding process output through RunLogTranslator, retaining rendered chunks."""
     max_output_chunks: int = 2000
     translator: RunLogTranslator = field(default_factory=RunLogTranslator)
     output: deque[str] = field(init=False)

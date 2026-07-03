@@ -21,6 +21,7 @@ CURSOR_QUERY_PARAMS = {
 
 
 def state_event_stream(request: Request, provider: StateProvider, wait_for_change: StateChangeWaiter) -> StreamingResponse:
+    """Create StreamingResponse delivering SSE for live state updates (reset, patch, keep-alive)."""
     return StreamingResponse(
         _state_events(request, provider, wait_for_change),
         media_type="text/event-stream",
@@ -62,6 +63,7 @@ async def _state_events(request: Request, provider: StateProvider, wait_for_chan
 
 
 def build_state_reset(current: dict[str, object], version: int) -> dict[str, object]:
+    """Build full-state reset SSE payload from current state dict and stream version."""
     return {
         "type": "reset",
         **current,
@@ -70,6 +72,7 @@ def build_state_reset(current: dict[str, object], version: int) -> dict[str, obj
 
 
 def build_cursor_patch(current: dict[str, object], cursors: dict[str, int], version: int) -> dict[str, object]:
+    """Build cursor-based incremental patch SSE payload, sending only new items since cursors."""
     payload: dict[str, object] = {
         "type": "patch",
         "stream_version": version,
@@ -94,6 +97,7 @@ def build_cursor_patch(current: dict[str, object], cursors: dict[str, int], vers
 
 
 def build_state_patch(previous: dict[str, object], current: dict[str, object], version: int) -> dict[str, object] | None:
+    """Diff previous and current state dicts to produce minimal patch SSE payload, or None if unchanged."""
     payload: dict[str, object] = {
         "type": "patch",
         "stream_version": version,

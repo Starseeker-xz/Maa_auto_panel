@@ -7,6 +7,7 @@ from pathlib import Path
 
 @dataclass(frozen=True)
 class MaaRuntime:
+    """Immutable path layout for MAA installation: config, data, cache, state, logs, generated configs."""
     repo_root: Path
 
     @property
@@ -97,6 +98,7 @@ class MaaRuntime:
 
 
 def find_repo_root(start: Path | None = None) -> Path:
+    """Walk upward from path to locate repository root containing pyproject.toml and src/linux_maa."""
     current = (start or Path.cwd()).resolve()
     for path in (current, *current.parents):
         if (path / "pyproject.toml").exists() and (path / "src" / "linux_maa").exists():

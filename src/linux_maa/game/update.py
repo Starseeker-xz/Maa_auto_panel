@@ -29,6 +29,7 @@ except ImportError:
 
 @dataclass(frozen=True)
 class GameInfo:
+    """Immutable version metadata: version code, download URL, incremental update list."""
     game_base_id: str
     version_code: int
     download_link: str
@@ -38,7 +39,9 @@ class GameInfo:
 
 
 class PackageManager:
+    """Manages downloaded APK packages and verification status via a JSON manifest."""
     def __init__(self, download_dir: str | Path = "downloads", manifest_file: str = "manifest.json", max_cache_versions: int = 3) -> None:
+        """Initialize download directory, load/create manifest, clean stale patch caches."""
         self.download_dir = Path(download_dir)
         self.manifest_file = self.download_dir / manifest_file
         self.max_cache_versions = max_cache_versions
@@ -58,6 +61,7 @@ class PackageManager:
         write_text_atomic(self.manifest_file, json.dumps(self.manifest, indent=4, ensure_ascii=False))
 
     def get_package_info(self, version: int | str) -> dict[str, Any] | None:
+        """Return stored manifest entry for a version, or None."""
         return self.manifest.setdefault("packages", {}).get(str(version))
 
     def update_package_status(
@@ -71,6 +75,7 @@ class PackageManager:
         patch_url: str | None = None,
         patch_path: str | Path | None = None,
     ) -> None:
+        """Record/update status, path, URL, and patch metadata for a package version."""
         version_key = str(version)
         packages = self.manifest.setdefault("packages", {})
         pkg = packages.setdefault(version_key, {})
@@ -90,6 +95,7 @@ class PackageManager:
         self._cleanup_cache()
 
     def get_verified_package_path(self, version: int | str) -> Path | None:
+        """Return on-disk path of verified package if valid, else None."""
         pkg = self.get_package_info(version)
         if not pkg or pkg.get("status") != "verified":
             return None
@@ -132,10 +138,12 @@ class PackageManager:
 
 
 def biligame_referer(game_id: str = DEFAULT_GAME_ID) -> str:
+    """Build Bilibili game detail page referer URL for the given game ID."""
     return f"https://www.biligame.com/detail/?id={game_id}"
 
 
 def get_latest_game_info(game_id: str = DEFAULT_GAME_ID) -> GameInfo | None:
+    """Query Bilibili game API for latest version; return GameInfo or None on failure."""
     headers = {"User-Agent": MOBILE_USER_AGENT}
     params = {"game_base_id": game_id, "sdk_type": "1"}
 
@@ -165,6 +173,7 @@ def get_latest_game_info(game_id: str = DEFAULT_GAME_ID) -> GameInfo | None:
 
 
 def get_android_download_link(game_id: str = DEFAULT_GAME_ID) -> str | None:
+    """Get Android APK download link: try API first, fall back to HTML scraping."""
     game_info = get_latest_game_info(game_id)
     if game_info:
         return game_info.download_link
@@ -178,6 +187,7 @@ def get_android_download_link(game_id: str = DEFAULT_GAME_ID) -> str | None:
 
 
 def build_download_headers(referer: str | None = None) -> dict[str, str]:
+    """Construct HTTP headers for downloading Android APK from Bilibili servers."""
     headers = {
         "User-Agent": DESKTOP_USER_AGENT,
         "Accept": "application/vnd.android.package-archive,application/octet-stream;q=0.9,*/*;q=0.8",
@@ -189,6 +199,7 @@ def build_download_headers(referer: str | None = None) -> dict[str, str]:
 
 
 def download_file(url: str, filepath: str | Path, referer: str | None = None) -> bool:
+    """Download file from URL to path with progress bar and Content-Length check."""
     path = Path(filepath)
     path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -222,6 +233,7 @@ def download_file(url: str, filepath: str | Path, referer: str | None = None) ->
 
 
 def ensure_latest_package(manager: PackageManager, game_info: GameInfo, *, force_full: bool = False) -> Path | None:
+    """Obtain latest game APK locally, preferring incremental patches over full downloads."""
     remote_ver = game_info.version_code
     referer = biligame_referer(game_info.game_base_id)
 
@@ -297,6 +309,7 @@ def _try_incremental_update(manager: PackageManager, game_info: GameInfo, refere
 
 
 def download_full_package(manager: PackageManager, game_info: GameInfo, referer: str | None = None) -> Path | None:
+    """Download complete APK for a version and record as unverified in manifest."""
     print("执行全量下载策略...")
     apk_path = manager.download_dir / f"arknights_bilibili_v{game_info.version_code}.apk"
     if not download_file(game_info.download_link, apk_path, referer=referer or biligame_referer(game_info.game_base_id)):
@@ -323,6 +336,7 @@ def update_game(
     force_full: bool = False,
     install: bool = True,
 ) -> int:
+    """End-to-end: check updates, download/patch APK, install on device, verify success."""
     manager = PackageManager(download_dir=download_dir, max_cache_versions=max_cache_versions)
 
     print("正在获取最新版本信息...")

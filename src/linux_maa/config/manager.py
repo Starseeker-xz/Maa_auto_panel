@@ -22,6 +22,7 @@ CONFIG_SUFFIXES = TASK_SUFFIXES
 
 @dataclass(frozen=True)
 class ConfigFile:
+    """Immutable metadata for a maa-cli config file (profile, task, or cli)."""
     kind: str
     name: str
     filename: str
@@ -35,6 +36,7 @@ class ConfigFile:
 
 
 class ConfigValidationFailure(ValueError):
+    """Raised when config write is blocked by schema validation errors."""
     def __init__(self, result: object) -> None:
         super().__init__("Config validation failed")
         self.result = result

@@ -15,6 +15,7 @@ AUTO_PLAN_VALUE = "__linux_maa_runtime__:infrast_plan_index"
 
 @dataclass(frozen=True)
 class InfrastPlan:
+    """A single infrastructure shift plan with name, active time periods, and descriptions."""
     index: int
     name: str
     period: list[tuple[str, str]]
@@ -36,6 +37,7 @@ class InfrastPlan:
 
 
 class MaaInfrastService:
+    """Service providing infrastructure schedule file and plan options for the WebUI."""
     def __init__(self, runtime: MaaRuntime) -> None:
         self.runtime = runtime
 

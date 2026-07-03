@@ -10,6 +10,7 @@ LogTone = Literal["default", "success", "warning", "danger", "info"]
 
 @dataclass
 class RunLogMessage:
+    """A single log message with optional timestamp, tone, raw text, and rich segments."""
     text: str
     time: str | None = None
     tone: LogTone = "default"
@@ -38,6 +39,7 @@ class RunLogMessage:
 
 @dataclass
 class TaskLogRecord:
+    """Structured record for a single MAA task lifecycle: status, timing, messages, raw lines."""
     name: str
     status: TaskStatus
     task_id: str | None = None
@@ -70,6 +72,7 @@ class TaskLogRecord:
 
 @dataclass
 class SummaryLogRecord:
+    """Structured record for run summary panel: status, messages, raw lines."""
     status: TaskStatus = "succeeded"
     title: str = "运行摘要"
     messages: list[RunLogMessage] = field(default_factory=list)

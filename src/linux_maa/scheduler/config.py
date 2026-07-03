@@ -26,6 +26,7 @@ from linux_maa.utils import bounded_int, relative_path, validate_file_name, writ
 
 @dataclass(frozen=True)
 class ScheduleConfigFile:
+    """Immutable metadata record for a schedule configuration file on disk."""
     id: str
     name: str
     filename: str
@@ -45,6 +46,7 @@ class ScheduleConfigFile:
 
 
 class ScheduleConfigManager:
+    """CRUD manager for schedule configuration TOML files with default schedule creation."""
     def __init__(self, runtime: MaaRuntime, configs: ConfigManager) -> None:
         self.runtime = runtime
         self.configs = configs

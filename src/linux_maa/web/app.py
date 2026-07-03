@@ -24,6 +24,7 @@ logger = get_logger(__name__)
 
 
 def create_app(repo_root: Path | None = None) -> FastAPI:
+    """Build and return FastAPI app with API routers, middleware, static assets, and SPA fallback."""
     services = create_services(repo_root)
     frontend_dist = services.runtime.repo_root / "frontend" / "dist"
     frontend_assets = frontend_dist / "assets"

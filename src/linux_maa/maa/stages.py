@@ -20,6 +20,7 @@ CURRENT_STAGE_VALUE = "__linux_maa_stage__:current_last"
 
 @dataclass(frozen=True)
 class StageActivity:
+    """Limited-time stage activity with start/expire times and resource-collection flag."""
     tip: str = ""
     stage_name: str = ""
     utc_start_time: datetime | None = None
@@ -50,6 +51,7 @@ class StageActivity:
 
 @dataclass(frozen=True)
 class StageInfo:
+    """A single farmable stage: display name, drop info, open-day schedule, activity, version gate."""
     display: str
     value: str
     drop: str | None = None

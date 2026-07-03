@@ -14,6 +14,7 @@ class StartToolPayload(BaseModel):
 
 
 def create_tools_router(services: WebServices) -> APIRouter:
+    """Create APIRouter with endpoints for the tools API group."""
     router = APIRouter(prefix="/api/tools", tags=["tools"])
     tools = services.tools
 

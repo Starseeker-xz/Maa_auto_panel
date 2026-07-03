@@ -34,6 +34,7 @@ DEFAULT_CLI_API_URL = "https://github.com/MaaAssistantArknights/maa-cli/raw/vers
 
 @dataclass
 class MaintenanceActionState:
+    """Lifecycle state of a maintenance action with logs and process handle."""
     id: str
     kind: str
     title: str
@@ -63,6 +64,7 @@ class MaintenanceActionState:
 
 
 class MaintenanceActionManager:
+    """Manages maintenance actions: core/resource/cli updates with version checks."""
     def __init__(
         self,
         runtime: MaaRuntime,

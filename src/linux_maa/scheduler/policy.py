@@ -12,6 +12,7 @@ SUCCESS_STATUS = "succeeded"
 
 @dataclass(frozen=True)
 class InitialTaskSelection:
+    """Result of initial task filtering: selected task ids and skipped tasks with reasons."""
     selected: list[str] = field(default_factory=list)
     skipped: list[dict[str, str]] = field(default_factory=list)
 

@@ -12,6 +12,7 @@ RestartMode = Literal["none", "before_run", "before_retry_group", "before_retry"
 
 @dataclass(frozen=True)
 class ScheduleEntry:
+    """A single timed entry in a schedule: wall-clock time and enabled task ids."""
     id: str
     name: str
     time: str
@@ -24,6 +25,7 @@ class ScheduleEntry:
 
 @dataclass(frozen=True)
 class ScheduleRetryPolicy:
+    """Retry behaviour: max attempts per group, buffer seconds, max retry groups."""
     max_attempts_per_group: int = 5
     group_buffer_seconds: int = 300
     max_groups: int = 3
@@ -34,6 +36,7 @@ class ScheduleRetryPolicy:
 
 @dataclass(frozen=True)
 class ScheduleTimeouts:
+    """Timeout thresholds at child-task and overall-run granularity (warning, danger, kill)."""
     child_warning_seconds: int = 900
     child_danger_seconds: int = 1200
     child_kill_seconds: int = 1800
@@ -47,6 +50,7 @@ class ScheduleTimeouts:
 
 @dataclass(frozen=True)
 class RestartScriptPolicy:
+    """Policy for when restart script executes and its variables."""
     mode: RestartMode = "none"
     script: str = ""
     variables: dict[str, str] = field(default_factory=dict)
@@ -57,6 +61,7 @@ class RestartScriptPolicy:
 
 @dataclass(frozen=True)
 class ScheduleConfig:
+    """Top-level schedule config: entries, retry, timeouts, restart policy, profile, task config."""
     id: str
     name: str
     enabled: bool
@@ -87,6 +92,7 @@ class ScheduleConfig:
 
 @dataclass(frozen=True)
 class TaskPolicy:
+    """Per-task execution policy: importance, unlimited runs, min daily successes, retry-even-on-success."""
     id: str
     name: str
     type: str
@@ -101,6 +107,7 @@ class TaskPolicy:
 
 @dataclass(frozen=True)
 class DailyTaskStats:
+    """Rolling daily counters for a task: total runs and successful runs within current game day."""
     task_id: str
     task_name: str
     successes: int = 0

@@ -53,6 +53,7 @@ COMMON_TERM_LABELS = {
 
 @dataclass(frozen=True)
 class TranslatedMessage:
+    """Result of translating a raw MAA log message: text, translated flag, optional tone."""
     text: str
     translated: bool = False
     tone: LogTone | None = None

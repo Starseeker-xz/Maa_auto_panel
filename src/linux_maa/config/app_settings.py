@@ -35,6 +35,7 @@ DEFAULT_FRAMEWORK_SETTINGS: dict[str, Any] = {
 
 @dataclass(frozen=True)
 class TimezoneInfo:
+    """Immutable parsed timezone info from framework settings."""
     name: str
     offset_minutes: int
     label: str
@@ -50,6 +51,7 @@ class TimezoneInfo:
 
 
 class FrameworkSettingsManager:
+    """Manages framework-level settings.toml with timezone resolution and defaults."""
     def __init__(self, runtime: MaaRuntime) -> None:
         self.runtime = runtime
 

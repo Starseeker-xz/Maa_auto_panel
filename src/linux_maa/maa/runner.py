@@ -26,6 +26,7 @@ logger = get_logger(__name__)
 
 
 def recover_android(adb: ADBDevice, package_name: str, *, force_stop: bool, delay_seconds: float) -> None:
+    """Reconnect ADB, optionally force-stop game, return to home screen, and wait."""
     print("恢复: reconnect adb")
     adb.connect()
 
@@ -54,6 +55,7 @@ def run_maa_task(
     profile: str = "default",
     repo_root: Path | None = None,
 ) -> int:
+    """Run a named MAA task via maa-cli with configurable retry attempts, timeout, and Android recovery."""
     runtime = MaaRuntime(find_repo_root(repo_root))
     runtime.run_log_dir.mkdir(parents=True, exist_ok=True)
 
@@ -121,6 +123,7 @@ def prepare_maa_cli_task(
     profile_data: dict[str, object] | None = None,
     profile_name: str | None = None,
 ) -> tuple[str, dict[str, str]]:
+    """Resolve task file, select items, write generated task JSON, return task name and env overrides."""
     source = resolve_task_file(runtime, task)
     data = load_task_file(source)
     if selected_task_ids is not None:
@@ -144,6 +147,7 @@ def prepare_maa_cli_task(
 
 
 def select_task_items(data: dict[str, object], selected_task_ids: set[str], *, force_enable_selected: bool) -> dict[str, object]:
+    """Filter task list to selected IDs, optionally force-enabling them."""
     selected = dict(data)
     tasks = selected.get("tasks")
     if not isinstance(tasks, list):
@@ -217,6 +221,7 @@ def ensure_generated_config_links(runtime: MaaRuntime, generated_root: Path, *, 
 
 @dataclass(frozen=True)
 class MaaRunRequest:
+    """Immutable request: which task and profile to run, at what log level."""
     task: str
     profile: str = "default"
     log_level: int = 1
@@ -224,6 +229,7 @@ class MaaRunRequest:
 
 @dataclass
 class MaaRunState:
+    """Mutable lifecycle state for a single manual MAA run: status, logs, subprocess."""
     id: str
     task: str
     profile: str
@@ -260,6 +266,7 @@ class MaaRunState:
 
 
 class MaaRunManager:
+    """Orchestrates manual MAA task runs: start, stop, status, SSE change notification."""
     def __init__(
         self,
         runtime: MaaRuntime,
