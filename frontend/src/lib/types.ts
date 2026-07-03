@@ -348,7 +348,11 @@ export type MaintenanceActionState = {
   created_at?: string;
   updated_at?: string;
   return_code?: number | null;
+  log_file?: string | null;
+  log_files?: Record<string, string>;
   output?: string[];
+  task_results?: MaaTaskResult[];
+  log_entries?: MaaLogEntry[];
 };
 
 export type UpdateComponentInfo = {

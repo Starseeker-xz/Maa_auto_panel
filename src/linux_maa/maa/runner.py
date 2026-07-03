@@ -5,7 +5,6 @@ import subprocess
 import threading
 import time
 import uuid
-from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -14,7 +13,7 @@ import tomllib
 from linux_maa.android import ADBDevice
 from linux_maa.config.tasks import TASK_SUFFIXES, prepare_framework_task_config
 from linux_maa.diagnostics import Diagnostics, get_logger
-from linux_maa.maa.logs import MaaCliLogTranslator, translate_maa_cli_log
+from linux_maa.logs import RunLogBuffer
 from linux_maa.settings import DEFAULT_DEVICE_SERIAL, DEFAULT_TARGET_PACKAGE
 from linux_maa.maa.runtime import MaaRuntime, find_repo_root
 from linux_maa.process import run_streaming_process
@@ -237,8 +236,7 @@ class MaaRunState:
     log_files: dict[str, str] = field(default_factory=dict)
     maacore_log_file: str | None = None
     maacore_log_start: int = 0
-    lines: deque[str] = field(default_factory=lambda: deque(maxlen=2000))
-    log_translator: MaaCliLogTranslator = field(default_factory=MaaCliLogTranslator)
+    log: RunLogBuffer = field(default_factory=lambda: RunLogBuffer(max_output_chunks=2000))
     process: subprocess.Popen[str] | None = field(default=None, repr=False)
     thread: threading.Thread | None = field(default=None, repr=False)
 
@@ -257,13 +255,7 @@ class MaaRunState:
             "maacore_log_file": self.maacore_log_file,
         }
         if include_logs:
-            data.update(
-                {
-                    "output": list(self.lines),
-                    "task_results": self.log_translator.task_results(),
-                    "log_entries": self.log_translator.entries(),
-                }
-            )
+            data.update(self.log.to_dict())
         return data
 
 
@@ -351,41 +343,32 @@ class MaaRunManager:
             if state.process and state.process.poll() is None:
                 self.diagnostics.append_run_event(state.id, "manual", "framework", "收到停止请求，正在终止 maa-cli...", tone="warning")
                 logger.warning("manual run stop requested run_id=%s", state.id)
-                state.lines.append(
-                    state.log_translator.add_event(
-                        "收到停止请求，正在终止 maa-cli...",
-                        time=datetime.now().strftime("%H:%M:%S"),
-                        tone="warning",
-                    )
-                )
+                state.log.append_event("收到停止请求，正在终止 maa-cli...", time=datetime.now().strftime("%H:%M:%S"), tone="warning")
                 state.process.terminate()
                 state.status = "stopping"
                 state.updated_at = datetime.now().isoformat(timespec="seconds")
                 self._notify_locked()
         return state
 
-    def _append(self, state: MaaRunState, line: str) -> None:
+    def _mark_log_updated(self, state: MaaRunState) -> None:
         with self._lock:
-            state.lines.append(line)
             state.updated_at = datetime.now().isoformat(timespec="seconds")
             self._notify_locked()
 
     def _append_maa_log(self, state: MaaRunState, text: str, stream: str = "output") -> None:
         self.diagnostics.append_maa_cli_output(state.id, stream, text)
-        translated = state.log_translator.translate(text, source=stream)
-        if translated:
-            self._append(state, translated)
+        if state.log.append_process_output(text, source=f"maa-cli:{stream}", parser="maa"):
+            self._mark_log_updated(state)
 
     def _flush_maa_log(self, state: MaaRunState) -> None:
-        translated = state.log_translator.flush()
-        if translated:
-            self._append(state, translated)
+        if state.log.flush():
+            self._mark_log_updated(state)
 
     def _append_framework_log(self, state: MaaRunState, text: str) -> None:
         self.diagnostics.append_run_event(state.id, "manual", "framework", text)
         logger.info("manual run event run_id=%s text=%s", state.id, text)
-        translated = state.log_translator.add_event(text, time=datetime.now().strftime("%H:%M:%S"), tone="info")
-        self._append(state, translated)
+        if state.log.append_event(text, time=datetime.now().strftime("%H:%M:%S"), tone="info"):
+            self._mark_log_updated(state)
 
     def _set_done(self, state: MaaRunState, status: str, return_code: int | None) -> None:
         with self._lock:
@@ -403,7 +386,7 @@ class MaaRunManager:
             return_code=return_code,
             maacore_log_file=maacore_log_file,
             summary={
-                "task_results": state.log_translator.task_results(),
+                "task_results": state.log.task_results(),
                 "generated_config_dir": relative_path(self.runtime.generated_config_dir / state.id, self.runtime.repo_root),
             },
         )

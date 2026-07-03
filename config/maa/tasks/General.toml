@@ -32,7 +32,7 @@ reception_clue_exchange = true
 reception_send_clue = true
 filename = "排班.json"
 plan_index = "__linux_maa_runtime__:infrast_plan_index"
-enable = true
+enable = false
 
 [tasks.linux_maa]
 id = "infrast-37153e4c"
@@ -147,6 +147,7 @@ stone = 0
 times = 2147483647
 series = 0
 enable = true
+client_type = "Bilibili"
 
 [tasks.linux_maa]
 id = "fight--2-1b5fc18a"

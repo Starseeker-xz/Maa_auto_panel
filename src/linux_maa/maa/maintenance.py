@@ -4,7 +4,6 @@ import json
 import subprocess
 import threading
 import uuid
-from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -13,6 +12,7 @@ from typing import Any
 import requests
 
 from linux_maa.diagnostics import Diagnostics, get_logger
+from linux_maa.logs import RunLogBuffer
 from linux_maa.maa.runtime import MaaRuntime
 from linux_maa.process import run_streaming_process
 from linux_maa.run_state import RunStateStore
@@ -43,11 +43,11 @@ class MaintenanceActionState:
     return_code: int | None = None
     log_file: str | None = None
     log_files: dict[str, str] = field(default_factory=dict)
-    output: deque[str] = field(default_factory=lambda: deque(maxlen=1000))
+    log: RunLogBuffer = field(default_factory=lambda: RunLogBuffer(max_output_chunks=1000))
     process: subprocess.Popen[str] | None = field(default=None, repr=False)
 
     def to_dict(self) -> dict[str, object]:
-        return {
+        data: dict[str, object] = {
             "id": self.id,
             "kind": self.kind,
             "title": self.title,
@@ -57,8 +57,9 @@ class MaintenanceActionState:
             "return_code": self.return_code,
             "log_file": self.log_file,
             "log_files": dict(self.log_files),
-            "output": list(self.output),
         }
+        data.update(self.log.to_dict())
+        return data
 
 
 class MaintenanceActionManager:
@@ -133,12 +134,14 @@ class MaintenanceActionManager:
     def _append(self, state: MaintenanceActionState, text: str, source: str = "framework") -> None:
         if source.startswith("maa-cli:"):
             self.diagnostics.append_maa_cli_output(state.id, source.split(":", 1)[1], text)
+            appended = state.log.append_process_output(text, source=source, parser="maa")
         else:
             self.diagnostics.append_run_event(state.id, "maintenance", source, text)
             logger.info("maintenance event run_id=%s source=%s text=%s", state.id, source, text.strip())
+            appended = state.log.append_event(text.strip(), time=datetime.now().strftime("%H:%M:%S"), tone="info")
         with self._lock:
-            state.output.append(text)
-            state.updated_at = datetime.now().isoformat(timespec="seconds")
+            if appended:
+                state.updated_at = datetime.now().isoformat(timespec="seconds")
 
     def _set_done(self, state: MaintenanceActionState, status: str, return_code: int | None) -> None:
         with self._lock:
@@ -163,6 +166,9 @@ class MaintenanceActionManager:
                 on_stream_output=lambda stream, text: self._append(state, text, f"maa-cli:{stream}"),
                 on_process=lambda proc: self._set_process(state, proc),
             )
+            if state.log.flush():
+                with self._lock:
+                    state.updated_at = datetime.now().isoformat(timespec="seconds")
             return_code = result.return_code
             self._set_done(state, "succeeded" if return_code == 0 else "failed", return_code)
         except Exception as exc:

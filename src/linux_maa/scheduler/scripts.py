@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import os
 import re
-import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -37,6 +35,12 @@ class ScriptInfo:
         }
 
 
+@dataclass(frozen=True)
+class ScriptCommand:
+    cmd: list[str]
+    env: dict[str, str]
+
+
 class ScheduleScriptManager:
     def __init__(self, runtime: MaaRuntime) -> None:
         self.runtime = runtime
@@ -53,22 +57,12 @@ class ScheduleScriptManager:
             variables=parse_script_variables(path),
         )
 
-    def run(self, name: str, variables: dict[str, str], *, timeout_seconds: int = 120) -> subprocess.CompletedProcess[str]:
+    def command(self, name: str, variables: dict[str, str]) -> ScriptCommand:
         path = self.resolve(name)
-        env = os.environ.copy()
+        env = self.runtime.env()
         for variable in parse_script_variables(path):
             env[variable.name] = variables.get(variable.name, variable.default)
-        return subprocess.run(
-            ["/bin/sh", str(path)],
-            cwd=self.runtime.repo_root,
-            env=env,
-            text=True,
-            capture_output=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=timeout_seconds,
-            check=False,
-        )
+        return ScriptCommand(cmd=["/bin/sh", str(path)], env=env)
 
     def resolve(self, name: str) -> Path:
         requested = validate_file_name(name, label="script name")

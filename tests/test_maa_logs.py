@@ -1,8 +1,8 @@
-from linux_maa.maa.logs import MaaCliLogTranslator, translate_maa_cli_log
+from linux_maa.logs import RunLogTranslator, translate_maa_cli_log
 
 
 def test_groups_completed_and_failed_tasks() -> None:
-    translator = MaaCliLogTranslator()
+    translator = RunLogTranslator()
 
     output = translator.translate(
         "[2026-06-26 18:45:26 INFO ] StartUp Start\n"
@@ -59,7 +59,7 @@ def test_groups_completed_and_failed_tasks() -> None:
 
 
 def test_handles_split_log_chunks() -> None:
-    translator = MaaCliLogTranslator()
+    translator = RunLogTranslator()
 
     output = translator.translate("[2026-06-26 18:47:20 INFO ] Fight Sta")
     output += translator.translate("rt\n[2026-06-26 18:47:56 ERROR] Fight Error\n")
@@ -70,7 +70,7 @@ def test_handles_split_log_chunks() -> None:
 
 
 def test_collapses_terminal_carriage_return_updates() -> None:
-    translator = MaaCliLogTranslator(terminal_update_interval_seconds=999)
+    translator = RunLogTranslator(terminal_update_interval_seconds=999)
 
     output = translator.translate(
         "  3%|▎         | 64.0M/2.08G [00:17<08:59, 3.74MiB/s]\r"
@@ -89,8 +89,21 @@ def test_collapses_terminal_carriage_return_updates() -> None:
     assert entries[0]["tone"] == "info"
 
 
+def test_plain_process_logs_do_not_trigger_maa_task_grouping() -> None:
+    translator = RunLogTranslator()
+
+    output = translator.translate_plain("Summary\nFight Start\nplain stderr\n", source="script:stderr")
+    entries = translator.entries()
+
+    assert output == "Summary\nFight Start\nplain stderr\n"
+    assert [entry["type"] for entry in entries] == ["line", "line", "line"]
+    assert [entry["text"] for entry in entries] == ["Summary", "Fight Start", "plain stderr"]
+    assert all(entry["tone"] == "warning" for entry in entries)
+    assert translator.task_results() == []
+
+
 def test_carriage_return_newline_is_normal_log_line() -> None:
-    translator = MaaCliLogTranslator()
+    translator = RunLogTranslator()
 
     output = translator.translate("[2026-06-26 18:47:20 INFO ] Connected\r\n", source="stderr")
 
@@ -99,7 +112,7 @@ def test_carriage_return_newline_is_normal_log_line() -> None:
 
 
 def test_flush_closes_running_task_as_unknown() -> None:
-    translator = MaaCliLogTranslator()
+    translator = RunLogTranslator()
 
     output = translator.translate("[2026-06-26 18:47:56 INFO ] Recruit Start\n")
     output += translator.flush()
@@ -116,7 +129,7 @@ def test_compat_helper_flushes_one_shot_translation() -> None:
 
 
 def test_translates_screencap_method_and_cost() -> None:
-    translator = MaaCliLogTranslator()
+    translator = RunLogTranslator()
 
     output = translator.translate("[2026-06-30 18:18:44 INFO ] FastestWayToScreencap RawWithGzip 203\n")
     entry = translator.entries()[0]
@@ -134,7 +147,7 @@ def test_translates_screencap_method_and_cost() -> None:
 
 
 def test_adds_framework_preprocess_event() -> None:
-    translator = MaaCliLogTranslator()
+    translator = RunLogTranslator()
 
     output = translator.add_event("选择战斗关卡: 1-7", time="18:37:14", tone="info")
     entry = translator.entries()[0]
@@ -149,7 +162,7 @@ def test_adds_framework_preprocess_event() -> None:
 
 
 def test_groups_summary_tail_into_one_entry() -> None:
-    translator = MaaCliLogTranslator()
+    translator = RunLogTranslator()
 
     output = translator.translate(
         "Summary\n"
@@ -175,7 +188,7 @@ def test_groups_summary_tail_into_one_entry() -> None:
 
 
 def test_keeps_summary_open_when_other_source_emits_timestamped_lines() -> None:
-    translator = MaaCliLogTranslator()
+    translator = RunLogTranslator()
 
     output = translator.translate("Summary\n", source="stdout")
     output += translator.translate("[2026-07-02 18:17:22 INFO ] AllTasksCompleted\n", source="stderr")
@@ -195,7 +208,7 @@ def test_keeps_summary_open_when_other_source_emits_timestamped_lines() -> None:
 
 
 def test_groups_git_fetch_output_by_source() -> None:
-    translator = MaaCliLogTranslator()
+    translator = RunLogTranslator()
 
     output = translator.translate(
         "From https://github.com/MaaAssistantArknights/MaaResource\n"
@@ -218,7 +231,7 @@ def test_groups_git_fetch_output_by_source() -> None:
 
 
 def test_translates_recruit_fight_and_infrast_lines() -> None:
-    translator = MaaCliLogTranslator()
+    translator = RunLogTranslator()
 
     output = translator.translate(
         "[2026-07-02 18:06:30 INFO ] Recruit Start\n"
@@ -258,7 +271,7 @@ def test_translates_recruit_fight_and_infrast_lines() -> None:
 
 
 def test_translates_summary_recruit_and_infrast_details() -> None:
-    translator = MaaCliLogTranslator()
+    translator = RunLogTranslator()
 
     translator.translate(
         "Summary\n"
@@ -286,7 +299,7 @@ def test_translates_summary_recruit_and_infrast_details() -> None:
 
 
 def test_labels_duplicate_task_types_from_expected_sequence() -> None:
-    translator = MaaCliLogTranslator()
+    translator = RunLogTranslator()
     translator.begin_task_sequence(
         [
             {"task_id": "fight-a", "source_name": "Fight", "name": "剿灭"},
@@ -311,7 +324,7 @@ def test_labels_duplicate_task_types_from_expected_sequence() -> None:
 
 
 def test_translator_keeps_bounded_structured_tail() -> None:
-    translator = MaaCliLogTranslator(max_log_entries=2, max_task_records=1, max_record_messages=1, max_record_lines=2)
+    translator = RunLogTranslator(max_log_entries=2, max_task_records=1, max_record_messages=1, max_record_lines=2)
 
     translator.translate(
         "[2026-06-30 21:57:03 INFO ] StartUp Start\n"

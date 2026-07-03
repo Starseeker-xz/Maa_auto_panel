@@ -2,13 +2,16 @@ from pathlib import Path
 import asyncio
 import os
 import sys
+import threading
 
 import pytest
 
 from linux_maa.config.manager import ConfigManager
+from linux_maa.diagnostics import Diagnostics
 from linux_maa.maa.runtime import MaaRuntime
 from linux_maa.process import run_streaming_process
-from linux_maa.scheduler.models import ScheduleConfig, ScheduleEntry
+from linux_maa.scheduler.models import RestartScriptPolicy, ScheduleConfig, ScheduleEntry
+from linux_maa.scheduler.scripts import ScheduleScriptManager
 from linux_maa.scheduler.service import SchedulerService, ScheduleRunState
 from linux_maa.tools.manager import ToolRunManager, ToolRunState, _build_game_update_command
 from linux_maa.utils import is_newer_version, write_text_atomic
@@ -223,6 +226,61 @@ def test_schedule_response_uses_single_current_snapshot_for_matching_run() -> No
 
     assert calls == 1
     assert response["current_run"]["id"] == "run-1"
+
+
+def test_schedule_restart_script_streams_to_visible_logs_and_diagnostics(tmp_path: Path) -> None:
+    runtime = MaaRuntime(tmp_path)
+    diagnostics = Diagnostics(runtime)
+    script_path = runtime.script_dir / "hook.sh"
+    script_path.parent.mkdir(parents=True, exist_ok=True)
+    script_path.write_text(
+        "# linux-maa-var: TARGET | Target | default\n"
+        "printf 'Summary\\n'\n"
+        "printf 'target=%s\\n' \"$TARGET\"\n"
+        "printf 'warn=%s\\n' \"$MAA_CONFIG_DIR\" >&2\n",
+        encoding="utf-8",
+    )
+    service = SchedulerService.__new__(SchedulerService)
+    service.runtime = runtime
+    service.diagnostics = diagnostics
+    service.scripts = ScheduleScriptManager(runtime)
+    service._lock = threading.Lock()
+    service._condition = threading.Condition(service._lock)
+    service._version = 0
+    state = ScheduleRunState(
+        id="run-script",
+        schedule_id="daily",
+        schedule_name="Daily",
+        entry_id="t0400",
+        entry_name="04:00",
+        task_config="daily",
+        profile_name="default",
+        status="running",
+        created_at="2026-07-03T00:00:00",
+        updated_at="2026-07-03T00:00:00",
+        log_level=1,
+        game_day="2026-07-03",
+        trigger="manual",
+    )
+    config = ScheduleConfig(
+        id="daily",
+        name="Daily",
+        enabled=True,
+        task_config="daily",
+        profile_name="default",
+        profile_data={},
+        restart=RestartScriptPolicy(mode="before_run", script="hook.sh", variables={"TARGET": "ark"}),
+    )
+
+    service._run_restart_script(state, config, "before_run")
+
+    entries = state.to_dict()["log_entries"]
+    lines = [entry["text"] for entry in entries if entry["type"] == "line"]
+    assert lines[0] == "运行重启脚本(before_run): hook.sh"
+    assert set(lines[1:]) == {"Summary", "target=ark", f"warn={runtime.config_dir}"}
+    assert state.log.task_results() == []
+    assert (tmp_path / "debug/linux-maa/external/scripts/run-script.stdout.log").read_text(encoding="utf-8") == "Summary\ntarget=ark\n"
+    assert (tmp_path / "debug/linux-maa/external/scripts/run-script.stderr.log").read_text(encoding="utf-8") == f"warn={runtime.config_dir}\n"
 
 
 def test_create_app_exposes_expected_api_paths(tmp_path: Path) -> None:

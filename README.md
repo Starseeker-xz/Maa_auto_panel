@@ -86,8 +86,9 @@ Framework state and diagnostics are separated. Recent runs and scheduler
 bookkeeping live as readable JSON under `state/linux-maa/`. Deletable diagnostic
 logs live under `debug/linux-maa/`: `framework.log` is the standard Python
 logging output for framework/API internals, human-level run events are JSONL
-under `events/`, and per-run `maa-cli` stdout/stderr plus MaaCore `asst.log`
-excerpts are under `external/`.
+under `events/`, and per-run external-process stdout/stderr grouped by source
+(`maa-cli`, tools, scripts) plus MaaCore `asst.log` excerpts are under
+`external/`.
 
 Current WebUI routes:
 

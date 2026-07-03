@@ -4,7 +4,7 @@ import re
 from dataclasses import dataclass
 from typing import Literal
 
-from linux_maa.maa.logs.records import TaskStatus
+from linux_maa.logs.records import TaskStatus
 
 
 ParsedLine = dict[str, str | None]

@@ -21,6 +21,7 @@ class LogRetentionPolicy:
     max_event_log_files: int = 500
     max_maa_cli_log_files: int = 500
     max_tool_log_files: int = 500
+    max_script_log_files: int = 500
     max_maacore_capture_files: int = 500
     max_generated_config_dirs: int = 200
     max_legacy_run_log_files: int = 200
@@ -54,6 +55,10 @@ class Diagnostics:
         return self.runtime.framework_external_log_dir / "tools"
 
     @property
+    def script_log_dir(self) -> Path:
+        return self.runtime.framework_external_log_dir / "scripts"
+
+    @property
     def maacore_log_dir(self) -> Path:
         return self.runtime.maacore_capture_log_dir
 
@@ -62,6 +67,7 @@ class Diagnostics:
         self.event_dir.mkdir(parents=True, exist_ok=True)
         self.maa_cli_log_dir.mkdir(parents=True, exist_ok=True)
         self.tool_log_dir.mkdir(parents=True, exist_ok=True)
+        self.script_log_dir.mkdir(parents=True, exist_ok=True)
         self.maacore_log_dir.mkdir(parents=True, exist_ok=True)
 
     def configure_logging(self) -> logging.Logger:
@@ -128,6 +134,22 @@ class Diagnostics:
         with self._lock:
             append_text(self._tool_path(run_id, stream), text)
 
+    def script_log_files(self, run_id: str) -> dict[str, str]:
+        files = {
+            "script_stdout": self._script_path(run_id, "stdout"),
+            "script_stderr": self._script_path(run_id, "stderr"),
+        }
+        for path in files.values():
+            path.parent.mkdir(parents=True, exist_ok=True)
+        return {key: relative_path(path, self.runtime.repo_root) for key, path in files.items()}
+
+    def append_script_output(self, run_id: str, stream: str, text: str) -> None:
+        if not text:
+            return
+        stream = "stderr" if stream == "stderr" else "stdout"
+        with self._lock:
+            append_text(self._script_path(run_id, stream), text)
+
     def maacore_log_offset(self) -> int:
         path = self._maacore_source_log()
         try:
@@ -158,6 +180,7 @@ class Diagnostics:
             _prune_files(self.event_dir, max_count=self.retention.max_event_log_files, cutoff=cutoff)
             _prune_files(self.maa_cli_log_dir, max_count=self.retention.max_maa_cli_log_files, cutoff=cutoff)
             _prune_files(self.tool_log_dir, max_count=self.retention.max_tool_log_files, cutoff=cutoff)
+            _prune_files(self.script_log_dir, max_count=self.retention.max_script_log_files, cutoff=cutoff)
             _prune_files(self.maacore_log_dir, max_count=self.retention.max_maacore_capture_files, cutoff=cutoff)
             _prune_dirs(self.runtime.generated_config_dir, max_count=self.retention.max_generated_config_dirs, cutoff=cutoff)
             _prune_files(self.runtime.run_log_dir, max_count=self.retention.max_legacy_run_log_files, cutoff=cutoff)
@@ -171,6 +194,9 @@ class Diagnostics:
 
     def _tool_path(self, run_id: str, stream: str) -> Path:
         return self.tool_log_dir / f"{run_id}.{stream}.log"
+
+    def _script_path(self, run_id: str, stream: str) -> Path:
+        return self.script_log_dir / f"{run_id}.{stream}.log"
 
     def _maacore_source_log(self) -> Path:
         return self.runtime.state_home / "maa" / "debug" / "asst.log"

@@ -15,5 +15,5 @@ cpu_ocr = true
 [instance_options]
 touch_mode = "MaaTouch"
 deployment_with_pause = false
-adb_lite_enabled = true
-kill_adb_on_exit = true
+adb_lite_enabled = false
+kill_adb_on_exit = false

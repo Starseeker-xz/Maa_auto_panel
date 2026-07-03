@@ -68,7 +68,7 @@ src/linux_maa/
   domain/                 # Workflow, step, retry policy, run state models
   scheduler/              # Timers, queueing, locks
   runner/                 # Process execution primitives
-  logparse/               # maa-cli log parsing and failure classification
+  logs/                   # WebUI-visible log buffers, parsers, and process-output classification
   retry/                  # Retry/fallback policy engine
   config/                 # Schemas, loading, validation, migration
   storage/                # Text/file persistence and retention

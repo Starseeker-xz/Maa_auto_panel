@@ -98,7 +98,7 @@ def game_day_info(entries: list[ScheduleEntry], *, client: str, timezone_name: s
         timezone_name=timezone_name,
         reset_local_time=reset_time,
         order=order,
-        message=f"{client} 服务器游戏日按本地 {reset_time} 重置；本游戏日顺序为 "
+        message=f"{client} 服务器于本地 {reset_time} 更新游戏日\n游戏日运行顺序为 "
         + " -> ".join(entry.time for entry in sorted_entries),
     )
 

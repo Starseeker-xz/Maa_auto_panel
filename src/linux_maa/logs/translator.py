@@ -5,16 +5,16 @@ import time
 from dataclasses import dataclass, field
 from typing import ClassVar
 
-from linux_maa.maa.logs.records import (
+from linux_maa.logs.records import (
     LogEntry,
     LogTone,
-    MaaLogMessage,
-    MaaSummaryLogRecord,
-    MaaTaskLogRecord,
+    RunLogMessage,
+    SummaryLogRecord,
+    TaskLogRecord,
     TaskStatus,
 )
-from linux_maa.maa.logs.rules import DEFAULT_PANEL_RULES, LogRule, LogRuleMatch, ParsedLine, match_log_rule, parse_log_line
-from linux_maa.maa.logs.translation import (
+from linux_maa.logs.rules import DEFAULT_PANEL_RULES, LogRule, LogRuleMatch, ParsedLine, match_log_rule, parse_log_line
+from linux_maa.logs.translation import (
     is_global_line_translated,
     is_task_line_translated,
     translate_global_message,
@@ -41,8 +41,8 @@ ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 
 
 @dataclass
-class MaaCliLogTranslator:
-    """Stateful translator for maa-cli's user-facing log stream."""
+class RunLogTranslator:
+    """Stateful translator for WebUI-visible process and framework logs."""
 
     panel_rules: ClassVar[tuple[LogRule, ...]] = DEFAULT_PANEL_RULES
 
@@ -51,16 +51,18 @@ class MaaCliLogTranslator:
     max_record_messages: int = 300
     max_record_lines: int = 300
     terminal_update_interval_seconds: float = 2.0
-    task_records: list[MaaTaskLogRecord] = field(default_factory=list)
+    task_records: list[TaskLogRecord] = field(default_factory=list)
     log_entries: list[LogEntry] = field(default_factory=list)
-    _current_by_source: dict[str, MaaTaskLogRecord] = field(default_factory=dict)
-    _current_summary_by_source: dict[str, MaaSummaryLogRecord] = field(default_factory=dict)
-    _current_git_block_by_source: dict[str, MaaSummaryLogRecord] = field(default_factory=dict)
+    _current_by_source: dict[str, TaskLogRecord] = field(default_factory=dict)
+    _current_summary_by_source: dict[str, SummaryLogRecord] = field(default_factory=dict)
+    _current_git_block_by_source: dict[str, SummaryLogRecord] = field(default_factory=dict)
     _current_started_monotonic_by_source: dict[str, float] = field(default_factory=dict)
     _expected_tasks: list[dict[str, str]] = field(default_factory=list)
     _expected_task_index: int = 0
     _partial_by_source: dict[str, str] = field(default_factory=dict)
-    _terminal_entry_by_source: dict[str, MaaLogMessage] = field(default_factory=dict)
+    _plain_tone_by_source: dict[str, LogTone] = field(default_factory=dict)
+    
+    _terminal_entry_by_source: dict[str, RunLogMessage] = field(default_factory=dict)
     _terminal_last_emit_by_source: dict[str, float] = field(default_factory=dict)
     _terminal_last_output_by_source: dict[str, str] = field(default_factory=dict)
 
@@ -69,26 +71,39 @@ class MaaCliLogTranslator:
             return ""
 
         source_key = normalize_source(source)
+        self._plain_tone_by_source.pop(source_key, None)
         text = self._partial_by_source.get(source_key, "") + text
         self._partial_by_source.pop(source_key, None)
         return self._translate_text(text, source_key)
+
+    def translate_plain(self, text: str, *, source: str = "output", tone: LogTone | None = None) -> str:
+        if not text:
+            return ""
+
+        source_key = normalize_source(source)
+        self._plain_tone_by_source[source_key] = tone or default_tone_for_source(source_key)
+        text = self._partial_by_source.get(source_key, "") + text
+        self._partial_by_source.pop(source_key, None)
+        return self._translate_text(text, source_key, plain_tone=self._plain_tone_by_source[source_key])
 
     def flush(self, *, source: str | None = None) -> str:
         output = ""
         sources = [normalize_source(source)] if source is not None else self._active_sources()
         for source_key in sources:
             partial = self._partial_by_source.pop(source_key, "")
+            plain_tone = self._plain_tone_by_source.get(source_key)
             if partial:
                 if source_key in self._terminal_entry_by_source:
                     output += self._handle_terminal_update(partial, source_key, final=True)
                 else:
-                    output += self._translate_line(partial, source_key)
+                    output += self._translate_line(partial, source_key, plain_tone=plain_tone)
             if source_key in self._terminal_entry_by_source:
                 output += self._finalize_terminal_update(source_key)
             if source_key in self._current_by_source:
                 output += self._close_current("unknown", source_key)
             self._current_summary_by_source.pop(source_key, None)
             self._current_git_block_by_source.pop(source_key, None)
+            self._plain_tone_by_source.pop(source_key, None)
         return output
 
     def task_results(self) -> list[dict[str, object]]:
@@ -97,9 +112,9 @@ class MaaCliLogTranslator:
     def entries(self) -> list[dict[str, object]]:
         entries: list[dict[str, object]] = []
         for entry in self.log_entries:
-            if isinstance(entry, MaaTaskLogRecord):
+            if isinstance(entry, TaskLogRecord):
                 entries.append(entry.to_dict())
-            elif isinstance(entry, MaaSummaryLogRecord):
+            elif isinstance(entry, SummaryLogRecord):
                 entries.append(entry.to_dict())
             else:
                 entries.append(entry.to_line_entry())
@@ -113,7 +128,7 @@ class MaaCliLogTranslator:
         tone: LogTone = "info",
         segments: list[dict[str, object]] | None = None,
     ) -> str:
-        message = MaaLogMessage(text=text, time=time, tone=tone, segments=segments or [])
+        message = RunLogMessage(text=text, time=time, tone=tone, segments=segments or [])
         self._append_entry(message)
         return f"{format_time_prefix(time)}{text}\n"
 
@@ -142,7 +157,7 @@ class MaaCliLogTranslator:
         started, record = max(active, key=lambda item: item[0])
         return record.name, time.monotonic() - started
 
-    def _translate_text(self, text: str, source: str) -> str:
+    def _translate_text(self, text: str, source: str, *, plain_tone: LogTone | None = None) -> str:
         output = ""
         line = ""
         index = 0
@@ -150,7 +165,7 @@ class MaaCliLogTranslator:
             char = text[index]
             if char == "\r":
                 if index + 1 < len(text) and text[index + 1] == "\n":
-                    output += self._translate_line(line, source)
+                    output += self._translate_line(line, source, plain_tone=plain_tone)
                     line = ""
                     index += 2
                     continue
@@ -162,7 +177,7 @@ class MaaCliLogTranslator:
                         output += self._handle_terminal_update(line, source, final=True)
                     output += self._finalize_terminal_update(source)
                 else:
-                    output += self._translate_line(line, source)
+                    output += self._translate_line(line, source, plain_tone=plain_tone)
                 line = ""
             elif char in {"\b", "\x7f"}:
                 line = line[:-1]
@@ -174,8 +189,11 @@ class MaaCliLogTranslator:
             self._partial_by_source[source] = line
         return output
 
-    def _translate_line(self, line: str, source: str) -> str:
+    def _translate_line(self, line: str, source: str, *, plain_tone: LogTone | None = None) -> str:
         raw = line.rstrip("\r\n")
+        if plain_tone is not None:
+            return self._handle_plain_line(raw, plain_tone)
+
         parsed = parse_log_line(raw)
         rule_match = match_log_rule(parsed, self.panel_rules)
 
@@ -210,7 +228,7 @@ class MaaCliLogTranslator:
         message = self._terminal_entry_by_source.get(source)
         first_update = message is None
         if message is None:
-            message = MaaLogMessage(text=text, tone="info", raw=text)
+            message = RunLogMessage(text=text, tone="info", raw=text)
             self._append_entry(message)
             self._terminal_entry_by_source[source] = message
         else:
@@ -238,7 +256,7 @@ class MaaCliLogTranslator:
         output = ""
         if source in self._current_by_source:
             output += self._close_current("unknown", source)
-        record = MaaSummaryLogRecord(lines=[raw])
+        record = SummaryLogRecord(lines=[raw])
         self._append_entry(record)
         self._current_summary_by_source[source] = record
         return f"{output}运行摘要\n"
@@ -260,14 +278,14 @@ class MaaCliLogTranslator:
         return f"{message.text}\n"
 
     def _handle_git_output_start(self, raw: str, source: str) -> str:
-        record = MaaSummaryLogRecord(title="资源拉取结果", lines=[raw])
+        record = SummaryLogRecord(title="资源拉取结果", lines=[raw])
         self._append_entry(record)
         self._current_git_block_by_source[source] = record
         return "资源拉取结果\n" + self._handle_git_output_line(raw, source)
 
     def _handle_git_output_line(self, raw: str, source: str) -> str:
         record = self._current_git_block_by_source[source]
-        message = MaaLogMessage(text=raw, tone="info", raw=raw)
+        message = RunLogMessage(text=raw, tone="info", raw=raw)
         record.messages.append(message)
         if not record.lines or record.lines[-1] != raw:
             record.lines.append(raw)
@@ -283,7 +301,7 @@ class MaaCliLogTranslator:
                 output += self._close_current("unknown", source)
             expected_task = self._next_expected_task(task_name)
             display_name = expected_task.get("name") or task_name
-            record = MaaTaskLogRecord(
+            record = TaskLogRecord(
                 name=display_name,
                 status="running",
                 task_id=expected_task.get("task_id") or None,
@@ -322,7 +340,7 @@ class MaaCliLogTranslator:
             output += self._close_current("unknown", source)
         expected_task = self._next_expected_task(task_name)
         display_name = expected_task.get("name") or task_name
-        record = MaaTaskLogRecord(
+        record = TaskLogRecord(
             name=display_name,
             status=status,
             task_id=expected_task.get("task_id") or None,
@@ -344,7 +362,7 @@ class MaaCliLogTranslator:
         current = self._current_by_source.get(source)
         if current is None:
             translated = translate_global_message(body)
-            message = MaaLogMessage(
+            message = RunLogMessage(
                 text=translated.text,
                 time=time_text,
                 tone=translated.tone or tone,
@@ -359,7 +377,7 @@ class MaaCliLogTranslator:
         if translated_task_line is None:
             self._trim_record(current)
             return ""
-        message = MaaLogMessage(
+        message = RunLogMessage(
             text=translated_task_line,
             time=time_text,
             tone=tone,
@@ -379,7 +397,14 @@ class MaaCliLogTranslator:
         self._current_started_monotonic_by_source.pop(source, None)
         return f"{format_time_prefix(ended_at)}任务 {task_name} {STATUS_LABEL[status]}\n"
 
-    def _append_task_record(self, record: MaaTaskLogRecord) -> None:
+    def _handle_plain_line(self, raw: str, tone: LogTone) -> str:
+        text = terminal_display_text(raw)
+        if not text:
+            return ""
+        self._append_entry(RunLogMessage(text=text, tone=tone))
+        return f"{text}\n"
+
+    def _append_task_record(self, record: TaskLogRecord) -> None:
         self.task_records.append(record)
         self._append_entry(record)
 
@@ -391,12 +416,12 @@ class MaaCliLogTranslator:
         _trim_list(self.log_entries, self.max_log_entries)
         _trim_list(self.task_records, self.max_task_records)
         for entry in self.log_entries:
-            if isinstance(entry, MaaTaskLogRecord | MaaSummaryLogRecord):
+            if isinstance(entry, TaskLogRecord | SummaryLogRecord):
                 self._trim_record(entry)
         for record in self.task_records:
             self._trim_record(record)
 
-    def _trim_record(self, record: MaaTaskLogRecord | MaaSummaryLogRecord) -> None:
+    def _trim_record(self, record: TaskLogRecord | SummaryLogRecord) -> None:
         _trim_list(record.messages, self.max_record_messages)
         _trim_list(record.lines, self.max_record_lines)
 
@@ -417,6 +442,7 @@ class MaaCliLogTranslator:
             self._current_by_source,
             self._current_summary_by_source,
             self._current_git_block_by_source,
+            self._plain_tone_by_source,
         ):
             for source in mapping:
                 sources[source] = None
@@ -426,7 +452,7 @@ class MaaCliLogTranslator:
 def translate_maa_cli_log(text: str) -> str:
     """Backward-compatible one-shot translation helper."""
 
-    translator = MaaCliLogTranslator()
+    translator = RunLogTranslator()
     return translator.translate(text) + translator.flush()
 
 
@@ -435,7 +461,18 @@ def format_time_prefix(time_text: str | None) -> str:
 
 
 def normalize_source(source: str | None) -> str:
-    return "stderr" if source == "stderr" else "stdout"
+    if source is None:
+        return "stdout"
+    text = str(source)
+    if text in {"", "output", "stdout"}:
+        return "stdout"
+    if text == "stderr":
+        return "stderr"
+    return text
+
+
+def default_tone_for_source(source: str) -> LogTone:
+    return "warning" if source == "stderr" or source.endswith(":stderr") else "default"
 
 
 GIT_UPDATE_RE = re.compile(r"^Updating [0-9a-f]{4,}\.\.[0-9a-f]{4,}$")

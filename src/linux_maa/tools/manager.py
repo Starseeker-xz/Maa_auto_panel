@@ -4,14 +4,13 @@ import subprocess
 import sys
 import threading
 import uuid
-from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Callable
 
 from linux_maa.config import ConfigManager
 from linux_maa.diagnostics import Diagnostics, get_logger
-from linux_maa.maa.logs import MaaCliLogTranslator
+from linux_maa.logs import RunLogBuffer
 from linux_maa.maa.runtime import MaaRuntime
 from linux_maa.process import run_streaming_process
 from linux_maa.run_state import RunStateStore
@@ -85,8 +84,7 @@ class ToolRunState:
     return_code: int | None = None
     log_file: str | None = None
     log_files: dict[str, str] = field(default_factory=dict)
-    lines: deque[str] = field(default_factory=lambda: deque(maxlen=2000))
-    log_translator: MaaCliLogTranslator = field(default_factory=MaaCliLogTranslator)
+    log: RunLogBuffer = field(default_factory=lambda: RunLogBuffer(max_output_chunks=2000))
     process: subprocess.Popen[str] | None = field(default=None, repr=False)
     stop_requested: bool = False
 
@@ -104,13 +102,7 @@ class ToolRunState:
             "log_files": dict(self.log_files),
         }
         if include_logs:
-            data.update(
-                {
-                    "output": list(self.lines),
-                    "task_results": self.log_translator.task_results(),
-                    "log_entries": self.log_translator.entries(),
-                }
-            )
+            data.update(self.log.to_dict())
         return data
 
 
@@ -273,18 +265,15 @@ class ToolRunManager:
 
     def _append_stream_output(self, state: ToolRunState, stream: str, text: str) -> None:
         self.diagnostics.append_tool_output(state.id, stream, text)
-        translated = state.log_translator.translate(text, source=stream)
-        if translated:
-            self._append(state, translated)
+        if state.log.append_process_output(text, source=f"tool:{stream}", parser="maa"):
+            self._mark_log_updated(state)
 
     def _flush_tool_log(self, state: ToolRunState) -> None:
-        translated = state.log_translator.flush()
-        if translated:
-            self._append(state, translated)
+        if state.log.flush():
+            self._mark_log_updated(state)
 
-    def _append(self, state: ToolRunState, line: str) -> None:
+    def _mark_log_updated(self, state: ToolRunState) -> None:
         with self._lock:
-            state.lines.append(line)
             state.updated_at = datetime.now().isoformat(timespec="seconds")
             self._notify_locked()
 
@@ -296,13 +285,7 @@ class ToolRunManager:
             self._notify_locked()
 
     def _append_event_locked(self, state: ToolRunState, text: str, *, tone: str = "info") -> None:
-        state.lines.append(
-            state.log_translator.add_event(
-                text,
-                time=datetime.now().strftime("%H:%M:%S"),
-                tone=tone,  # type: ignore[arg-type]
-            )
-        )
+        state.log.append_event(text, time=datetime.now().strftime("%H:%M:%S"), tone=tone)  # type: ignore[arg-type]
         state.updated_at = datetime.now().isoformat(timespec="seconds")
 
     def _set_done(self, state: ToolRunState, status: str, return_code: int | None) -> None:

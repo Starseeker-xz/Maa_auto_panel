@@ -28,7 +28,7 @@
 
 - `2026-06-30_2342-full-project-audit`: Do not put raw scratch artifacts or upstream source checkouts under tracked `.codex/conversations/**/scratch/`. This repository currently has tracked scratch logs/screenshots and gitlink entries for old upstream checkouts, making handoff state noisy and large. Future sessions should keep scratch untracked, summarize durable findings into project history/session files, and update ignore rules during cleanup.
 
-- `2026-07-01_1312-explain-log-flow`: When splitting one domain's implementation into multiple files, keep those files inside a domain subpackage instead of scattering them as sibling modules in the parent package. Example: log internals belong under `src/linux_maa/maa/logs/`, with `__init__.py` preserving the public import surface.
+- `2026-07-01_1312-explain-log-flow`: When splitting one domain's implementation into multiple files, keep those files inside a domain subpackage instead of scattering them as sibling modules in the parent package. Current example: WebUI-visible log internals belong under top-level `src/linux_maa/logs/`, with old maa-specific paths kept only as compatibility exports when needed.
 
 - `2026-07-01_1312-explain-log-flow`: When browser-testing pages that open SSE/EventSource connections, do not wait for Playwright `networkidle`; the long-lived event stream keeps the page non-idle and causes timeouts. Use `domcontentloaded` plus targeted DOM assertions or fixed short waits.
 
@@ -40,6 +40,8 @@
 
 - `2026-07-02_2144-manual-stop-delay`: If manual or scheduled maa-cli startup/stop appears stuck near `已连接`, first check MaaCore logs for `Call \` adb devices \` ret 0 , cost 60001 ms`. In this environment, a missing local ADB server can make MaaCore wait 60 seconds in NativeIO before `adb connect` succeeds; `kill_adb_on_exit = true` makes this recur after runs. A warm ADB server made the same connect path complete in under a second.
 
-- `2026-07-02_2245-tools-page`: For live process logs, do not fix progress-bar spam by special-casing the producer such as `download_file()`. Preserve raw carriage returns in `run_streaming_process()` and collapse terminal redraws in `MaaCliLogTranslator`, so manual maa-cli, scheduled maa-cli, and tool logs all share the same translation and `log_entries` behavior.
+- `2026-07-02_2245-tools-page`: For live process logs, do not fix progress-bar spam by special-casing the producer such as `download_file()`. Preserve raw carriage returns in `run_streaming_process()` and collapse terminal redraws in `RunLogTranslator`, so manual maa-cli, scheduled maa-cli, tool, maintenance, and script logs can share the same visible-log behavior where appropriate.
 
 - `2026-07-02_2245-tools-page`: When launching project Python CLIs as live-log subprocesses, use `sys.executable -u` or `PYTHONUNBUFFERED=1`. With `stdout=PIPE`, ordinary `print()` output is block-buffered and can arrive only near process exit, making the UI look like logs were delayed until installation finished.
+
+- `2026-07-03_0105-audit-log-module`: Restarting `linux-maa-webui.service` while browsers hold SSE connections can wait for the unit stop timeout and then SIGKILL the old `uv`/`linux-maa` processes before starting the new Uvicorn process. After `systemctl restart linux-maa-webui`, verify with `systemctl status`, `ss -H -ltn sport = :8000`, or retrying `curl`; an immediate curl can fail during the restart window even though the service becomes healthy shortly after.

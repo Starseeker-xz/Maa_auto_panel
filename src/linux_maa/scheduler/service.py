@@ -4,14 +4,13 @@ import subprocess
 import threading
 import time
 import uuid
-from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
 from linux_maa.config import ConfigManager, FrameworkSettingsManager
 from linux_maa.diagnostics import Diagnostics, get_logger
-from linux_maa.maa.logs import MaaCliLogTranslator
+from linux_maa.logs import RunLogBuffer
 from linux_maa.maa.runner import load_task_file, prepare_maa_cli_task, resolve_task_file
 from linux_maa.maa.runtime import MaaRuntime
 from linux_maa.process import run_streaming_process
@@ -48,8 +47,7 @@ class ScheduleRunState:
     log_files: dict[str, str] = field(default_factory=dict)
     maacore_log_file: str | None = None
     maacore_log_start: int = 0
-    lines: deque[str] = field(default_factory=lambda: deque(maxlen=3000))
-    log_translator: MaaCliLogTranslator = field(default_factory=MaaCliLogTranslator)
+    log: RunLogBuffer = field(default_factory=lambda: RunLogBuffer(max_output_chunks=3000))
     process: subprocess.Popen[str] | None = field(default=None, repr=False)
     stop_requested: bool = False
     thread: threading.Thread | None = field(default=None, repr=False)
@@ -75,13 +73,7 @@ class ScheduleRunState:
             "maacore_log_file": self.maacore_log_file,
         }
         if include_logs:
-            data.update(
-                {
-                    "output": list(self.lines),
-                    "task_results": self.log_translator.task_results(),
-                    "log_entries": self.log_translator.entries(),
-                }
-            )
+            data.update(self.log.to_dict())
         return data
 
 
@@ -306,6 +298,8 @@ class SchedulerService:
             )
             state.log_file = self.diagnostics.maa_cli_log_file(run_id)
             state.log_files = self.diagnostics.maa_cli_log_files(run_id)
+            if config.restart.script:
+                state.log_files.update(self.diagnostics.script_log_files(run_id))
             state.maacore_log_start = self.diagnostics.maacore_log_offset()
             self._current = state
             self._notify_locked()
@@ -493,12 +487,12 @@ class SchedulerService:
             cmd.extend(["-v"] * state.log_level)
 
         self._append_event(state, f"开始第 {attempt_index} 次尝试: {', '.join(_task_names(policy_by_id, task_ids))}", tone="info")
-        state.log_translator.begin_task_sequence(_expected_log_tasks(policy_by_id, task_ids))
+        state.log.begin_task_sequence(_expected_log_tasks(policy_by_id, task_ids))
         for message in prepare_messages:
             self._append_event(state, message, tone="info")
         attempt_started = _now()
-        translator_start = len(state.log_translator.task_results())
-        log_entry_start = len(state.log_translator.entries())
+        translator_start = len(state.log.task_results())
+        log_entry_start = len(state.log.entries())
         result = run_streaming_process(
             self.runtime,
             cmd,
@@ -514,8 +508,8 @@ class SchedulerService:
             on_tick=self._child_timeout_checker(state, config),
         )
         self._flush_maa_log(state)
-        task_results = state.log_translator.task_results()[translator_start:]
-        log_entries = state.log_translator.entries()[log_entry_start:]
+        task_results = state.log.task_results()[translator_start:]
+        log_entries = state.log.entries()[log_entry_start:]
         status_by_task_id = _status_by_task_id(task_ids, policy_by_id, task_results)
         attempt_status = "succeeded" if result.return_code == 0 and all(status == "succeeded" for status in status_by_task_id.values()) else "failed"
         if result.stopped or state.stop_requested:
@@ -549,19 +543,35 @@ class SchedulerService:
         if config.restart.mode != mode or not config.restart.script:
             return
         try:
-            result = self.scripts.run(config.restart.script, config.restart.variables)
+            command = self.scripts.command(config.restart.script, config.restart.variables)
         except FileNotFoundError:
             self._append_event(state, f"重启脚本不存在: {config.restart.script}", tone="warning")
             return
         except Exception as exc:
             self._append_event(state, f"重启脚本启动失败: {exc}", tone="danger")
             return
-        if result.stdout:
-            self._append_event(state, result.stdout.strip(), tone="info")
-        if result.stderr:
-            self._append_event(state, result.stderr.strip(), tone="warning")
-        if result.returncode != 0:
-            self._append_event(state, f"重启脚本退出码: {result.returncode}", tone="warning")
+
+        self._append_event(state, f"运行重启脚本({mode}): {config.restart.script}", tone="info")
+        try:
+            result = run_streaming_process(
+                self.runtime,
+                command.cmd,
+                env=command.env,
+                on_output=lambda text: None,
+                on_stream_output=lambda stream, text: self._append_script_log(state, text, stream),
+                should_stop=lambda: state.stop_requested,
+                timeout_seconds=120,
+                on_timeout=lambda level, elapsed: self._append_script_timeout_event(state, level, elapsed),
+            )
+            self._flush_run_log(state)
+        except Exception as exc:
+            self._append_event(state, f"重启脚本启动失败: {exc}", tone="danger")
+            logger.exception("schedule restart script failed run_id=%s script=%s", state.id, config.restart.script)
+            return
+        if result.timed_out:
+            self._append_event(state, "重启脚本运行超时，已终止。", tone="danger")
+        if result.return_code != 0:
+            self._append_event(state, f"重启脚本退出码: {result.return_code}", tone="warning")
 
     def _append_skip_events(
         self,
@@ -578,9 +588,8 @@ class SchedulerService:
             task_name = policy_by_id[task_id].name if task_id in policy_by_id else task_id
             self._append_event(state, f"跳过子任务: {task_name}，原因: {item.get('reason', '未说明')}", tone="info")
 
-    def _append(self, state: ScheduleRunState, line: str) -> None:
+    def _mark_log_updated(self, state: ScheduleRunState) -> None:
         with self._lock:
-            state.lines.append(line)
             state.updated_at = _now()
             self._notify_locked()
 
@@ -592,19 +601,25 @@ class SchedulerService:
             logger.warning("scheduled run event run_id=%s text=%s", state.id, text)
         else:
             logger.info("scheduled run event run_id=%s text=%s", state.id, text)
-        translated = state.log_translator.add_event(text, time=datetime.now().strftime("%H:%M:%S"), tone=tone)  # type: ignore[arg-type]
-        self._append(state, translated)
+        if state.log.append_event(text, time=datetime.now().strftime("%H:%M:%S"), tone=tone):  # type: ignore[arg-type]
+            self._mark_log_updated(state)
 
     def _append_maa_log(self, state: ScheduleRunState, text: str, stream: str = "output") -> None:
         self.diagnostics.append_maa_cli_output(state.id, stream, text)
-        translated = state.log_translator.translate(text, source=stream)
-        if translated:
-            self._append(state, translated)
+        if state.log.append_process_output(text, source=f"maa-cli:{stream}", parser="maa"):
+            self._mark_log_updated(state)
 
     def _flush_maa_log(self, state: ScheduleRunState) -> None:
-        translated = state.log_translator.flush()
-        if translated:
-            self._append(state, translated)
+        self._flush_run_log(state)
+
+    def _append_script_log(self, state: ScheduleRunState, text: str, stream: str = "output") -> None:
+        self.diagnostics.append_script_output(state.id, stream, text)
+        if state.log.append_process_output(text, source=f"script:{stream}", parser="plain"):
+            self._mark_log_updated(state)
+
+    def _flush_run_log(self, state: ScheduleRunState) -> None:
+        if state.log.flush():
+            self._mark_log_updated(state)
 
     def _append_timeout_event(self, state: ScheduleRunState, level: str, elapsed: float) -> None:
         if level == "warning":
@@ -614,6 +629,10 @@ class SchedulerService:
         else:
             self._append_event(state, f"运行时间已超过上限，正在终止 maa-cli。", tone="danger")
 
+    def _append_script_timeout_event(self, state: ScheduleRunState, level: str, elapsed: float) -> None:
+        if level == "kill":
+            self._append_event(state, f"重启脚本运行超过 {elapsed:.0f}s，正在终止。", tone="danger")
+
     def _child_timeout_checker(self, state: ScheduleRunState, config: ScheduleConfig):
         warned_task = ""
         dangered_task = ""
@@ -621,7 +640,7 @@ class SchedulerService:
 
         def check() -> None:
             nonlocal warned_task, dangered_task, killed_task
-            current = state.log_translator.current_task_elapsed_seconds()
+            current = state.log.current_task_elapsed_seconds()
             if current is None:
                 return
             task_name, elapsed = current

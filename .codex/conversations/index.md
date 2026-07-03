@@ -31,3 +31,5 @@
 - `2026-07-02_1933-config-sync-ui-schema`: Investigate frontend/backend task config synchronization and whether deprecated task editor schema UI fields can be removed safely.
 - `2026-07-02_2144-manual-stop-delay`: Investigate delayed manual stop after user stop request, especially apparent hang around MaaCore "connected" step.
 - `2026-07-02_2245-tools-page`: Build the initial reusable three-column tools page with fixed tool list, update-game config, run action, and common log panel integration.
+- `2026-07-03_0105-audit-log-module`: Audited WebUI-visible log boundaries, then moved the implementation to top-level `linux_maa.logs`, added shared `RunLogBuffer`, wired manual/scheduled/tool/maintenance logs through it, and changed schedule restart-script hooks to stream stdout/stderr into visible logs plus `debug/linux-maa/external/scripts/`.
+- `2026-07-03_0526-init`: Startup-only initialization for a new session; read global/project state and created the session folder.

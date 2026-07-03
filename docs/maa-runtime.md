@@ -133,13 +133,18 @@ diagnosis and are not streamed as normal UI output. The framework records the
 `asst.log` offset before a WebUI/scheduled run and stores the run-time delta
 under `debug/linux-maa/external/maacore/` when MaaCore writes new content.
 
-The WebUI captures two visible process channels:
+The WebUI captures visible process channels through the shared
+`linux_maa.logs` module:
 
 - `maa-cli` stdout and stderr are read from separate pipes. The UI still shows a
   merged live view, but detailed per-run text logs store the original streams in
   separate `debug/linux-maa/external/maa-cli/<run-id>.stdout.log` and
   `debug/linux-maa/external/maa-cli/<run-id>.stderr.log` files. These paths are
   not split by manual/scheduled origin because they are maa-cli process logs.
+- Tool stdout/stderr are written to
+  `debug/linux-maa/external/tools/<run-id>.*.log`; schedule script hook
+  stdout/stderr are written to
+  `debug/linux-maa/external/scripts/<run-id>.*.log`.
 - WebUI/scheduled live runs do not pass `--log-file` to `maa-cli`, because that
   can move info callback logs out of stderr in the observed maa-cli runtime.
   Runtime environments force `MAA_LOG_PREFIX=Always` so stderr logs keep the
@@ -148,17 +153,21 @@ The WebUI captures two visible process channels:
   global detailed framework log `debug/linux-maa/framework.log`. `framework.log`
   uses Python's standard `logging` module with DEBUG, INFO, WARNING, ERROR, and
   CRITICAL levels and records API operations through middleware. Raw child
-  process output is kept only in the external maa-cli stdout/stderr files.
+  process output is kept only in the external stdout/stderr files.
 
 The WebUI run manager does not pass raw `maa-cli` log chunks straight through.
-The `src/linux_maa/maa/logs/` package parses framework-level semantics from
-info-level `maa-cli` output through configurable chunk rules. `rules.py` defines
-the explicit summary rule, task-lifecycle rule, and default line rule;
-`translator.py` owns the state machine that applies those rules to a stream.
-The task-lifecycle rule opens a child-task panel on `TaskName Start` and closes
-it on `TaskName Completed`, `TaskName Error`, or `TaskName Stopped`. Unmatched
-lines use the default line rule; when a task panel is active, those lines remain
-child messages of that task, preserving current UI behavior.
+The `src/linux_maa/logs/` package owns the WebUI-visible log stream. `RunLogBuffer`
+stores the bounded `output`, `task_results`, and `log_entries` shape used by
+manual runs, scheduled runs, tool runs, and maintenance actions. `RunLogTranslator`
+parses MAA-aware output through configurable chunk rules: `rules.py` defines the
+explicit summary rule, task-lifecycle rule, and default line rule; `translator.py`
+owns the state machine that applies those rules to a stream. The
+task-lifecycle rule opens a child-task panel on `TaskName Start` and closes it on
+`TaskName Completed`, `TaskName Error`, or `TaskName Stopped`. Unmatched lines use
+the default line rule; when a task panel is active, those lines remain child
+messages of that task, preserving current UI behavior. Plain process logs, such
+as arbitrary schedule script output, use a non-MAA parser so ordinary script text
+does not accidentally become task or summary cards.
 
 Framework preprocessing events also enter the same structured log stream;
 current examples include the resolved Fight stage and Infrast plan before
@@ -324,7 +333,11 @@ The WebUI exposes:
 Restart-script hooks are configured by schedule. Scripts are read from
 `config/linux-maa/scripts/`; a script can declare string variables with comments
 like `# linux-maa-var: CT_ID|容器 ID|151`, and those values are injected as
-environment variables when the hook runs.
+environment variables when the hook runs. Hooks run with the project
+`MaaRuntime.env()` environment, so scripts can call the project-local `maa`
+binary and see the same `MAA_CONFIG_DIR`/XDG paths as normal framework actions.
+Hook stdout/stderr stream live into the scheduled run's visible log and are also
+stored under `debug/linux-maa/external/scripts/`.
 
 ## Fight stage list API
 

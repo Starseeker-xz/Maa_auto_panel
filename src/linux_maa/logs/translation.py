@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
-from linux_maa.maa.logs.records import LogTone, MaaLogMessage
+from linux_maa.logs.records import LogTone, RunLogMessage
 
 
 TIME_VALUE_RE = r"(?:\d{4}-\d{2}-\d{2}\s+)?\d{2}:\d{2}:\d{2}"
@@ -138,7 +138,7 @@ def translate_task_line(body: str) -> str | None:
     return replace_common_terms(translations.get(body, body))
 
 
-def translate_summary_message(body: str) -> MaaLogMessage | None:
+def translate_summary_message(body: str) -> RunLogMessage | None:
     if not body or body == "----------------------------------------":
         return None
 
@@ -149,7 +149,7 @@ def translate_summary_message(body: str) -> MaaLogMessage | None:
         status = task_match.group("status")
         status_label, tone = summary_status(status)
         text = f"{task_name}: {status_label}, 用时 {elapsed}"
-        return MaaLogMessage(
+        return RunLogMessage(
             text=text,
             tone=tone,
             raw=body,
@@ -165,7 +165,7 @@ def translate_summary_message(body: str) -> MaaLogMessage | None:
     if fight_match is not None:
         stage = fight_match.group("stage")
         times = fight_match.group("times")
-        return MaaLogMessage(
+        return RunLogMessage(
             text=f"作战 {stage} {times} 次，掉落：",
             tone="info",
             raw=body,
@@ -177,26 +177,26 @@ def translate_summary_message(body: str) -> MaaLogMessage | None:
         )
 
     if body == "Detected tags:":
-        return MaaLogMessage(text="识别到的公招标签：", tone="info", raw=body)
+        return RunLogMessage(text="识别到的公招标签：", tone="info", raw=body)
     if body == "total drops:":
-        return MaaLogMessage(text="合计掉落：", tone="info", raw=body)
+        return RunLogMessage(text="合计掉落：", tone="info", raw=body)
     if body.startswith("total drops: "):
-        return MaaLogMessage(text=replace_common_terms(body.replace("total drops", "合计掉落", 1)), tone="info", raw=body)
+        return RunLogMessage(text=replace_common_terms(body.replace("total drops", "合计掉落", 1)), tone="info", raw=body)
 
     count_match = SUMMARY_COUNT_RE.match(body)
     if count_match is not None:
         label = "已招募" if count_match.group("kind") == "Recruited" else "已刷新"
-        return MaaLogMessage(text=f"{label} {count_match.group('count')} 次", tone="info", raw=body)
+        return RunLogMessage(text=f"{label} {count_match.group('count')} 次", tone="info", raw=body)
 
     infrast_line = translate_infrast_summary_line(body)
     if infrast_line != body:
-        return MaaLogMessage(text=infrast_line, tone="info", raw=body)
+        return RunLogMessage(text=infrast_line, tone="info", raw=body)
 
     if body.startswith("Error:"):
-        return MaaLogMessage(text="存在失败任务，maa-cli 返回错误。", tone="danger", raw=body)
+        return RunLogMessage(text="存在失败任务，maa-cli 返回错误。", tone="danger", raw=body)
     if body.startswith("Warning:"):
-        return MaaLogMessage(text=body.replace("Warning:", "警告:", 1), tone="warning", raw=body)
-    return MaaLogMessage(text=replace_common_terms(body), tone="default")
+        return RunLogMessage(text=body.replace("Warning:", "警告:", 1), tone="warning", raw=body)
+    return RunLogMessage(text=replace_common_terms(body), tone="default")
 
 
 def summary_status(status: str) -> tuple[str, LogTone]:

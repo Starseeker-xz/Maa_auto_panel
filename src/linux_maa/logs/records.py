@@ -9,7 +9,7 @@ LogTone = Literal["default", "success", "warning", "danger", "info"]
 
 
 @dataclass
-class MaaLogMessage:
+class RunLogMessage:
     text: str
     time: str | None = None
     tone: LogTone = "default"
@@ -37,7 +37,7 @@ class MaaLogMessage:
 
 
 @dataclass
-class MaaTaskLogRecord:
+class TaskLogRecord:
     name: str
     status: TaskStatus
     task_id: str | None = None
@@ -46,7 +46,7 @@ class MaaTaskLogRecord:
     panel_kind: str = "task"
     started_at: str | None = None
     ended_at: str | None = None
-    messages: list[MaaLogMessage] = field(default_factory=list)
+    messages: list[RunLogMessage] = field(default_factory=list)
     lines: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, object]:
@@ -69,10 +69,10 @@ class MaaTaskLogRecord:
 
 
 @dataclass
-class MaaSummaryLogRecord:
+class SummaryLogRecord:
     status: TaskStatus = "succeeded"
     title: str = "运行摘要"
-    messages: list[MaaLogMessage] = field(default_factory=list)
+    messages: list[RunLogMessage] = field(default_factory=list)
     lines: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, object]:
@@ -85,4 +85,9 @@ class MaaSummaryLogRecord:
         }
 
 
-LogEntry = MaaLogMessage | MaaSummaryLogRecord | MaaTaskLogRecord
+LogEntry = RunLogMessage | SummaryLogRecord | TaskLogRecord
+
+# Compatibility aliases for older imports and API-adjacent type names.
+MaaLogMessage = RunLogMessage
+MaaSummaryLogRecord = SummaryLogRecord
+MaaTaskLogRecord = TaskLogRecord
