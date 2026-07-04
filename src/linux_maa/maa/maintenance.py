@@ -12,7 +12,9 @@ from typing import Any
 import requests
 
 from linux_maa.diagnostics import Diagnostics, get_logger
-from linux_maa.logs import RunLogBuffer
+from linux_maa.logs import LogSourceSpec, RunLogBuffer
+from linux_maa.logs.pipeline import default_tone_for_source
+from linux_maa.maa.log_templates import MaaLogTemplate
 from linux_maa.maa.runtime import MaaRuntime
 from linux_maa.process import run_streaming_process
 from linux_maa.run_state import RunStateStore
@@ -101,6 +103,7 @@ class MaintenanceActionManager:
             )
             state.log_file = self.diagnostics.maa_cli_log_file(state.id)
             state.log_files = self.diagnostics.maa_cli_log_files(state.id)
+            _register_maa_cli_log_sources(state.log)
             self.run_state.create_maintenance_run(
                 run_id=state.id,
                 kind=kind,
@@ -136,7 +139,7 @@ class MaintenanceActionManager:
     def _append(self, state: MaintenanceActionState, text: str, source: str = "framework") -> None:
         if source.startswith("maa-cli:"):
             self.diagnostics.append_maa_cli_output(state.id, source.split(":", 1)[1], text)
-            appended = state.log.append_process_output(text, source=source, parser="maa")
+            appended = state.log.append(text, source=source)
         else:
             self.diagnostics.append_run_event(state.id, "maintenance", source, text)
             logger.info("maintenance event run_id=%s source=%s text=%s", state.id, source, text.strip())
@@ -151,6 +154,17 @@ class MaintenanceActionManager:
             state.return_code = return_code
             state.updated_at = datetime.now().isoformat(timespec="seconds")
             state.process = None
+        self.run_state.add_single_attempt(
+            run_id=state.id,
+            status=status,
+            started_at=state.created_at,
+            ended_at=state.updated_at,
+            return_code=return_code,
+            task_results=state.log.task_results(),
+            log_entries=state.log.entries(),
+            log_file=state.log_file,
+            log_files=state.log_files,
+        )
         self.run_state.finish_generic_run(state.id, status=status, return_code=return_code)
         self.run_state.enforce_retention()
         self.diagnostics.enforce_retention()
@@ -181,6 +195,12 @@ class MaintenanceActionManager:
     def _set_process(self, state: MaintenanceActionState, proc: subprocess.Popen[str]) -> None:
         with self._lock:
             state.process = proc
+
+
+def _register_maa_cli_log_sources(log: RunLogBuffer) -> None:
+    template = MaaLogTemplate()
+    for source in ("maa-cli:stdout", "maa-cli:stderr"):
+        log.register_source(LogSourceSpec(source, template, default_tone_for_source(source)))
 
 
 def _current_versions(runtime: MaaRuntime, errors: list[str]) -> dict[str, object]:

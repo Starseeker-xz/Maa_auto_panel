@@ -17,7 +17,10 @@ def test_state_patch_replaces_mutated_log_tail() -> None:
         ],
         "log_entries": [
             {
-                "type": "task",
+                "type": "block",
+                "id": "log-1",
+                "source": "maa-cli:stderr",
+                "kind": "task",
                 "name": "StartUp",
                 "status": "running",
                 "messages": [],
@@ -40,10 +43,13 @@ def test_state_patch_replaces_mutated_log_tail() -> None:
         ],
         "log_entries": [
             {
-                "type": "task",
+                "type": "block",
+                "id": "log-1",
+                "source": "maa-cli:stderr",
+                "kind": "task",
                 "name": "StartUp",
                 "status": "succeeded",
-                "messages": [{"type": "text", "text": "done", "tone": "info"}],
+                "messages": [{"text": "done", "tone": "info"}],
                 "lines": ["StartUp Start", "StartUp Completed"],
             }
         ],
@@ -69,8 +75,8 @@ def test_cursor_patch_uses_client_offsets_and_resends_mutable_tail() -> None:
             {"type": "task", "name": "Fight", "status": "running", "messages": [], "lines": []},
         ],
         "log_entries": [
-            {"type": "task", "name": "StartUp", "status": "succeeded", "messages": [], "lines": []},
-            {"type": "task", "name": "Fight", "status": "running", "messages": [], "lines": []},
+            {"type": "block", "id": "log-1", "source": "maa-cli:stderr", "kind": "task", "name": "StartUp", "status": "succeeded", "messages": [], "lines": []},
+            {"type": "block", "id": "log-2", "source": "maa-cli:stderr", "kind": "task", "name": "Fight", "status": "running", "messages": [], "lines": []},
         ],
     }
 
@@ -93,8 +99,8 @@ def test_cursor_patch_resends_full_log_entries_even_when_client_length_matches()
         "output": ["line 1\n"],
         "task_results": [],
         "log_entries": [
-            {"type": "summary", "title": "运行摘要", "status": "succeeded", "messages": [], "lines": ["Summary"]},
-            {"type": "line", "text": "done", "tone": "info"},
+            {"type": "block", "id": "log-1", "source": "maa-cli:stdout", "kind": "summary", "title": "运行摘要", "status": "succeeded", "messages": [], "lines": ["Summary"]},
+            {"type": "block", "id": "log-2", "source": "maa-cli:stdout", "kind": "line", "messages": [{"text": "done", "tone": "info"}], "lines": ["done"]},
         ],
     }
 

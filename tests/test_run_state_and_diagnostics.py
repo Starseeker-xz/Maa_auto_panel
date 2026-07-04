@@ -42,7 +42,7 @@ def test_run_state_store_writes_readable_state_outside_debug(tmp_path: Path) -> 
         return_code=0,
         task_ids=["startup"],
         task_results=[{"task_id": "startup", "status": "succeeded"}],
-        log_entries=[{"type": "line", "text": "开始运行"}],
+        log_entries=[{"type": "block", "id": "log-1", "source": "framework:event", "kind": "event", "messages": [{"text": "开始运行"}], "lines": ["开始运行"]}],
         log_file=log_file,
         log_files=log_files,
         generated_config_dir="runtime/maa/generated-configs/schedule-run-1",
@@ -72,16 +72,23 @@ def test_run_state_store_writes_readable_state_outside_debug(tmp_path: Path) -> 
         "stderr": "debug/linux-maa/external/maa-cli/run-1.stderr.log",
     }
     assert run.event_log_file == "debug/linux-maa/events/run-1.jsonl"
+    assert store.attempts(run_id)[0]["log_entries"][0]["kind"] == "event"
     assert store.already_triggered(schedule_id="daily", entry_id="t0400", game_day="2026-07-01")
     assert store.daily_stats("daily", "2026-07-01")["startup"].successes == 1
     assert store.attempts(run_id)[0]["generated_config_dir"] == "runtime/maa/generated-configs/schedule-run-1"
+    assert store.attempts(run_id)[0]["log_entries_file"] == "history/linux-maa/runs/schedules/daily/run-1.json"
 
     recent_runs = (tmp_path / "state/linux-maa/run-history/recent-run-records.json").read_text(encoding="utf-8")
     attempts = (tmp_path / "state/linux-maa/run-history/scheduled-run-attempts.json").read_text(encoding="utf-8")
+    history = (tmp_path / "history/linux-maa/runs/schedules/daily/run-1.json").read_text(encoding="utf-8")
     daily_stats = (tmp_path / "state/linux-maa/scheduler/daily-task-stats.json").read_text(encoding="utf-8")
     triggers = (tmp_path / "state/linux-maa/scheduler/triggered-schedule-entries.json").read_text(encoding="utf-8")
     assert "Recent WebUI, scheduled, maintenance, and tool run records" in recent_runs
-    assert "Per-attempt records for scheduled runs" in attempts
+    assert "Per-attempt run index" in attempts
+    assert "log_entries_file" in attempts
+    assert "开始运行" not in attempts
+    assert "Durable run history with visible log blocks" in history
+    assert "开始运行" in history
     assert "Per-schedule daily child-task run/success counters" in daily_stats
     assert "avoid duplicate scheduled execution" in triggers
     assert not (tmp_path / "debug/linux-maa/history").exists()
@@ -118,6 +125,34 @@ def test_diagnostics_writes_framework_and_external_logs(tmp_path: Path) -> None:
     }
     assert (tmp_path / "debug/linux-maa/external/tools/tool-1.stdout.log").read_text(encoding="utf-8") == "tool stdout\n"
     assert (tmp_path / "debug/linux-maa/external/tools/tool-1.stderr.log").read_text(encoding="utf-8") == "tool stderr\n"
+
+
+def test_run_state_store_records_single_attempt_for_generic_runs(tmp_path: Path) -> None:
+    runtime = MaaRuntime(tmp_path)
+    store = RunStateStore(runtime)
+
+    store.create_manual_run(run_id="manual-1", task="General", profile="default")
+    store.add_single_attempt(
+        run_id="manual-1",
+        status="stopped",
+        started_at="2026-07-04T01:00:00",
+        ended_at="2026-07-04T01:01:00",
+        return_code=1,
+        task_results=[{"type": "task", "name": "Mall", "status": "unknown"}],
+        log_entries=[{"type": "block", "id": "log-1", "source": "maa-cli:stdout", "kind": "summary", "messages": [], "lines": ["Summary"]}],
+        log_file="debug/linux-maa/external/maa-cli/manual-1.stdout.log",
+        log_files={"stdout": "debug/linux-maa/external/maa-cli/manual-1.stdout.log"},
+        generated_config_dir="runtime/maa/generated-configs/manual-1",
+    )
+    store.finish_generic_run("manual-1", status="stopped", return_code=1, summary={"generated_config_dir": "runtime/maa/generated-configs/manual-1"})
+
+    attempt = store.attempts("manual-1")[0]
+    assert attempt["attempt_index"] == 1
+    assert attempt["retry_group"] == 1
+    assert attempt["log_entries"][0]["kind"] == "summary"
+    assert attempt["log_entries_file"] == "history/linux-maa/runs/manual/manual-1.json"
+    assert (tmp_path / "history/linux-maa/runs/manual/manual-1.json").is_file()
+    assert store.run("manual-1").summary == {"generated_config_dir": "runtime/maa/generated-configs/manual-1"}
 
 
 def test_diagnostics_retention_prunes_debug_artifacts(tmp_path: Path) -> None:

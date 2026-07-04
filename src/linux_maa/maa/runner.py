@@ -13,7 +13,9 @@ import tomllib
 from linux_maa.android import ADBDevice
 from linux_maa.config.tasks import TASK_SUFFIXES, prepare_framework_task_config
 from linux_maa.diagnostics import Diagnostics, get_logger
-from linux_maa.logs import RunLogBuffer
+from linux_maa.logs import LogSourceSpec, RunLogBuffer
+from linux_maa.logs.pipeline import default_tone_for_source
+from linux_maa.maa.log_templates import MaaLogTemplate
 from linux_maa.settings import DEFAULT_DEVICE_SERIAL, DEFAULT_TARGET_PACKAGE
 from linux_maa.maa.runtime import MaaRuntime, find_repo_root
 from linux_maa.process import run_streaming_process
@@ -301,6 +303,7 @@ class MaaRunManager:
             )
             state.log_file = self.diagnostics.maa_cli_log_file(run_id)
             state.log_files = self.diagnostics.maa_cli_log_files(run_id)
+            _register_maa_cli_log_sources(state.log)
             state.maacore_log_start = self.diagnostics.maacore_log_offset()
             self.run_state.create_manual_run(
                 run_id=run_id,
@@ -364,7 +367,7 @@ class MaaRunManager:
 
     def _append_maa_log(self, state: MaaRunState, text: str, stream: str = "output") -> None:
         self.diagnostics.append_maa_cli_output(state.id, stream, text)
-        if state.log.append_process_output(text, source=f"maa-cli:{stream}", parser="maa"):
+        if state.log.append(text, source=f"maa-cli:{stream}"):
             self._mark_log_updated(state)
 
     def _flush_maa_log(self, state: MaaRunState) -> None:
@@ -387,6 +390,19 @@ class MaaRunManager:
         maacore_log_file = self.diagnostics.capture_maacore_log(state.id, state.maacore_log_start)
         if maacore_log_file is not None:
             state.maacore_log_file = maacore_log_file
+        generated_config_dir = relative_path(self.runtime.generated_config_dir / state.id, self.runtime.repo_root)
+        self.run_state.add_single_attempt(
+            run_id=state.id,
+            status=status,
+            started_at=state.created_at,
+            ended_at=state.updated_at,
+            return_code=return_code,
+            task_results=state.log.task_results(),
+            log_entries=state.log.entries(),
+            log_file=state.log_file,
+            log_files=state.log_files,
+            generated_config_dir=generated_config_dir,
+        )
         self.run_state.finish_generic_run(
             state.id,
             status=status,
@@ -394,7 +410,7 @@ class MaaRunManager:
             maacore_log_file=maacore_log_file,
             summary={
                 "task_results": state.log.task_results(),
-                "generated_config_dir": relative_path(self.runtime.generated_config_dir / state.id, self.runtime.repo_root),
+                "generated_config_dir": generated_config_dir,
             },
         )
         self.run_state.enforce_retention()
@@ -458,3 +474,9 @@ class MaaRunManager:
     def _notify_locked(self) -> None:
         self._version += 1
         self._condition.notify_all()
+
+
+def _register_maa_cli_log_sources(log: RunLogBuffer) -> None:
+    template = MaaLogTemplate()
+    for source in ("maa-cli:stdout", "maa-cli:stderr"):
+        log.register_source(LogSourceSpec(source, template, default_tone_for_source(source)))

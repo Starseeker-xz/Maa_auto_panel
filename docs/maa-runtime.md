@@ -156,18 +156,19 @@ The WebUI captures visible process channels through the shared
   process output is kept only in the external stdout/stderr files.
 
 The WebUI run manager does not pass raw `maa-cli` log chunks straight through.
-The `src/linux_maa/logs/` package owns the WebUI-visible log stream. `RunLogBuffer`
-stores the bounded `output`, `task_results`, and `log_entries` shape used by
-manual runs, scheduled runs, tool runs, and maintenance actions. `RunLogTranslator`
-parses MAA-aware output through configurable chunk rules: `rules.py` defines the
-explicit summary rule, task-lifecycle rule, and default line rule; `translator.py`
-owns the state machine that applies those rules to a stream. The
-task-lifecycle rule opens a child-task panel on `TaskName Start` and closes it on
-`TaskName Completed`, `TaskName Error`, or `TaskName Stopped`. Unmatched lines use
-the default line rule; when a task panel is active, those lines remain child
-messages of that task, preserving current UI behavior. Plain process logs, such
-as arbitrary schedule script output, use a non-MAA parser so ordinary script text
-does not accidentally become task or summary cards.
+The `src/linux_maa/logs/` package owns the generic WebUI-visible log pipeline:
+source registration, terminal control characters, block assembly, bounded
+`output`, and unified `log_entries`. Callers register a source with an explicit
+template. MAA-aware parsing and translation live in
+`src/linux_maa/maa/log_templates.py`, while arbitrary script and tool output use
+the generic plain-line template. Raw stdout/stderr persistence remains owned by
+`Diagnostics`.
+
+The visible log API uses one block shape for all rows. Plain lines, MAA child
+task blocks, run summaries, git output groups, and framework events differ by
+`kind` and metadata rather than by separate record types. MAA templates project
+task-kind blocks into `task_results` for scheduler policy decisions, and expose
+current block elapsed time for child timeout checks.
 
 Framework preprocessing events also enter the same structured log stream;
 current examples include the resolved Fight stage and Infrast plan before

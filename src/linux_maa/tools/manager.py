@@ -10,7 +10,8 @@ from typing import Any, Callable
 
 from linux_maa.config import ConfigManager
 from linux_maa.diagnostics import Diagnostics, get_logger
-from linux_maa.logs import RunLogBuffer
+from linux_maa.logs import LogSourceSpec, PlainLogTemplate, RunLogBuffer
+from linux_maa.logs.pipeline import default_tone_for_source
 from linux_maa.maa.runtime import MaaRuntime
 from linux_maa.process import run_streaming_process
 from linux_maa.run_state import RunStateStore
@@ -185,6 +186,7 @@ class ToolRunManager:
             )
             state.log_file = self.diagnostics.tool_log_file(run_id)
             state.log_files = self.diagnostics.tool_log_files(run_id)
+            _register_tool_log_sources(state.log)
             self.run_state.create_tool_run(
                 run_id=run_id,
                 tool_id=tool_id,
@@ -271,7 +273,7 @@ class ToolRunManager:
 
     def _append_stream_output(self, state: ToolRunState, stream: str, text: str) -> None:
         self.diagnostics.append_tool_output(state.id, stream, text)
-        if state.log.append_process_output(text, source=f"tool:{stream}", parser="maa"):
+        if state.log.append(text, source=f"tool:{stream}"):
             self._mark_log_updated(state)
 
     def _flush_tool_log(self, state: ToolRunState) -> None:
@@ -301,6 +303,17 @@ class ToolRunManager:
             state.process = None
             state.updated_at = datetime.now().isoformat(timespec="seconds")
             self._notify_locked()
+        self.run_state.add_single_attempt(
+            run_id=state.id,
+            status=status,
+            started_at=state.created_at,
+            ended_at=state.updated_at,
+            return_code=return_code,
+            task_results=state.log.task_results(),
+            log_entries=state.log.entries(),
+            log_file=state.log_file,
+            log_files=state.log_files,
+        )
         self.run_state.finish_generic_run(state.id, status=status, return_code=return_code)
         self.run_state.enforce_retention()
         self.diagnostics.enforce_retention()
@@ -362,3 +375,9 @@ def _sanitize_config(config: dict[str, object]) -> dict[str, object]:
 
 def _ensure_newline(text: str) -> str:
     return text if text.endswith("\n") else f"{text}\n"
+
+
+def _register_tool_log_sources(log: RunLogBuffer) -> None:
+    template = PlainLogTemplate()
+    for source in ("tool:stdout", "tool:stderr"):
+        log.register_source(LogSourceSpec(source, template, default_tone_for_source(source)))

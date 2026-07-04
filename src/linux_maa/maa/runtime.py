@@ -86,6 +86,14 @@ class MaaRuntime:
     def scheduler_state_dir(self) -> Path:
         return self.framework_state_dir / "scheduler"
 
+    @property
+    def framework_history_dir(self) -> Path:
+        return self.repo_root / "history" / "linux-maa"
+
+    @property
+    def run_history_dir(self) -> Path:
+        return self.framework_history_dir / "runs"
+
     def env(self) -> dict[str, str]:
         env = os.environ.copy()
         env["PATH"] = f"{self.maa_bin.parent}:{env.get('PATH', '')}"

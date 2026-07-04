@@ -45,7 +45,7 @@ Session: `2026-07-03_1200-audit-and-refactor-codex`
 
 | 文件 | 覆盖 |
 |------|------|
-| `test_maa_logs.py` | RunLogTranslator 任务生命周期解析 |
+| `test_maa_logs.py` | 通用日志管线与 MAA 模板解析 |
 | `test_run_state_and_diagnostics.py` | RunStateStore + Diagnostics |
 | `test_scheduler_policy.py` | 游戏日排序、重试策略 |
 | `test_scheduler_service_status.py` | 最终状态判定 |
@@ -58,7 +58,7 @@ Session: `2026-07-03_1200-audit-and-refactor-codex`
 ### 已删除（`2026-07-03_1926-project-review`）
 - ~~`src/linux_maa/adb.py`、`constants.py`、`game_update.py`、`maa_runner.py`~~ — 兼容 re-export 模块，零引用
 - ~~`src/linux_maa/maa/logs/`~~ — 兼容导出目录，零引用
-- ~~`MaaLogMessage`、`MaaSummaryLogRecord`、`MaaTaskLogRecord`、`MaaCliLogTranslator`~~ — 兼容别名
+- 旧日志兼容别名与 `RunLogTranslator` 已移除；当前只有统一 block entry 与 source template pipeline。
 - ~~前端 `logs.ts` 中的 `translateLogLine()`~~ — 未使用
 
 ### 新增（`2026-07-xx` 各 session）
@@ -73,7 +73,7 @@ Session: `2026-07-03_1200-audit-and-refactor-codex`
 
 ### 发现的新死代码
 1. ~~**`src/linux_maa/scheduler/store.py`**~~ — `ScheduleStore = RunStateStore` 别名，全代码库零导入。**已删除**（`2026-07-03_1200`）。
-2. ~~`src/linux_maa/logs/translator.py` 中的 `translate_maa_cli_log()`~~ — **经核实非死代码**：有测试覆盖（`test_compat_helper_flushes_one_shot_translation`），是一次性翻译公共 API 辅助函数。
+2. `src/linux_maa/logs/translator.py` 中的旧 `translate_maa_cli_log()` 已在日志管线模块化重构中删除；可见日志现在由通用 pipeline 加调用方模板生成。
 
 ### 前端重复常量
 - `CONNECTION_TYPES`、`CONNECTION_CONFIGS`、`TOUCH_MODES` 在 `SettingsPage.tsx` 和 `ProfileEditor.tsx` 中重复定义。**已修复**（`2026-07-03_1200`）：提取到 `lib/constants.ts`。同时确认 `buttonVariants` 导入在两处均在 JSX 中使用，非死导入。

@@ -10,7 +10,9 @@ from typing import Any
 
 from linux_maa.config import ConfigManager, FrameworkSettingsManager
 from linux_maa.diagnostics import Diagnostics, get_logger
-from linux_maa.logs import RunLogBuffer
+from linux_maa.logs import LogSourceSpec, PlainLogTemplate, RunLogBuffer
+from linux_maa.logs.pipeline import default_tone_for_source
+from linux_maa.maa.log_templates import MaaLogTemplate
 from linux_maa.maa.runner import load_task_file, prepare_maa_cli_task, resolve_task_file
 from linux_maa.maa.runtime import MaaRuntime
 from linux_maa.process import run_streaming_process
@@ -299,6 +301,7 @@ class SchedulerService:
             )
             state.log_file = self.diagnostics.maa_cli_log_file(run_id)
             state.log_files = self.diagnostics.maa_cli_log_files(run_id)
+            _register_schedule_log_sources(state.log, include_script=bool(config.restart.script))
             if config.restart.script:
                 state.log_files.update(self.diagnostics.script_log_files(run_id))
             state.maacore_log_start = self.diagnostics.maacore_log_offset()
@@ -607,7 +610,7 @@ class SchedulerService:
 
     def _append_maa_log(self, state: ScheduleRunState, text: str, stream: str = "output") -> None:
         self.diagnostics.append_maa_cli_output(state.id, stream, text)
-        if state.log.append_process_output(text, source=f"maa-cli:{stream}", parser="maa"):
+        if state.log.append(text, source=f"maa-cli:{stream}"):
             self._mark_log_updated(state)
 
     def _flush_maa_log(self, state: ScheduleRunState) -> None:
@@ -615,7 +618,7 @@ class SchedulerService:
 
     def _append_script_log(self, state: ScheduleRunState, text: str, stream: str = "output") -> None:
         self.diagnostics.append_script_output(state.id, stream, text)
-        if state.log.append_process_output(text, source=f"script:{stream}", parser="plain"):
+        if state.log.append(text, source=f"script:{stream}"):
             self._mark_log_updated(state)
 
     def _flush_run_log(self, state: ScheduleRunState) -> None:
@@ -641,7 +644,7 @@ class SchedulerService:
 
         def check() -> None:
             nonlocal warned_task, dangered_task, killed_task
-            current = state.log.current_task_elapsed_seconds()
+            current = state.log.current_block_elapsed_seconds(kind="task")
             if current is None:
                 return
             task_name, elapsed = current
@@ -726,6 +729,16 @@ def _expected_log_tasks(policy_by_id: dict[str, TaskPolicy], task_ids: list[str]
         for task_id in task_ids
         if task_id in policy_by_id
     ]
+
+
+def _register_schedule_log_sources(log: RunLogBuffer, *, include_script: bool) -> None:
+    maa_template = MaaLogTemplate()
+    for source in ("maa-cli:stdout", "maa-cli:stderr"):
+        log.register_source(LogSourceSpec(source, maa_template, default_tone_for_source(source)))
+    if include_script:
+        script_template = PlainLogTemplate()
+        for source in ("script:stdout", "script:stderr"):
+            log.register_source(LogSourceSpec(source, script_template, default_tone_for_source(source)))
 
 
 def _final_status(

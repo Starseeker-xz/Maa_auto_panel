@@ -275,7 +275,7 @@ def test_schedule_restart_script_streams_to_visible_logs_and_diagnostics(tmp_pat
     service._run_restart_script(state, config, "before_run")
 
     entries = state.to_dict()["log_entries"]
-    lines = [entry["text"] for entry in entries if entry["type"] == "line"]
+    lines = [entry["messages"][0]["text"] for entry in entries if entry["kind"] in {"event", "line"}]
     assert lines[0] == "运行重启脚本(before_run): hook.sh"
     assert set(lines[1:]) == {"Summary", "target=ark", f"warn={runtime.config_dir}"}
     assert state.log.task_results() == []

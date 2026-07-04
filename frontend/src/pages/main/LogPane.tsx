@@ -3,7 +3,7 @@ import { Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { STATUS_LABELS } from "@/lib/logs";
-import type { MaaLogEntry, MaaLogLineEntry, MaaLogMessage, MaaLogSummaryEntry, MaaLogTaskEntry, RunState } from "@/lib/types";
+import type { MaaLogEntry, MaaLogMessage, RunState } from "@/lib/types";
 import React from "react";
 
 type LogPaneProps = {
@@ -133,13 +133,7 @@ function RunDetailsPanel({ details }: { details: RunDetailItem[] }) {
 }
 
 function normalizeEntries(run: RunState): MaaLogEntry[] {
-  if (run.log_entries?.length) return run.log_entries;
-  const output = run.output || [];
-  return output
-    .join("")
-    .split(/\r?\n/)
-    .filter(Boolean)
-    .map((text) => ({ type: "line", text, tone: "default" }));
+  return run.log_entries || [];
 }
 
 function runDetails(run: RunState, entries: MaaLogEntry[]): RunDetailItem[] {
@@ -182,74 +176,33 @@ function selectionDetails(entries: MaaLogEntry[]) {
   return selections;
 }
 
-function flattenMessages(entries: MaaLogEntry[]): Array<MaaLogMessage | MaaLogLineEntry> {
-  const messages: Array<MaaLogMessage | MaaLogLineEntry> = [];
+function flattenMessages(entries: MaaLogEntry[]): MaaLogMessage[] {
+  const messages: MaaLogMessage[] = [];
   for (const entry of entries) {
-    if (entry.type === "line") {
-      messages.push(entry);
-      continue;
-    }
     if (entry.messages?.length) messages.push(...entry.messages);
   }
   return messages;
 }
 
 function LogEntryView({ entry }: { entry: MaaLogEntry }) {
-  if (entry.type === "task") return <TaskEntryView entry={entry} />;
-  if (entry.type === "summary") return <SummaryEntryView entry={entry} />;
-  return <LineEntryView entry={entry} />;
-}
-
-function LineEntryView({ entry }: { entry: MaaLogLineEntry }) {
-  return (
-    <div className="grid grid-cols-[3.75rem_minmax(0,1fr)] items-start gap-2">
-      <TimeStamp time={entry.time} />
-      <div className="rounded-md border bg-background px-3 py-1.5 text-xs leading-5 shadow-sm">
-        <MessageContent message={entry} />
-      </div>
-    </div>
-  );
-}
-
-function TaskEntryView({ entry }: { entry: MaaLogTaskEntry }) {
-  const statusClass = TASK_STATUS_CLASS[entry.status] || TASK_STATUS_CLASS.unknown;
-  const panelClass = TASK_PANEL_CLASS[entry.status] || TASK_PANEL_CLASS.unknown;
-  const title = `任务 ${entry.name} ${TASK_STATUS_LABELS[entry.status] || entry.status}`;
-  const time = entry.ended_at || entry.started_at || undefined;
+  const isCompact = entry.kind === "line" || entry.kind === "event";
+  const status = entry.status || "unknown";
+  const statusClass = TASK_STATUS_CLASS[status] || TASK_STATUS_CLASS.unknown;
+  const panelClass = TASK_PANEL_CLASS[status] || TASK_PANEL_CLASS.unknown;
+  const time = entry.ended_at || entry.started_at || entry.time || undefined;
+  const title = blockTitle(entry);
+  const messages = entry.messages?.length ? entry.messages : fallbackMessages(entry);
 
   return (
     <div className="grid grid-cols-[3.75rem_minmax(0,1fr)] items-start gap-2">
       <TimeStamp time={time} />
-      <div className={`rounded-md border-2 px-3 py-2 text-xs leading-5 transition-colors ${panelClass}`}>
-        <div className={`font-medium ${statusClass}`}>{title}</div>
-        {entry.messages?.length ? (
-          <div className="mt-1 grid gap-0.5">
-            {entry.messages.map((message, index) => (
-              <MessageContent key={index} message={message} />
-            ))}
-          </div>
-        ) : null}
-      </div>
-    </div>
-  );
-}
-
-function SummaryEntryView({ entry }: { entry: MaaLogSummaryEntry }) {
-  const statusClass = TASK_STATUS_CLASS[entry.status] || TASK_STATUS_CLASS.unknown;
-  const panelClass = TASK_PANEL_CLASS[entry.status] || TASK_PANEL_CLASS.unknown;
-
-  return (
-    <div className="grid grid-cols-[3.75rem_minmax(0,1fr)] items-start gap-2">
-      <TimeStamp />
-      <div className={`rounded-md border-2 px-3 py-2 text-xs leading-5 transition-colors ${panelClass}`}>
-        <div className={`font-medium ${statusClass}`}>{entry.title || "运行摘要"}</div>
-        {entry.messages?.length ? (
-          <div className="mt-1 grid gap-0.5">
-            {entry.messages.map((message, index) => (
-              <MessageContent key={index} message={message} />
-            ))}
-          </div>
-        ) : null}
+      <div className={isCompact ? "rounded-md border bg-background px-3 py-1.5 text-xs leading-5 shadow-sm" : `rounded-md border-2 px-3 py-2 text-xs leading-5 transition-colors ${panelClass}`}>
+        {!isCompact && title ? <div className={`font-medium ${statusClass}`}>{title}</div> : null}
+        <div className={isCompact ? "grid gap-0.5" : "mt-1 grid gap-0.5"}>
+          {messages.map((message, index) => (
+            <MessageContent key={index} message={message} />
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -259,7 +212,7 @@ function TimeStamp({ time }: { time?: string | null }) {
   return <div className="pt-1.5 text-right font-mono text-xs leading-5 text-muted-foreground tabular-nums">{time || ""}</div>;
 }
 
-function MessageContent({ message }: { message: MaaLogMessage | MaaLogLineEntry }) {
+function MessageContent({ message }: { message: MaaLogMessage }) {
   const toneClass = MESSAGE_TONE_CLASS[message.tone || "default"] || MESSAGE_TONE_CLASS.default;
 
   return (
@@ -284,4 +237,21 @@ function MessageContent({ message }: { message: MaaLogMessage | MaaLogLineEntry 
       ) : null}
     </div>
   );
+}
+
+function blockTitle(entry: MaaLogEntry) {
+  if (entry.kind === "task") return `任务 ${entry.name || entry.title || ""} ${entry.status ? TASK_STATUS_LABELS[entry.status] || entry.status : ""}`.trim();
+  if (entry.kind === "summary") return entry.title || "运行摘要";
+  if (entry.kind === "event") return entry.title || "";
+  return "";
+}
+
+function fallbackMessages(entry: MaaLogEntry): MaaLogMessage[] {
+  if ((entry.kind === "line" || entry.kind === "event") && entry.lines.length) {
+    return entry.lines.map((line) => ({ text: line, tone: entry.tone || "default" }));
+  }
+  if (entry.kind === "line" || entry.kind === "event") {
+    if (entry.title) return [{ text: entry.title, tone: entry.tone || "default" }];
+  }
+  return [];
 }

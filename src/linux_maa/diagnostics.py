@@ -6,10 +6,13 @@ import threading
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-from linux_maa.maa.runtime import MaaRuntime
 from linux_maa.storage.files import append_jsonl, append_text, read_jsonl
 from linux_maa.utils import relative_path, write_text_atomic
+
+if TYPE_CHECKING:
+    from linux_maa.maa.runtime import MaaRuntime
 
 
 LOGGER_NAME = "linux_maa"

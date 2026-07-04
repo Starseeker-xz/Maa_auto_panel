@@ -3,10 +3,13 @@ from __future__ import annotations
 import threading
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Any, Literal
 
 from linux_maa.maa.runtime import MaaRuntime
 from linux_maa.storage.files import read_json_object, write_json_object
+
+from linux_maa.utils import relative_path, slugify
 
 
 RunKind = Literal["manual", "schedule", "maintenance", "tool"]
@@ -116,6 +119,7 @@ class RunStateStore:
     def ensure_dirs(self) -> None:
         self.runtime.run_state_dir.mkdir(parents=True, exist_ok=True)
         self.runtime.scheduler_state_dir.mkdir(parents=True, exist_ok=True)
+        self.runtime.run_history_dir.mkdir(parents=True, exist_ok=True)
 
     def enforce_retention(self) -> None:
         with self._lock:
@@ -308,6 +312,22 @@ class RunStateStore:
         generated_config_dir: str | None = None,
     ) -> None:
         with self._lock:
+            history_file = self._write_attempt_history(
+                run_id=run_id,
+                attempt_id=attempt_id,
+                attempt_index=attempt_index,
+                retry_group=retry_group,
+                status=status,
+                started_at=started_at,
+                ended_at=ended_at,
+                return_code=return_code,
+                task_ids=task_ids,
+                task_results=task_results,
+                log_entries=log_entries,
+                log_file=log_file,
+                log_files=log_files,
+                generated_config_dir=generated_config_dir,
+            )
             attempts = [item for item in self._attempt_items() if item.get("id") != attempt_id]
             attempts.append(
                 {
@@ -321,13 +341,45 @@ class RunStateStore:
                     "return_code": return_code,
                     "task_ids": task_ids,
                     "task_results": task_results,
-                    "log_entries": log_entries,
+                    "log_entries_file": history_file,
                     "log_file": log_file,
                     "log_files": log_files or {},
                     "generated_config_dir": generated_config_dir,
                 }
             )
             self._write_attempts(attempts[-self.retention.max_attempt_records :])
+
+    def add_single_attempt(
+        self,
+        *,
+        run_id: str,
+        status: str,
+        started_at: str,
+        ended_at: str,
+        return_code: int | None,
+        task_results: list[dict[str, Any]],
+        log_entries: list[dict[str, Any]],
+        task_ids: list[str] | None = None,
+        log_file: str | None = None,
+        log_files: dict[str, str] | None = None,
+        generated_config_dir: str | None = None,
+    ) -> None:
+        self.add_attempt(
+            attempt_id=f"{run_id}-1",
+            run_id=run_id,
+            attempt_index=1,
+            retry_group=1,
+            status=status,
+            started_at=started_at,
+            ended_at=ended_at,
+            return_code=return_code,
+            task_ids=task_ids or [],
+            task_results=task_results,
+            log_entries=log_entries,
+            log_file=log_file,
+            log_files=log_files,
+            generated_config_dir=generated_config_dir,
+        )
 
     def daily_stats(self, schedule_id: str, game_day: str) -> dict[str, object]:
         from linux_maa.scheduler.models import DailyTaskStats
@@ -423,7 +475,7 @@ class RunStateStore:
     def attempts(self, run_id: str) -> list[dict[str, object]]:
         rows = [item for item in self._attempt_items() if item.get("run_id") == run_id]
         rows.sort(key=lambda item: _int_value(item.get("attempt_index")))
-        return rows
+        return [self._attempt_with_history(row) for row in rows]
 
     def _upsert_run(self, patch: dict[str, object]) -> None:
         with self._lock:
@@ -452,6 +504,88 @@ class RunStateStore:
         attempts = data.get("attempts")
         return [item for item in attempts if isinstance(item, dict)] if isinstance(attempts, list) else []
 
+    def _write_attempt_history(
+        self,
+        *,
+        run_id: str,
+        attempt_id: str,
+        attempt_index: int,
+        retry_group: int,
+        status: str,
+        started_at: str,
+        ended_at: str,
+        return_code: int | None,
+        task_ids: list[str],
+        task_results: list[dict[str, Any]],
+        log_entries: list[dict[str, Any]],
+        log_file: str | None,
+        log_files: dict[str, str] | None,
+        generated_config_dir: str | None,
+    ) -> str:
+        run = self.run(run_id)
+        path = self._run_history_path(run_id, run)
+        existing = read_json_object(path)
+        attempts = [item for item in existing.get("attempts", []) if isinstance(item, dict)]
+        attempts = [item for item in attempts if item.get("id") != attempt_id]
+        attempts.append(
+            {
+                "id": attempt_id,
+                "run_id": run_id,
+                "attempt_index": attempt_index,
+                "retry_group": retry_group,
+                "status": status,
+                "started_at": started_at,
+                "ended_at": ended_at,
+                "return_code": return_code,
+                "task_ids": task_ids,
+                "task_results": task_results,
+                "log_entries": log_entries,
+                "log_file": log_file,
+                "log_files": log_files or {},
+                "generated_config_dir": generated_config_dir,
+            }
+        )
+        attempts.sort(key=lambda item: _int_value(item.get("attempt_index")))
+        data: dict[str, object] = {
+            "description": "Durable run history with visible log blocks.",
+            "updated_at": _now(),
+            "run": run.to_dict() if run is not None else {"id": run_id},
+            "attempts": attempts,
+        }
+        write_json_object(path, data)
+        return relative_path(path, self.runtime.repo_root)
+
+    def _attempt_with_history(self, row: dict[str, object]) -> dict[str, object]:
+        output = dict(row)
+        if "log_entries" in output:
+            return output
+        history_file = output.get("log_entries_file")
+        if not isinstance(history_file, str) or not history_file:
+            output["log_entries"] = []
+            return output
+        path = self.runtime.repo_root / history_file
+        data = read_json_object(path)
+        attempt_id = output.get("id")
+        for item in data.get("attempts", []):
+            if isinstance(item, dict) and item.get("id") == attempt_id:
+                output["log_entries"] = item.get("log_entries") if isinstance(item.get("log_entries"), list) else []
+                if "task_results" not in output and isinstance(item.get("task_results"), list):
+                    output["task_results"] = item["task_results"]
+                return output
+        output["log_entries"] = []
+        return output
+
+    def _run_history_path(self, run_id: str, run: StoredRun | None) -> Path:
+        if run is None:
+            return self.runtime.run_history_dir / "unknown" / f"{run_id}.json"
+        if run.kind == "schedule":
+            return self.runtime.run_history_dir / "schedules" / _safe_path_part(run.schedule_id or "unknown-schedule") / f"{run_id}.json"
+        if run.kind == "tool":
+            return self.runtime.run_history_dir / "tools" / _safe_path_part(run.tool_id or "unknown-tool") / f"{run_id}.json"
+        if run.kind == "maintenance":
+            return self.runtime.run_history_dir / "maintenance" / _safe_path_part(run.maintenance_kind or "unknown-maintenance") / f"{run_id}.json"
+        return self.runtime.run_history_dir / "manual" / f"{run_id}.json"
+
     def _trigger_items(self) -> list[dict[str, object]]:
         data = read_json_object(self.triggers_path)
         triggers = data.get("triggered_entries")
@@ -469,7 +603,7 @@ class RunStateStore:
 
     def _write_attempts(self, attempts: list[dict[str, object]]) -> None:
         data = {
-            "description": "Per-attempt records for scheduled runs. Manual and maintenance runs do not use retry attempts.",
+            "description": "Per-attempt run index. Log blocks are stored in history/linux-maa/runs and referenced by log_entries_file.",
             "updated_at": _now(),
             "attempts": attempts,
         }
@@ -587,3 +721,7 @@ def _int_value(value: object) -> int:
         return int(value)
     except (TypeError, ValueError):
         return 0
+
+
+def _safe_path_part(value: str) -> str:
+    return slugify(value) or "unknown"

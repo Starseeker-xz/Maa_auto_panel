@@ -6,20 +6,23 @@ from typing import Literal
 
 TaskStatus = Literal["running", "succeeded", "failed", "stopped", "unknown"]
 LogTone = Literal["default", "success", "warning", "danger", "info"]
+LogBlockKind = Literal["line", "task", "summary", "event"]
 
 
 @dataclass
-class RunLogMessage:
-    """A single log message with optional timestamp, tone, raw text, and rich segments."""
+class LogMessage:
+    """A rendered message inside a visible log block."""
+
     text: str
     time: str | None = None
     tone: LogTone = "default"
     raw: str | None = None
     segments: list[dict[str, object]] = field(default_factory=list)
+    image: dict[str, object] | None = None
+    metadata: dict[str, object] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, object]:
         data: dict[str, object] = {
-            "type": "text",
             "text": self.text,
             "tone": self.tone,
         }
@@ -29,63 +32,68 @@ class RunLogMessage:
             data["raw"] = self.raw
         if self.segments:
             data["segments"] = list(self.segments)
-        return data
-
-    def to_line_entry(self) -> dict[str, object]:
-        data = self.to_dict()
-        data["type"] = "line"
+        if self.image:
+            data["image"] = dict(self.image)
+        if self.metadata:
+            data["metadata"] = dict(self.metadata)
         return data
 
 
 @dataclass
-class TaskLogRecord:
-    """Structured record for a single MAA task lifecycle: status, timing, messages, raw lines."""
-    name: str
-    status: TaskStatus
-    task_id: str | None = None
-    source_name: str | None = None
-    rule_id: str = "maa-task-lifecycle"
-    panel_kind: str = "task"
+class LogEntry:
+    """A single visible log block. All panel rows use this shape."""
+
+    id: str
+    source: str
+    kind: LogBlockKind
+    title: str = ""
+    status: TaskStatus | None = None
+    time: str | None = None
     started_at: str | None = None
     ended_at: str | None = None
-    messages: list[RunLogMessage] = field(default_factory=list)
+    tone: LogTone = "default"
+    messages: list[LogMessage] = field(default_factory=list)
     lines: list[str] = field(default_factory=list)
+    raw: str | None = None
+    metadata: dict[str, object] = field(default_factory=dict)
+    name: str | None = None
+    task_id: str | None = None
+    source_name: str | None = None
+    rule_id: str | None = None
+    panel_kind: str | None = None
 
     def to_dict(self) -> dict[str, object]:
         data: dict[str, object] = {
-            "type": "task",
-            "name": self.name,
-            "status": self.status,
-            "rule_id": self.rule_id,
-            "panel_kind": self.panel_kind,
-            "started_at": self.started_at,
-            "ended_at": self.ended_at,
+            "type": "block",
+            "id": self.id,
+            "source": self.source,
+            "kind": self.kind,
+            "tone": self.tone,
             "messages": [message.to_dict() for message in self.messages],
             "lines": list(self.lines),
         }
-        if self.source_name and self.source_name != self.name:
-            data["source_name"] = self.source_name
+        if self.title:
+            data["title"] = self.title
+        if self.status:
+            data["status"] = self.status
+        if self.time:
+            data["time"] = self.time
+        if self.started_at:
+            data["started_at"] = self.started_at
+        if self.ended_at:
+            data["ended_at"] = self.ended_at
+        if self.raw:
+            data["raw"] = self.raw
+        if self.metadata:
+            data["metadata"] = dict(self.metadata)
+        if self.name:
+            data["name"] = self.name
         if self.task_id:
             data["task_id"] = self.task_id
+        if self.source_name and self.source_name != self.name:
+            data["source_name"] = self.source_name
+        if self.rule_id:
+            data["rule_id"] = self.rule_id
+        if self.panel_kind:
+            data["panel_kind"] = self.panel_kind
         return data
-
-
-@dataclass
-class SummaryLogRecord:
-    """Structured record for run summary panel: status, messages, raw lines."""
-    status: TaskStatus = "succeeded"
-    title: str = "运行摘要"
-    messages: list[RunLogMessage] = field(default_factory=list)
-    lines: list[str] = field(default_factory=list)
-
-    def to_dict(self) -> dict[str, object]:
-        return {
-            "type": "summary",
-            "title": self.title,
-            "status": self.status,
-            "messages": [message.to_dict() for message in self.messages],
-            "lines": list(self.lines),
-        }
-
-
-LogEntry = RunLogMessage | SummaryLogRecord | TaskLogRecord

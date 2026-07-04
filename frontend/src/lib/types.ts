@@ -287,25 +287,30 @@ export type MaaLogMessage = {
   raw?: string | null;
   segments?: MaaLogSegment[];
   image?: MaaLogImage | null;
+  metadata?: Record<string, unknown>;
 };
 
-export type MaaLogLineEntry = Omit<MaaLogMessage, "type"> & {
-  type: "line";
-};
-
-export type MaaLogTaskEntry = MaaTaskResult & {
-  type: "task";
-};
-
-export type MaaLogSummaryEntry = {
-  type: "summary";
-  title: string;
-  status: "running" | "succeeded" | "failed" | "stopped" | "unknown";
+export type MaaLogEntry = {
+  type: "block";
+  id: string;
+  source: string;
+  kind: "line" | "task" | "summary" | "event";
+  title?: string;
+  status?: "running" | "succeeded" | "failed" | "stopped" | "unknown";
+  time?: string | null;
+  started_at?: string | null;
+  ended_at?: string | null;
+  tone?: MaaLogTone;
   messages?: MaaLogMessage[];
   lines: string[];
+  raw?: string | null;
+  metadata?: Record<string, unknown>;
+  name?: string;
+  task_id?: string;
+  source_name?: string;
+  rule_id?: string;
+  panel_kind?: string;
 };
-
-export type MaaLogEntry = MaaLogLineEntry | MaaLogTaskEntry | MaaLogSummaryEntry;
 
 export type SaveTaskConfigPayload = {
   data: Record<string, unknown>;
