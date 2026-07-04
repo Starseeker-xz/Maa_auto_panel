@@ -5,7 +5,7 @@ from typing import Annotated
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
-from linux_maa.maa import MaaRunRequest
+from linux_maa.maa.runner import MaaRunRequest
 from linux_maa.web.sse import state_event_stream
 from linux_maa.web.services import WebServices
 

@@ -2,8 +2,7 @@ from __future__ import annotations
 
 from fastapi import HTTPException
 
-from linux_maa.config import ConfigValidationFailure
-from linux_maa.state import state_or_idle
+from linux_maa.config.manager import ConfigValidationFailure
 
 
 def validation_exception(message: str, exc: ConfigValidationFailure) -> HTTPException:

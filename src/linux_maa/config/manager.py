@@ -10,7 +10,7 @@ import tomli_w
 from linux_maa.maa.runtime import MaaRuntime
 from linux_maa.config.schema import ConfigSchemaValidator
 from linux_maa.config.tasks import TASK_SUFFIXES, WRITABLE_TASK_SUFFIXES, inflate_managed_params_for_edit, task_items_to_config_data
-from linux_maa.storage import TrashManager, TrashRecord
+from linux_maa.storage.trash import TrashManager, TrashRecord
 from linux_maa.utils import relative_path, resolve_existing_named_file, slugify, validate_file_name, write_text_atomic
 
 CONFIG_KINDS = {

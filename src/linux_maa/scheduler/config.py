@@ -20,7 +20,7 @@ from linux_maa.scheduler.models import (
     schedule_id_from_name,
     slug,
 )
-from linux_maa.storage import TrashManager, TrashRecord
+from linux_maa.storage.trash import TrashManager, TrashRecord
 from linux_maa.utils import bounded_int, relative_path, validate_file_name, write_text_atomic
 
 

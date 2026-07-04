@@ -5,7 +5,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
-from linux_maa.config import ConfigValidationFailure
+from linux_maa.config.manager import ConfigValidationFailure
 from linux_maa.web.responses import validation_exception
 from linux_maa.web.sse import state_event_stream
 from linux_maa.web.services import WebServices

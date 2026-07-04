@@ -41,7 +41,7 @@ export function HelpTooltip({
   );
 }
 
-export function FieldLabel({ label, help, className }: { label: string; help?: string; className?: string }) {
+function FieldLabel({ label, help, className }: { label: string; help?: string; className?: string }) {
   return (
     <div className={cn("flex min-w-0 items-center gap-1.5 text-xs font-medium text-muted-foreground", className)}>
       <span className="min-w-0 truncate">{label}</span>

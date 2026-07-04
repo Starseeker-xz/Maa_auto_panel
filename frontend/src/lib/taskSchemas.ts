@@ -8,7 +8,7 @@ import mallTemplate from "@/config/task-editor-schemas/Mall.json";
 import recruitTemplate from "@/config/task-editor-schemas/Recruit.json";
 import startUpTemplate from "@/config/task-editor-schemas/StartUp.json";
 
-export type TaskEditorTemplate = {
+type TaskEditorTemplate = {
   schema: JsonSchema;
   general: string[];
   advanced?: string[];

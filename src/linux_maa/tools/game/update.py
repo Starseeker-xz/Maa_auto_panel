@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import os
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -11,7 +10,7 @@ import requests
 from bs4 import BeautifulSoup
 from tqdm import tqdm
 
-from linux_maa.android import ADBDevice
+from linux_maa.android.adb import ADBDevice
 from linux_maa.settings import (
     BILIGAME_API_URLS,
     DEFAULT_GAME_ID,

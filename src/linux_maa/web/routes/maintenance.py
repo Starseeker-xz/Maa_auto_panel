@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
 
-from linux_maa.web.responses import state_or_idle
+from linux_maa.state import state_or_idle
 from linux_maa.web.services import WebServices
 
 

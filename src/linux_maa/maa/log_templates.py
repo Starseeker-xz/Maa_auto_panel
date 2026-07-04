@@ -22,7 +22,7 @@ from linux_maa.logs.pipeline import (
 from linux_maa.logs.records import BlockStatus, LogMessage, LogTone
 
 if TYPE_CHECKING:
-    from linux_maa.logs import RunLogBuffer
+    from linux_maa.logs.state import RunLogBuffer
 
 
 TIME_VALUE_RE = r"(?:\d{4}-\d{2}-\d{2}\s+)?\d{2}:\d{2}:\d{2}"

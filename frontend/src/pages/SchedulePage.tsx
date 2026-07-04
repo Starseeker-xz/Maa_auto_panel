@@ -148,15 +148,6 @@ export function SchedulePage() {
     return data;
   }
 
-  async function refreshDetail(id = scheduleId) {
-    if (!id) return;
-    const data = await readSchedule(id);
-    setDetail(data);
-    setDraft(cloneConfig(data.config));
-    setDraftTaskConfig(null);
-    setSelectedEntryId((current) => (data.config.entries.some((entry) => entry.id === current) ? current : data.config.entries[0]?.id || ""));
-  }
-
   async function refreshAfterScheduleRun(finishedScheduleId: string) {
     try {
       const overviewPromise = listSchedules();

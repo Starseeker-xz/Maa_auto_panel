@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from linux_maa.logs import LogSourceSpec, RunLogBuffer, plain_translate_line
+from linux_maa.logs.pipeline import LogSourceSpec, plain_translate_line
+from linux_maa.logs.state import RunLogBuffer
 from linux_maa.maa.log_templates import register_maa_log_sources
 
 
@@ -80,7 +81,7 @@ def test_flush_closes_running_block_as_unfinished() -> None:
 def test_same_source_start_supersedes_running_task_as_unfinished() -> None:
     log = maa_log()
 
-    output = log.pipeline.append(
+    log.pipeline.append(
         "[2026-06-26 18:47:20 INFO ] Fight Start\n"
         "[2026-06-26 18:47:56 INFO ] Mall Start\n",
         source="maa-cli:stderr",
@@ -108,7 +109,7 @@ def test_task_end_takes_priority_over_start_matching() -> None:
 def test_user_interrupted_task_closes_as_unfinished() -> None:
     log = maa_log()
 
-    output = log.pipeline.append(
+    log.pipeline.append(
         "[2026-06-26 18:47:20 INFO ] Fight Start\n"
         "[2026-06-26 18:47:56 ERROR] Error: Interrupted by user!\n",
         source="maa-cli:stderr",

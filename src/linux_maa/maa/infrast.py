@@ -4,8 +4,6 @@ import json
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any
-
 from linux_maa.maa.runtime import MaaRuntime
 from linux_maa.utils import relative_path, validate_file_name
 

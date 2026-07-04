@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 import time
 from dataclasses import dataclass, field
-from typing import Any, Callable, Literal
+from typing import Callable, Literal
 
 from linux_maa.logs.records import BlockStatus, LogEntry, LogMessage, LogTone
 

@@ -11,6 +11,8 @@ Confidence: Confirmed / Likely / Hypothesis / Unknown.
 - Confirmed (`2026-07-03_1200-audit-and-refactor-codex`): 已清理所有死兼容模块（4 个顶层 re-export、`maa/logs/` 目录、旧别名、前端死 `translateLogLine`）。当前无遗留 TODO/FIXME/HACK 注释。
 - Confirmed (`2026-07-03_1200-audit-and-refactor-codex`): 唯一确认的死代码 `scheduler/store.py`（`ScheduleStore` 别名，零导入）已删除。`translate_maa_cli_log()` 经核实有测试覆盖，保留为合法公共 API。
 - Confirmed (`2026-07-03_1200-audit-and-refactor-codex`): 前端 `CONNECTION_TYPES`/`CONNECTION_CONFIGS`/`TOUCH_MODES` 已从 `SettingsPage` 和 `ProfileEditor` 中提取到共享 `lib/constants.ts`。
+- Confirmed (`2026-07-04_1115-review-cleanup`): 后端内部兼容/便利 re-export 导入已清理；`config`、`maa`、`logs`、`scheduler`、`storage`、`tools`、`tools.game`、`android`、`web` 包级 `__init__.py` 不再转发具体对象，内部代码改为从定义模块直接导入。`linux_maa.tools.game` 包仍保留为 `python -m linux_maa.tools.game` 入口，`ToolRunManager` 命令拼接不受影响。
+- Confirmed (`2026-07-04_1115-review-cleanup`): 前端清理了确认未使用的导出/类型面：`FieldLabel`、`TaskEditorTemplate`、多项仅内部引用的 API 响应子类型改为非导出，删除未用 `CardFooter` 和未用 `SchedulePage.refreshDetail()`；`ScrollBar` 保留为 `ScrollArea` 内部实现但不再导出。
 - Confirmed (`2026-07-04_clone-maa-sources`): 已将 MAA 和 maa-cli 上游源码浅克隆到 `external/`（已加入 `.gitignore`）：
   - `external/MaaAssistantArknights/` — MAA 主仓库（C++，含 MaaCore、resource、docs、tools）
   - `external/maa-cli/` — maa-cli 仓库（Rust，含 CLI crates、schemas、安装脚本）
@@ -51,6 +53,7 @@ Confidence: Confirmed / Likely / Hypothesis / Unknown.
 - Confirmed (`2026-06-30_2318-gpu-ocr-research`): `maa-cli v0.7.5` + `MaaCore v6.13.0`。MaaCore 仅含 CPU ONNX Runtime provider，NVIDIA RTX 2080 Ti / Intel iGPU 不可用 GPU OCR。
 - Confirmed (`2026-06-30_2056-scheduled-execution`): 默认 profile 目标 ADB `192.168.5.151:5555`，包 `com.hypergryph.arknights.bilibili`，客户端 `Bilibili`。连接 `CompatPOSIXShell`，触控 `MaaTouch`，CPU OCR。
 - Confirmed (`2026-07-01_2153-manage-service-history`): WebUI 生命周期临时由 systemd unit `/etc/systemd/system/linux-maa-webui.service` 管理。命令 `uv run linux-maa webui --host 0.0.0.0 --port 8000`，工作目录 `/root/Linux_maa`。已注册、已验证、`disabled`、`inactive`。
+- Confirmed (`2026-07-04_1115-review-cleanup`): 本轮后端清理后已重启 `linux-maa-webui.service`。unit 仍为 `disabled` 但当前 `active (running)`，监听 `0.0.0.0:8000`，`/api/settings` 本机 curl 正常。
 
 ---
 
@@ -180,6 +183,7 @@ Confidence: Confirmed / Likely / Hypothesis / Unknown.
 
 ## Latest Verification
 
+- Confirmed (`2026-07-04_1115-review-cleanup`): `uvx ruff check src tests`、`uvx vulture src tests --min-confidence 80`、`uv run python -m compileall -q src tests`、`npx tsc --noEmit --noUnusedLocals --noUnusedParameters --pretty false`、`uv run pytest -q`（50 tests）、`cd frontend && npm run build`、`uv run python -m linux_maa.tools.game --help` 均通过。Knip 仅误报 `@tailwindcss/vite` 未使用；该依赖由 `frontend/vite.config.ts` 使用，已保留。
 - Confirmed (`2026-07-04_1047-audit-log-pipeline-audit`): 精简日志测试后，`uv run pytest -q` — 50 tests pass；`uv run python -m compileall -q src tests` pass；`cd frontend && npm run build` pass（仅既有 Vite chunk warning）✅
 - Confirmed (`2026-07-04_1047-audit-log-pipeline-audit`): `uv run pytest -q` — 55 tests pass ✅
 - Confirmed (`2026-07-04_1047-audit-log-pipeline-audit`): `uv run python -m compileall -q src tests` ✅

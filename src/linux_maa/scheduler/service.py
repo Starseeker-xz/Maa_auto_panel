@@ -8,10 +8,12 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
-from linux_maa.config import ConfigManager, FrameworkSettingsManager
+from linux_maa.config.app_settings import FrameworkSettingsManager
+from linux_maa.config.manager import ConfigManager
 from linux_maa.diagnostics import Diagnostics, get_logger
-from linux_maa.logs import LogSourceSpec, RunLogBuffer, plain_translate_line
+from linux_maa.logs.pipeline import LogSourceSpec, plain_translate_line
 from linux_maa.logs.pipeline import default_tone_for_source
+from linux_maa.logs.state import RunLogBuffer
 from linux_maa.maa.log_templates import register_maa_log_sources
 from linux_maa.maa.runner import load_task_file, prepare_maa_cli_task, resolve_task_file
 from linux_maa.maa.runtime import MaaRuntime
@@ -162,7 +164,7 @@ class SchedulerService:
         if isinstance(profile, dict):
             validation = self.configs.schema_validator.validate_profile_config(profile)
             if not validation.valid:
-                from linux_maa.config import ConfigValidationFailure
+                from linux_maa.config.manager import ConfigValidationFailure
 
                 raise ConfigValidationFailure(validation)
         config = self.schedules.write(schedule_id, payload)
@@ -633,7 +635,7 @@ class SchedulerService:
         elif level == "danger":
             self._append_framework_event(state, f"运行时间已超过 {elapsed:.0f}s，即将触发硬停止。", tone="danger")
         else:
-            self._append_framework_event(state, f"运行时间已超过上限，正在终止 maa-cli。", tone="danger")
+            self._append_framework_event(state, "运行时间已超过上限，正在终止 maa-cli。", tone="danger")
 
     def _append_script_timeout_event(self, state: ScheduleRunState, level: str, elapsed: float) -> None:
         if level == "kill":

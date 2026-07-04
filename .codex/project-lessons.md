@@ -41,6 +41,7 @@ Mistake notebook for recurring project-specific issues. Source session id on eac
 
 ## Architecture & Process
 
+- `2026-07-04_1115-review-cleanup`: 清理包级或 helper 级 re-export 时，不只查 `__init__.py`。还要搜索像 `web.responses` 这类 helper 模块的偶然转发导入，并把调用方改到真正定义模块；否则删除“未使用导入”会破坏间接 import。
 - `2026-06-29_2137-project-state-docs`: 修改代码、配置布局、运行时行为、依赖、CLI 命令、WebUI 路由或前端结构时，显式检查 `README.md`、`docs/`、`.codex/project-history.md`、`.codex/project-lessons.md` 是否需要更新。
 - `2026-06-29_2137-project-state-docs`: 项目仍早期，不存在第三方调用方。对于重设计或升级，优先简化架构和删除废弃功能，而非保留旧行为作为 fallback。只在有明确当前运维理由时保留 fallback。
 

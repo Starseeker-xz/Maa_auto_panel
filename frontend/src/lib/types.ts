@@ -28,7 +28,7 @@ export type TaskItem = {
   };
 };
 
-export type ManagedParamItem = {
+type ManagedParamItem = {
   value: unknown;
   enabled?: boolean;
 };
@@ -41,7 +41,7 @@ export type ManagedParamSpec = {
   [key: string]: unknown;
 };
 
-export type ConfigValidationError = {
+type ConfigValidationError = {
   path: string;
   message: string;
   source: string;
@@ -107,13 +107,7 @@ export type RunStatePatchEvent = {
   log_entries?: RunArrayPatch<MaaLogEntry>;
 };
 
-export type RunStateResetEvent = RunState & {
-  type: "reset";
-};
-
-export type RunStateStreamEvent = RunStatePatchEvent | RunStateResetEvent | RunState;
-
-export type SchedulerStatus = {
+type SchedulerStatus = {
   enabled: boolean;
   status: string;
   current_run: RunState;
@@ -138,13 +132,13 @@ export type ScheduleEntry = {
   task_ids: string[];
 };
 
-export type ScheduleRetryPolicy = {
+type ScheduleRetryPolicy = {
   max_attempts_per_group: number;
   group_buffer_seconds: number;
   max_groups: number;
 };
 
-export type ScheduleTimeouts = {
+type ScheduleTimeouts = {
   child_warning_seconds: number;
   child_danger_seconds: number;
   child_kill_seconds: number;
@@ -153,7 +147,7 @@ export type ScheduleTimeouts = {
   run_kill_seconds: number;
 };
 
-export type RestartScriptPolicy = {
+type RestartScriptPolicy = {
   mode: "none" | "before_run" | "before_retry_group" | "before_retry";
   script: string;
   variables: Record<string, string>;
@@ -173,7 +167,7 @@ export type ScheduleConfig = {
   restart: RestartScriptPolicy;
 };
 
-export type TaskPolicy = {
+type TaskPolicy = {
   id: string;
   name: string;
   type: string;
@@ -183,7 +177,7 @@ export type TaskPolicy = {
   retry_even_success: boolean;
 };
 
-export type DailyTaskStats = {
+type DailyTaskStats = {
   task_id: string;
   task_name: string;
   successes: number;
@@ -211,7 +205,7 @@ export type ScheduledRunSummary = {
   summary: Record<string, unknown>;
 };
 
-export type RunHistoryAttempt = {
+type RunHistoryAttempt = {
   id: string;
   run_id: string;
   attempt_index: number;
@@ -235,19 +229,19 @@ export type RunHistoryResponse = {
   events: Array<Record<string, unknown>>;
 };
 
-export type ScriptVariable = {
+type ScriptVariable = {
   name: string;
   label: string;
   default: string;
 };
 
-export type ScheduleScriptInfo = {
+type ScheduleScriptInfo = {
   name: string;
   path: string;
   variables: ScriptVariable[];
 };
 
-export type ScheduleTimeline = {
+type ScheduleTimeline = {
   client: string;
   game_day: string;
   timezone_name: string;
@@ -288,16 +282,16 @@ export type MaaTaskResult = {
   lines: string[];
 };
 
-export type MaaLogTone = "default" | "success" | "warning" | "danger" | "info" | "theme";
-export type MaaBlockStatus = "default" | "running" | "succeeded" | "failed" | "stopped" | "unknown" | "unfinished" | "warning";
+type MaaLogTone = "default" | "success" | "warning" | "danger" | "info" | "theme";
+type MaaBlockStatus = "default" | "running" | "succeeded" | "failed" | "stopped" | "unknown" | "unfinished" | "warning";
 
-export type MaaLogSegment = {
+type MaaLogSegment = {
   text: string;
   tone?: MaaLogTone;
   strong?: boolean;
 };
 
-export type MaaLogImage = {
+type MaaLogImage = {
   src: string;
   alt?: string;
   width?: number;
@@ -342,7 +336,7 @@ export type SaveTaskConfigPayload = {
   task_items: TaskItem[];
 };
 
-export type TrashRecord = {
+type TrashRecord = {
   original_path: string;
   trash_path: string;
   deleted_at: string;
@@ -354,14 +348,14 @@ export type DeleteConfigResponse = {
   deleted: TrashRecord;
 };
 
-export type TimezoneInfo = {
+type TimezoneInfo = {
   name: string;
   offset_minutes: number;
   label: string;
   resolved_at: string;
 };
 
-export type FrameworkSettingsResponse = {
+type FrameworkSettingsResponse = {
   file: {
     path: string;
     exists: boolean;
@@ -385,7 +379,7 @@ export type MaintenanceActionState = {
   log_entries?: MaaLogEntry[];
 };
 
-export type UpdateComponentInfo = {
+type UpdateComponentInfo = {
   channel?: string;
   api_url?: string;
   version?: string;
@@ -397,7 +391,7 @@ export type UpdateComponentInfo = {
   [key: string]: unknown;
 };
 
-export type HotResourceUpdateInfo = {
+type HotResourceUpdateInfo = {
   branch?: string;
   url?: string;
   local_commit?: string;
@@ -405,7 +399,7 @@ export type HotResourceUpdateInfo = {
   update_available?: boolean;
 };
 
-export type LocalResourceVersionInfo = {
+type LocalResourceVersionInfo = {
   exists?: boolean;
   name?: string;
   last_updated?: string;
@@ -437,7 +431,7 @@ export type SettingsResponse = {
   maintenance: MaintenanceActionState;
 };
 
-export type ToolField = {
+type ToolField = {
   id: string;
   label: string;
   kind: string;
@@ -495,5 +489,3 @@ export type SaveSettingsPayload = {
   profile: Record<string, unknown>;
   maa_cli: Record<string, unknown>;
 };
-
-export type Page = "main" | "schedule" | "tools" | "settings";

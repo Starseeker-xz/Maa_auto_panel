@@ -3,12 +3,18 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from linux_maa.config import ConfigManager, FrameworkSettingsManager
+from linux_maa.config.app_settings import FrameworkSettingsManager
+from linux_maa.config.manager import ConfigManager
 from linux_maa.diagnostics import Diagnostics, get_logger
-from linux_maa.maa import MaaInfrastService, MaaRunManager, MaaRuntime, MaaStageService, MaintenanceActionManager, find_repo_root
+from linux_maa.maa.infrast import MaaInfrastService
+from linux_maa.maa.maintenance import MaintenanceActionManager
+from linux_maa.maa.runner import MaaRunManager
+from linux_maa.maa.runtime import MaaRuntime, find_repo_root
+from linux_maa.maa.stages import MaaStageService
 from linux_maa.run_state import RunStateStore
-from linux_maa.scheduler import ScheduleConfigManager, SchedulerService
-from linux_maa.tools import ToolRunManager
+from linux_maa.scheduler.config import ScheduleConfigManager
+from linux_maa.scheduler.service import SchedulerService
+from linux_maa.tools.manager import ToolRunManager
 
 logger = get_logger(__name__)
 
