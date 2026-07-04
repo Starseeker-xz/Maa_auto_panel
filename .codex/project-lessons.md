@@ -22,6 +22,10 @@ Mistake notebook for recurring project-specific issues. Source session id on eac
 
 ## Backend
 
+- `2026-07-04_1047-audit-log-pipeline-audit`: 不要把有界、会从头裁剪的日志列表长度当作 attempt/history 的持久 cursor。裁剪后 `entries[start:]` 可能为空或错位；需要独立 attempt buffer、单调序号 cursor，或 run-level history collector。
+- `2026-07-04_1003-audit-log-pipeline`: Do not call log/update helpers that may re-enter scheduler state notifications while holding a non-reentrant scheduler lock. `SchedulerService` uses `RLock` after `stop_current()` deadlocked through `_append_framework_event()` -> `_mark_log_updated()`.
+- `2026-07-04_1003-audit-log-pipeline`: 改完后端代码后，顺手重启 WebUI 服务 `linux-maa-webui.service`，避免运行中的服务继续使用旧代码。
+- `2026-07-04_1003-audit-log-pipeline`: 如果同一运行状态同时存在 recent index 和 per-run history 快照，收尾路径必须同步所有可被 UI/调试读取的快照；不能只更新 recent index。新增 `RunStateStore._sync_run_history()` 作为 finish 后同步点。
 - `2026-06-30_1743-fix-infrast-plan-select`: `MaaRuntime` 没有 `discover()` 辅助方法。直接构造 `MaaRuntime(find_repo_root())`。
 - `2026-06-30_2056-scheduled-execution`: 仓库级 `rg` 搜索应排除 `frontend/node_modules`、`docs/maa-upstream`、`runtime`，或显式指定目标路径。
 - `2026-06-30_2056-scheduled-execution`: 本环境无裸 `python` 命令。仓库内用 `uv run python ...` 使用项目解释器和依赖。

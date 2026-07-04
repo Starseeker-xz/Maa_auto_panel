@@ -211,6 +211,30 @@ export type ScheduledRunSummary = {
   summary: Record<string, unknown>;
 };
 
+export type RunHistoryAttempt = {
+  id: string;
+  run_id: string;
+  attempt_index: number;
+  retry_group: number;
+  status: string;
+  started_at: string;
+  ended_at: string;
+  return_code?: number | null;
+  task_ids: string[];
+  task_results?: MaaTaskResult[];
+  log_entries?: MaaLogEntry[];
+  log_entries_file?: string;
+  log_file?: string | null;
+  log_files?: Record<string, string>;
+  generated_config_dir?: string | null;
+};
+
+export type RunHistoryResponse = {
+  run: RunState;
+  attempts: RunHistoryAttempt[];
+  events: Array<Record<string, unknown>>;
+};
+
 export type ScriptVariable = {
   name: string;
   label: string;
@@ -264,8 +288,8 @@ export type MaaTaskResult = {
   lines: string[];
 };
 
-export type MaaLogTone = "default" | "success" | "warning" | "danger" | "info";
-export type MaaBlockStatus = "default" | "running" | "succeeded" | "failed" | "stopped" | "unknown" | "warning";
+export type MaaLogTone = "default" | "success" | "warning" | "danger" | "info" | "theme";
+export type MaaBlockStatus = "default" | "running" | "succeeded" | "failed" | "stopped" | "unknown" | "unfinished" | "warning";
 
 export type MaaLogSegment = {
   text: string;

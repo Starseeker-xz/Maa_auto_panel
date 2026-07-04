@@ -130,6 +130,28 @@ class RunStateStore:
             self._write_triggers(triggers)
             self._prune_daily_stats()
 
+    def recover_interrupted_runs(self) -> int:
+        """Mark persisted in-progress runs as stopped after a backend restart."""
+        recovered = 0
+        for item in self._run_items():
+            run_id = str(item.get("id") or "")
+            if not run_id or item.get("status") not in {"running", "stopping"}:
+                continue
+            summary = dict(item.get("summary")) if isinstance(item.get("summary"), dict) else {}
+            summary["recovered_status"] = str(item.get("status") or "running")
+            summary["recovered_reason"] = "backend restarted before run finalized"
+            self._upsert_run(
+                {
+                    "id": run_id,
+                    "status": "stopped",
+                    "ended_at": _now(),
+                    "summary": summary,
+                }
+            )
+            self._sync_run_history(run_id)
+            recovered += 1
+        return recovered
+
     def create_manual_run(
         self,
         *,
@@ -227,6 +249,7 @@ class RunStateStore:
         if maacore_log_file is not None:
             patch["maacore_log_file"] = maacore_log_file
         self._upsert_run(patch)
+        self._sync_run_history(run_id)
 
     def create_run(
         self,
@@ -292,6 +315,7 @@ class RunStateStore:
         if maacore_log_file is not None:
             patch["maacore_log_file"] = maacore_log_file
         self._upsert_run(patch)
+        self._sync_run_history(run_id)
 
     def add_attempt(
         self,
@@ -554,6 +578,19 @@ class RunStateStore:
         }
         write_json_object(path, data)
         return relative_path(path, self.runtime.repo_root)
+
+    def _sync_run_history(self, run_id: str) -> None:
+        run = self.run(run_id)
+        if run is None:
+            return
+        path = self._run_history_path(run_id, run)
+        existing = read_json_object(path)
+        if not existing:
+            return
+        existing["description"] = existing.get("description") or "Durable run history with visible log blocks."
+        existing["updated_at"] = _now()
+        existing["run"] = run.to_dict()
+        write_json_object(path, existing)
 
     def _attempt_with_history(self, row: dict[str, object]) -> dict[str, object]:
         output = dict(row)

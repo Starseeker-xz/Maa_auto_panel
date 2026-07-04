@@ -1,4 +1,4 @@
-import { Info } from "lucide-react";
+import { ArrowLeft, Info, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,6 +11,8 @@ type LogPaneProps = {
   error: string;
   title?: string;
   emptyText?: string;
+  historyRun?: RunState | null;
+  onCloseHistory?: () => void;
 };
 
 const BLOCK_STATUS_LABELS: Record<string, string> = {
@@ -20,7 +22,8 @@ const BLOCK_STATUS_LABELS: Record<string, string> = {
   failed: "失败",
   stopped: "已停止",
   unknown: "未确认结束",
-  unfinished: "未完成"
+  unfinished: "未完成",
+  warning: "警告"
 };
 
 const BLOCK_STATUS_CLASS: Record<string, string> = {
@@ -30,7 +33,8 @@ const BLOCK_STATUS_CLASS: Record<string, string> = {
   failed: "text-destructive",
   stopped: "text-amber-600 dark:text-amber-300",
   unknown: "text-muted-foreground",
-  unfinished: "text-amber-600 dark:text-amber-300"
+  unfinished: "text-amber-600 dark:text-amber-300",
+  warning: "text-amber-600 dark:text-amber-300"
 };
 
 const BLOCK_PANEL_CLASS: Record<string, string> = {
@@ -40,7 +44,8 @@ const BLOCK_PANEL_CLASS: Record<string, string> = {
   failed: "border-amber-500 bg-amber-50/40 shadow-sm shadow-amber-500/10 dark:bg-amber-950/10",
   stopped: "border-amber-500 bg-amber-50/40 shadow-sm shadow-amber-500/10 dark:bg-amber-950/10",
   unknown: "border-border bg-background shadow-sm",
-  unfinished: "border-amber-500 bg-amber-50/40 shadow-sm shadow-amber-500/10 dark:bg-amber-950/10"
+  unfinished: "border-amber-500 bg-amber-50/40 shadow-sm shadow-amber-500/10 dark:bg-amber-950/10",
+  warning: "border-amber-500 bg-amber-50/40 shadow-sm shadow-amber-500/10 dark:bg-amber-950/10"
 };
 
 const MESSAGE_TONE_CLASS: Record<string, string> = {
@@ -48,26 +53,30 @@ const MESSAGE_TONE_CLASS: Record<string, string> = {
   info: "text-muted-foreground",
   success: "text-emerald-600 dark:text-emerald-300",
   warning: "text-amber-600 dark:text-amber-300",
-  danger: "text-destructive"
+  danger: "text-destructive",
+  theme: "text-primary"
 };
 
-export function LogPane({ run, error, title = "日志", emptyText = "等待 maa-cli info 日志..." }: LogPaneProps) {
-  const entries = normalizeEntries(run);
-  const details = runDetails(run, entries);
+export function LogPane({ run, error, title = "日志", emptyText = "等待 maa-cli info 日志...", historyRun = null, onCloseHistory }: LogPaneProps) {
+  const viewingHistory = Boolean(historyRun);
+  const visibleRun = historyRun || run;
+  const entries = normalizeEntries(visibleRun);
+  const details = runDetails(visibleRun, entries);
   const [detailsOpen, setDetailsOpen] = React.useState(false);
   const viewportRef = React.useRef<HTMLDivElement>(null);
   const followTailRef = React.useRef(true);
+  const currentRunActive = isRunActive(run);
 
   React.useEffect(() => {
     followTailRef.current = true;
     setDetailsOpen(false);
-  }, [run.id]);
+  }, [visibleRun.id, viewingHistory]);
 
   React.useLayoutEffect(() => {
     const viewport = viewportRef.current;
     if (!viewport || !followTailRef.current) return;
     viewport.scrollTop = viewport.scrollHeight;
-  }, [entries.length, run.id, run.stream_version, run.updated_at]);
+  }, [entries.length, visibleRun.id, visibleRun.stream_version, visibleRun.updated_at]);
 
   function handleScroll(event: React.UIEvent<HTMLDivElement>) {
     const viewport = event.currentTarget;
@@ -77,12 +86,18 @@ export function LogPane({ run, error, title = "日志", emptyText = "等待 maa-
 
   return (
     <Card className="relative grid min-h-0 grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden p-0 max-xl:col-span-2 max-md:col-span-1 max-xl:min-h-80">
-      <CardHeader className="border-b px-3 py-2.5">
-        <div className="flex items-start justify-between gap-3">
-          <div className="grid gap-1">
-            <CardTitle>{title}</CardTitle>
-            <span className={`status-pill ${run.status}`}>{STATUS_LABELS[run.status] || run.status}</span>
+      <CardHeader className="border-b px-3 py-2">
+        <div className="flex min-h-10 items-center justify-between gap-3">
+          <div className="grid min-w-0 gap-1">
+            <CardTitle className="truncate">{title}</CardTitle>
+            <span className={`status-pill ${viewingHistory ? "history" : visibleRun.status}`}>{viewingHistory ? STATUS_LABELS.history : STATUS_LABELS[visibleRun.status] || visibleRun.status}</span>
           </div>
+          {viewingHistory && onCloseHistory ? (
+            <Button type="button" variant="outline" size="sm" className="h-7 shrink-0 px-2 text-xs" onClick={onCloseHistory}>
+              {currentRunActive ? <ArrowLeft className="size-3.5" /> : <X className="size-3.5" />}
+              {currentRunActive ? "返回当前日志" : "关闭历史日志"}
+            </Button>
+          ) : null}
         </div>
       </CardHeader>
       <div ref={viewportRef} onScroll={handleScroll} className="m-0 min-h-0 overflow-auto bg-card p-3">
@@ -260,4 +275,8 @@ function fallbackMessages(entry: MaaLogEntry): MaaLogMessage[] {
     return entry.lines.map((line) => ({ text: line, tone: entry.tone || "default" }));
   }
   return [];
+}
+
+function isRunActive(run: RunState): boolean {
+  return run.status === "running" || run.status === "stopping";
 }

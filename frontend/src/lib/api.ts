@@ -7,6 +7,7 @@ import type {
   MaaStagesResponse,
   MaintenanceActionState,
   RunState,
+  RunHistoryResponse,
   ScheduleResponse,
   SchedulesResponse,
   SaveSettingsPayload,
@@ -91,6 +92,10 @@ export function deleteConfig(kind: string, name: string) {
 
 export function getCurrentRun() {
   return readJson<RunState>("/api/runs/current");
+}
+
+export function getRunHistory(runId: string) {
+  return readJson<RunHistoryResponse>(`/api/history/runs/${encodeURIComponent(runId)}`);
 }
 
 export function startRun(payload: {

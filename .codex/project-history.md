@@ -11,6 +11,13 @@ Confidence: Confirmed / Likely / Hypothesis / Unknown.
 - Confirmed (`2026-07-03_1200-audit-and-refactor-codex`): 已清理所有死兼容模块（4 个顶层 re-export、`maa/logs/` 目录、旧别名、前端死 `translateLogLine`）。当前无遗留 TODO/FIXME/HACK 注释。
 - Confirmed (`2026-07-03_1200-audit-and-refactor-codex`): 唯一确认的死代码 `scheduler/store.py`（`ScheduleStore` 别名，零导入）已删除。`translate_maa_cli_log()` 经核实有测试覆盖，保留为合法公共 API。
 - Confirmed (`2026-07-03_1200-audit-and-refactor-codex`): 前端 `CONNECTION_TYPES`/`CONNECTION_CONFIGS`/`TOUCH_MODES` 已从 `SettingsPage` 和 `ProfileEditor` 中提取到共享 `lib/constants.ts`。
+- Confirmed (`2026-07-04_clone-maa-sources`): 已将 MAA 和 maa-cli 上游源码浅克隆到 `external/`（已加入 `.gitignore`）：
+  - `external/MaaAssistantArknights/` — MAA 主仓库（C++，含 MaaCore、resource、docs、tools）
+  - `external/maa-cli/` — maa-cli 仓库（Rust，含 CLI crates、schemas、安装脚本）
+- Confirmed (`2026-07-04_clone-maa-sources`): 已完成 MAA GUI 日志面板与截图机制分析，详见 `external/MAA_GUI_ANALYSIS.md`。核心发现：
+  - 日志：双层模型（卡片+条目），语义颜色（非级别颜色），`AsstMsg` → `AddLog` 流程，卡片拆分规则
+  - 截图：回调只传 JSON 不含图像，图像通过独立 API (`AsstGetImage`) 拉取；缩略图按需附加、调试截图落盘
+  - 对 Linux MAA 参考价值：图像与回调分离是刚性约束，maacore 回调不可能直接给截图
 
 ### 目录结构
 
@@ -18,13 +25,15 @@ Confidence: Confirmed / Likely / Hypothesis / Unknown.
 |------|------|:---:|
 | `src/linux_maa/` | Python 后端源码（56 文件，约 6,700 行） | ✅ |
 | `frontend/src/` | React 前端源码（41 文件，约 5,500–6,000 行） | ✅ |
-| `config/` | maa-cli 原生配置 + Linux MAA 框架配置 | ✅ |
-| `tests/` | 7 个测试文件，45 个测试 | ✅ |
+| `config/` | 本地 maa-cli 原生配置 + Linux MAA 框架配置（手动测试会改动） | ❌ |
+| `tests/` | 7 个测试文件，50 个测试 | ✅ |
 | `docs/` | 架构文档 + MAA 上游中文文档镜像 | ✅ |
 | `state/linux-maa/` | 运行历史、调度器状态（4 个 JSON） | ❌ |
+| `history/linux-maa/runs/` | WebUI 可见日志块历史 JSON | ❌ |
 | `debug/linux-maa/` | 框架日志、事件 JSONL、外部进程日志 | ❌ |
 | `runtime/maa/` | maa-cli 二进制 + MaaCore 资源 + 运行日志 | ❌ |
 | `scripts/` | `maa-env` 环境包装脚本 | ✅ |
+| `external/` | 克隆的第三方源码（MAA、maa-cli）供参考 | ❌ |
 | `.codex/` | 项目持久化状态 | ✅ |
 
 ---
@@ -102,6 +111,11 @@ Confidence: Confirmed / Likely / Hypothesis / Unknown.
 - Confirmed (`2026-07-04_0341-log-template-framework`): `RunLogBuffer` 的 `log_entries`、`task_results`、`output` 仍有界；`log_entries` 统一为 `type="block"` 的单一结构，`kind` 不再限制为固定前端 union。前端不再兼容旧 `line`/`task`/`summary` union。
 - Confirmed (`2026-07-04_0341-log-template-framework`): MAA 任务生命周期、summary、关卡信息、掉落/家具、招募结果、基建换班、Git fetch/update 输出分组在 `maa/log_templates.py`；通用 `logs/` 模块只处理 source/block-rule 管线、fallback 行块、metadata 覆写和终端控制字符。
 - Confirmed (`2026-07-04_0341-log-template-framework`): scheduler child timeout 使用 `current_block_elapsed_seconds(kind="task")`。`task_results` 由 pipeline projection 中的 task block 生成，task 状态现在是通用 block status；`Error: Interrupted by user!` 会把当前 task 关闭为 `warning`。
+- Confirmed (`2026-07-04_1003-audit-log-pipeline`): 新增中性 `theme` log tone，仅用于主题色结构高亮，不代表重要性；用于当前理智、开始行动、summary 掉落标题/编号/合计等。`Use N medicine` / `Use N expiring medicine` 翻译为理智药/临期理智药并用 warning tone 便于观察。
+- Confirmed (`2026-07-04_1003-audit-log-pipeline`): `RunStateStore.finish_run()` / `finish_generic_run()` 现在会同步 `history/linux-maa/runs/**/<run-id>.json` 顶层 `run` 快照，避免 attempt history 文件保留创建/最后 attempt 时的 stale `running` 状态。已知旧文件如 `history/linux-maa/runs/schedules/daily-test/e94016514899.json` 可能仍保留旧快照，recent run index 是真实收尾状态。
+- Confirmed (`2026-07-04_1003-audit-log-pipeline`): scheduler final status now considers remaining enabled slots for important finite daily-success tasks, matching retry policy. If a finite important task is unmet but can be deferred because enough later slots remain, the current run can still finish `succeeded`. Existing local run `e94016514899` was corrected to overall `succeeded`; attempt records remain unchanged.
+- Confirmed (`2026-07-04_1003-audit-log-pipeline`): `LogPane` now supports a generic historical-log mode (`historyRun` + close callback). Only the schedule page currently wires the API: recent schedule runs have a hover/focus icon button that loads `/api/history/runs/{run_id}`, flattens attempt `log_entries`, and shows a yellow `历史日志` status with close/return-current action.
+- Confirmed (`2026-07-04_1003-audit-log-pipeline`): Fixed scheduler stop deadlock. `SchedulerService.stop_current()` held a non-reentrant lock and called `_append_framework_event()`, which re-entered the lock via `_mark_log_updated()`, causing `/api/schedules` to hang. Scheduler lock is now `RLock`; startup recovery marks persisted `running`/`stopping` records as `stopped`.
 - Confirmed (`2026-07-04_0055-modularize-log-pipeline`): stdout 资源变化块只由 `Already up to date.` 或 `Updating <sha>..<sha>` 开始，并以 `Summary` 为边界；stderr 的 `From https://github.com/...` 是单独资源 fetch 诊断块，不属于 stdout 资源变化规则。已有回归测试覆盖。
 - Confirmed (`2026-07-04_0055-modularize-log-pipeline`): 统一日志块不再保存在 `state/`。`state/linux-maa/run-history/scheduled-run-attempts.json` 只是 attempt 索引，包含 `log_entries_file`；实际日志块历史保存在 `history/linux-maa/runs/`：
   - `schedules/<schedule-id>/<run-id>.json`
@@ -131,6 +145,9 @@ Confidence: Confirmed / Likely / Hypothesis / Unknown.
 ### 未解决问题
 - Confirmed (`2026-07-02_2144-manual-stop-delay`): **ADB 冷启动 60 秒延迟**。MaaCore 在无本地 ADB server 时 `adb devices` 耗时 60s。`kill_adb_on_exit = true` 使每次运行后复发。热 ADB 环境同一连接路径 < 1s。建议：启动前 `adb start-server` + `adb connect`，考虑 `kill_adb_on_exit = false`。
 - Confirmed (`2026-06-30_2318-gpu-ocr-research`): **GPU OCR 不可用**。当前 MaaCore 仅含 CPU ONNX Runtime。升级 MaaCore 后需重新测试。
+- Confirmed (`2026-07-04_1047-audit-log-pipeline-audit`): **停止语义回归**。`run_streaming_process()` 的 `should_stop` 分支现在只调用 `proc.terminate()`，不再等待并 kill；手动/工具运行无额外硬 timeout，调度器 child-kill 也走该路径，子进程忽略 SIGTERM 时可能永久停在 `stopping`。
+- Confirmed (`2026-07-04_1047-audit-log-pipeline-audit`): **调度 attempt history 可能丢日志/状态**。`SchedulerService._run_attempt()` 用 bounded `state.log.entries()` / `task_results()` 的长度作为 attempt cursor；buffer 发生 head-trim 后，后续 attempt 的 `entries[start:]` / `task_results[start:]` 可为空或错位。
+- Confirmed (`2026-07-04_1047-audit-log-pipeline-audit`): **历史日志不是完整 run-level visible log**。SchedulePage 历史模式只拼接 `attempts[].log_entries`，忽略 history API 的 `events`，会漏掉 attempt 前框架事件，并使 `attempt_count=0` 的 skipped run 历史日志为空。
 
 ### 架构风险
 - Confirmed (`2026-07-03_1200-audit-and-refactor-codex`): `scheduler/service.py`（760 行）是后端最大单文件，应拆分。
@@ -138,6 +155,11 @@ Confidence: Confirmed / Likely / Hypothesis / Unknown.
 - Confirmed (`2026-07-01_2153-manage-service-history`): `JSON.stringify` dirty 比较（ConfigEditorPane、SchedulePage、SettingsPage）当前可接受，若用户自由编辑 JSON 需换 stable deep equal。
 - Confirmed (`2026-07-01_2153-manage-service-history`): 前端 bundle 500 kB chunk warning，后续可用 lazy routes 优化。
 - Confirmed (`2026-07-03_1200-audit-and-refactor-codex`): 前端 `CONNECTION_TYPES`/`TOUCH_MODES` 常量在 `SettingsPage` 和 `ProfileEditor` 中重复定义。
+- Likely (`2026-07-04_1047-audit-log-pipeline-audit`): 调度器 retry/final-status 决策仍直接依赖 WebUI visible-log pipeline 投影出的 `task_results`；日志格式、log level 或翻译规则变化会影响调度策略。建议拆出 run-result collector/domain event contract，UI 渲染只消费该 contract。
+
+### 已解决/决策
+- Confirmed (`2026-07-04_1047-audit-log-pipeline-audit`): `config/maa/`、`config/linux-maa/`、`history/` 已加入 `.gitignore`；已用 `git rm --cached` 从索引移除现有配置和运行历史文件，保留本地文件供手动测试。
+- Confirmed (`2026-07-04_1047-audit-log-pipeline-audit`): MAA 模板本地 metadata status parser 和 `tone_for_status()` 已支持 `warning`，新增回归测试。
 
 ### 数据管理
 - Confirmed (`2026-07-03_1200-audit-and-refactor-codex`): `runtime/maa/run-logs/`（52 个日志）和 `generated-configs/`（45 个配置）量较大，建议定期清理或加自动保留策略。
@@ -152,13 +174,18 @@ Confidence: Confirmed / Likely / Hypothesis / Unknown.
   - `BACKEND_AUDIT.md` — 后端审计报告（session `2026-06-30_2342-full-project-audit`）
   - `FRONTEND_AUDIT.md` — 前端审计报告（同上）
   - `PROJECT_AUDIT.md` — 综合审计报告（本轮新增）
-  - `PROJECT_EXECUTION_POLICY.md` — 项目执行方针
 - Confirmed (`2026-06-29_2137-project-state-docs`): 架构或工作流变更时应同步更新 `README.md`、`docs/README.md`、`docs/maa-runtime.md`、`docs/architecture-direction.md`、`.codex/project-history.md`、`.codex/project-lessons.md`。
 
 ---
 
 ## Latest Verification
 
+- Confirmed (`2026-07-04_1047-audit-log-pipeline-audit`): 精简日志测试后，`uv run pytest -q` — 50 tests pass；`uv run python -m compileall -q src tests` pass；`cd frontend && npm run build` pass（仅既有 Vite chunk warning）✅
+- Confirmed (`2026-07-04_1047-audit-log-pipeline-audit`): `uv run pytest -q` — 55 tests pass ✅
+- Confirmed (`2026-07-04_1047-audit-log-pipeline-audit`): `uv run python -m compileall -q src tests` ✅
+- Confirmed (`2026-07-04_1003-audit-log-pipeline`): `uv run pytest -q` — 54 tests pass ✅
+- Confirmed (`2026-07-04_1003-audit-log-pipeline`): `uv run python -m compileall -q src tests` ✅
+- Confirmed (`2026-07-04_1003-audit-log-pipeline`): `cd frontend && npm run build` — pass (existing Vite chunk warning only) ✅
 - Confirmed (`2026-07-04_0341-log-template-framework`): `uv run pytest -q` — 51 tests pass ✅
 - Confirmed (`2026-07-04_0341-log-template-framework`): `uv run python -m compileall -q src tests` ✅
 - Confirmed (`2026-07-04_0341-log-template-framework`): `cd frontend && npm run build` — pass (existing Vite chunk warning only) ✅

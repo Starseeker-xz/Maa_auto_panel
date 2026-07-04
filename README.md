@@ -20,7 +20,9 @@ uv run linux-maa --help
 That directory is ignored by git because it contains downloaded binaries,
 MaaCore libraries/resources, logs, cache, generated config, and local state.
 
-Managed maa-cli config is kept separately under `config/maa/`.
+Managed maa-cli config is kept separately under `config/maa/`. Local config
+under `config/maa/` and `config/linux-maa/` is ignored by git so manual test
+edits do not pollute source commits.
 
 Use the wrapper to run `maa` with the project-local config/data/cache/state:
 
@@ -63,7 +65,7 @@ From the LAN, open:
 http://192.168.5.15:8000/
 ```
 
-The current slice reads managed maa-cli config files from:
+The current slice reads local managed maa-cli config files from:
 
 - `config/maa/profiles/`
 - `config/maa/tasks/`
@@ -76,8 +78,10 @@ local recycle folder, edit default Profile/framework/maa-cli settings, trigger
 manual resource or maa-cli updates, start `maa run <task> --batch --profile
 default`, define scheduled execution configs under `/schedule`, show the
 info-level maa-cli log/status in the right pane, and stop the active process.
-Framework state and diagnostics are separated. Recent runs and scheduler
-bookkeeping live as readable JSON under `state/linux-maa/`. Deletable diagnostic
+Framework state, durable run-history JSON, and diagnostics are separated.
+Recent runs and scheduler bookkeeping live as readable JSON under
+`state/linux-maa/`; visible per-run history is under `history/linux-maa/runs/`.
+Both are local runtime state and ignored by git. Deletable diagnostic
 logs live under `debug/linux-maa/`: `framework.log` is the standard Python
 logging output for framework/API internals, human-level run events are JSONL
 under `events/`, and per-run external-process stdout/stderr grouped by source

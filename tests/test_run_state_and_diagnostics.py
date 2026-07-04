@@ -1,7 +1,8 @@
-from pathlib import Path
 import logging
 import os
 import time
+import json
+from pathlib import Path
 
 from linux_maa.diagnostics import Diagnostics, LogRetentionPolicy
 from linux_maa.maa.runtime import MaaRuntime
@@ -89,6 +90,8 @@ def test_run_state_store_writes_readable_state_outside_debug(tmp_path: Path) -> 
     assert "开始运行" not in attempts
     assert "Durable run history with visible log blocks" in history
     assert "开始运行" in history
+    assert json.loads(history)["run"]["status"] == "succeeded"
+    assert json.loads(history)["run"]["attempt_count"] == 1
     assert "Per-schedule daily child-task run/success counters" in daily_stats
     assert "avoid duplicate scheduled execution" in triggers
     assert not (tmp_path / "debug/linux-maa/history").exists()
@@ -151,7 +154,11 @@ def test_run_state_store_records_single_attempt_for_generic_runs(tmp_path: Path)
     assert attempt["retry_group"] == 1
     assert attempt["log_entries"][0]["kind"] == "summary"
     assert attempt["log_entries_file"] == "history/linux-maa/runs/manual/manual-1.json"
-    assert (tmp_path / "history/linux-maa/runs/manual/manual-1.json").is_file()
+    history_path = tmp_path / "history/linux-maa/runs/manual/manual-1.json"
+    assert history_path.is_file()
+    history = json.loads(history_path.read_text(encoding="utf-8"))
+    assert history["run"]["status"] == "stopped"
+    assert history["run"]["summary"] == {"generated_config_dir": "runtime/maa/generated-configs/manual-1"}
     assert store.run("manual-1").summary == {"generated_config_dir": "runtime/maa/generated-configs/manual-1"}
 
 

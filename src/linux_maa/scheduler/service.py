@@ -19,7 +19,7 @@ from linux_maa.process import run_streaming_process
 from linux_maa.run_state import RunStateStore
 from linux_maa.scheduler.config import ScheduleConfigManager
 from linux_maa.scheduler.models import DailyTaskStats, ScheduleConfig, ScheduleEntry, TaskPolicy
-from linux_maa.scheduler.policy import initial_task_selection, retry_task_ids, task_policies_from_config
+from linux_maa.scheduler.policy import initial_task_selection, remaining_enabled_slots, retry_task_ids, task_policies_from_config
 from linux_maa.scheduler.scripts import ScheduleScriptManager
 from linux_maa.scheduler.time import effective_timezone, extract_client_type, game_day_info, game_day_key, sort_entries_for_game_day
 from linux_maa.state import idle_response
@@ -97,7 +97,7 @@ class SchedulerService:
         self.store = run_state or RunStateStore(runtime)
         self.diagnostics = diagnostics or Diagnostics(runtime)
         self.scripts = ScheduleScriptManager(runtime)
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
         self._condition = threading.Condition(self._lock)
         self._version = 0
         self._current: ScheduleRunState | None = None
@@ -423,7 +423,7 @@ class SchedulerService:
             if next_task_ids:
                 self._append_framework_event(state, f"准备重试: {', '.join(_task_names(policy_by_id, next_task_ids))}", tone="warning")
             else:
-                final_status = _final_status(policies, entry, stats, attempt_result["status_by_task_id"], run_successful_task_ids)
+                final_status = _final_status(policies, entry, sorted_entries, stats, attempt_result["status_by_task_id"], run_successful_task_ids)
 
         if state.stop_requested:
             final_status = "stopped"
@@ -743,6 +743,7 @@ def _register_schedule_log_sources(log: RunLogBuffer, *, include_script: bool) -
 def _final_status(
     policies: list[TaskPolicy],
     entry: ScheduleEntry,
+    sorted_entries: list[ScheduleEntry],
     stats: dict[str, DailyTaskStats],
     last_statuses: dict[str, str],
     run_successful_task_ids: set[str],
@@ -758,7 +759,10 @@ def _final_status(
                 if policy.id not in run_successful_task_ids:
                     return "failed"
             elif task_stats.successes < policy.min_daily_successes and policy.id not in run_successful_task_ids:
-                return "failed"
+                remaining_successes = max(0, policy.min_daily_successes - task_stats.successes)
+                remaining_slots = remaining_enabled_slots(sorted_entries, current_entry_id=entry.id, task_id=policy.id)
+                if remaining_slots <= remaining_successes:
+                    return "failed"
             continue
         if last_statuses.get(policy.id) not in {"succeeded", None}:
             soft_failed = True

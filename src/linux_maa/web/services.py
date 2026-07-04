@@ -4,11 +4,13 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from linux_maa.config import ConfigManager, FrameworkSettingsManager
-from linux_maa.diagnostics import Diagnostics
+from linux_maa.diagnostics import Diagnostics, get_logger
 from linux_maa.maa import MaaInfrastService, MaaRunManager, MaaRuntime, MaaStageService, MaintenanceActionManager, find_repo_root
 from linux_maa.run_state import RunStateStore
 from linux_maa.scheduler import ScheduleConfigManager, SchedulerService
 from linux_maa.tools import ToolRunManager
+
+logger = get_logger(__name__)
 
 
 @dataclass(frozen=True)
@@ -36,6 +38,9 @@ def create_services(repo_root: Path | None = None) -> WebServices:
     diagnostics.enforce_retention()
     run_state = RunStateStore(runtime)
     run_state.enforce_retention()
+    recovered_runs = run_state.recover_interrupted_runs()
+    if recovered_runs:
+        logger.warning("recovered interrupted run records count=%s", recovered_runs)
     configs = ConfigManager(runtime)
     framework_settings = FrameworkSettingsManager(runtime)
     schedule_configs = ScheduleConfigManager(runtime, configs)

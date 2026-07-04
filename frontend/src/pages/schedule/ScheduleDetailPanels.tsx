@@ -1,8 +1,11 @@
+import { Eye } from "lucide-react";
+
+import { Button } from "@/components/ui/button";
 import { CardContent, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { STATUS_LABELS } from "@/lib/logs";
-import type { ScheduleConfig, ScheduleResponse } from "@/lib/types";
+import type { ScheduleConfig, ScheduleResponse, ScheduledRunSummary } from "@/lib/types";
 import { ProfileEditor } from "@/components/ProfileEditor";
 
 export function ScheduleSettings({ schedule, detail, onChange }: { schedule: ScheduleConfig; detail: ScheduleResponse; onChange: (schedule: ScheduleConfig) => void }) {
@@ -84,7 +87,17 @@ export function ScheduleSettings({ schedule, detail, onChange }: { schedule: Sch
   );
 }
 
-export function ScheduleStats({ detail }: { detail: ScheduleResponse }) {
+export function ScheduleStats({
+  detail,
+  selectedHistoryRunId,
+  loadingHistoryRunId,
+  onViewHistory
+}: {
+  detail: ScheduleResponse;
+  selectedHistoryRunId?: string;
+  loadingHistoryRunId?: string;
+  onViewHistory?: (run: ScheduledRunSummary) => void;
+}) {
   return (
     <div className="grid gap-3 pr-3">
       <section className="grid gap-2 rounded-md border bg-background p-3">
@@ -105,10 +118,29 @@ export function ScheduleStats({ detail }: { detail: ScheduleResponse }) {
         <CardTitle className="text-sm">近期运行</CardTitle>
         <div className="grid gap-2">
           {detail.recent_runs.map((item) => (
-            <div key={item.id} className="grid gap-1 rounded-md border bg-card p-2 text-xs">
-              <div className="flex items-center justify-between gap-2">
+            <div key={item.id} data-active={item.id === selectedHistoryRunId ? "true" : undefined} className="group grid gap-1 rounded-md border bg-card p-2 text-xs transition-all hover:-translate-y-px hover:border-border/80 hover:shadow-md data-[active=true]:border-primary data-[active=true]:bg-accent/70">
+              <div className="grid grid-cols-[auto_minmax(0,1fr)_28px] items-center gap-2">
                 <span className={`status-pill ${item.status}`}>{STATUS_LABELS[item.status] || item.status}</span>
-                <span className="text-muted-foreground">{item.created_at}</span>
+                <span className="min-w-0 truncate text-right text-muted-foreground">{item.created_at}</span>
+                {onViewHistory ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="size-6 text-muted-foreground/70 opacity-0 transition-opacity hover:text-foreground hover:opacity-100 focus-visible:opacity-100 group-hover:opacity-70"
+                    aria-label={`查看 ${item.entry_name} 历史日志`}
+                    disabled={loadingHistoryRunId === item.id}
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      onViewHistory(item);
+                    }}
+                  >
+                    <Eye className="size-3.5" />
+                  </Button>
+                ) : (
+                  <span aria-hidden="true" />
+                )}
               </div>
               <div className="text-muted-foreground">{item.entry_name} · 尝试 {item.attempt_count} · 重试组 {item.retry_group_count}</div>
             </div>

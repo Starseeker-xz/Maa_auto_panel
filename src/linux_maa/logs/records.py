@@ -4,8 +4,8 @@ from dataclasses import dataclass, field
 from typing import Literal
 
 
-BlockStatus = Literal["default", "running", "succeeded", "failed", "stopped", "unknown", "unfinished"]
-LogTone = Literal["default", "success", "warning", "danger", "info"]
+BlockStatus = Literal["default", "running", "succeeded", "failed", "stopped", "unknown", "unfinished", "warning"]
+LogTone = Literal["default", "success", "warning", "danger", "info", "theme"]
 
 
 @dataclass

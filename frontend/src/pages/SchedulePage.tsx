@@ -13,6 +13,7 @@ import {
   currentScheduleRunEventsUrl,
   deleteSchedule,
   getCurrentScheduleRun,
+  getRunHistory,
   listConfigs,
   listSchedules,
   readSchedule,
@@ -23,7 +24,7 @@ import {
 } from "@/lib/api";
 import { STATUS_LABELS } from "@/lib/logs";
 import { applyRunStateEvent, runEventsUrl } from "@/lib/runStream";
-import type { ConfigFile, ConfigResponse, RunState, ScheduleConfig, ScheduleEntry, ScheduleResponse, SchedulesResponse } from "@/lib/types";
+import type { ConfigFile, ConfigResponse, RunHistoryResponse, RunState, ScheduleConfig, ScheduleEntry, ScheduleResponse, SchedulesResponse, ScheduledRunSummary } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { LogPane } from "@/pages/main/LogPane";
 import { ScheduleSettings, ScheduleStats } from "@/pages/schedule/ScheduleDetailPanels";
@@ -42,6 +43,8 @@ export function SchedulePage() {
   const [draftTaskConfig, setDraftTaskConfig] = React.useState<ConfigResponse | null>(null);
   const [selectedEntryId, setSelectedEntryId] = React.useState("");
   const [globalRun, setGlobalRun] = React.useState<RunState>(() => idleRun());
+  const [historyRun, setHistoryRun] = React.useState<RunState | null>(null);
+  const [loadingHistoryRunId, setLoadingHistoryRunId] = React.useState("");
   const [newName, setNewName] = React.useState("日常定时");
   const [centerTab, setCenterTab] = React.useState<CenterTab>("settings");
   const [pendingTaskConfig, setPendingTaskConfig] = React.useState("");
@@ -83,6 +86,7 @@ export function SchedulePage() {
         setDraft(cloneConfig(data.config));
         setDraftTaskConfig(null);
         setSelectedEntryId(data.config.entries[0]?.id || "");
+        setHistoryRun(null);
         setError("");
       })
       .catch((exc) => {
@@ -273,6 +277,19 @@ export function SchedulePage() {
     }
   }
 
+  async function handleViewHistory(run: ScheduledRunSummary) {
+    setLoadingHistoryRunId(run.id);
+    setError("");
+    try {
+      const history = await getRunHistory(run.id);
+      setHistoryRun(historyToRunState(history));
+    } catch (exc) {
+      setError(String(exc));
+    } finally {
+      setLoadingHistoryRunId("");
+    }
+  }
+
   if (!scheduleId) {
     return (
       <section className="min-h-screen overflow-auto p-4">
@@ -377,7 +394,12 @@ export function SchedulePage() {
               onChange={setDraft}
             />
           ) : (
-            <ScheduleStats detail={detail} />
+            <ScheduleStats
+              detail={detail}
+              selectedHistoryRunId={historyRun?.id}
+              loadingHistoryRunId={loadingHistoryRunId}
+              onViewHistory={handleViewHistory}
+            />
           )}
         </ScrollArea>
         <div className="grid grid-cols-[1fr_1fr_auto] gap-2">
@@ -395,7 +417,14 @@ export function SchedulePage() {
         </div>
       </Card>
 
-      <LogPane run={run} error={error} title="定时执行日志" emptyText="等待定时执行日志..." />
+      <LogPane
+        run={run}
+        error={error}
+        title="定时执行日志"
+        emptyText="等待定时执行日志..."
+        historyRun={historyRun}
+        onCloseHistory={() => setHistoryRun(null)}
+      />
 
       <DirtyActions
         dirty={dirty}
@@ -436,6 +465,17 @@ function cloneConfig(config: ScheduleConfig): ScheduleConfig {
 
 function idleRun(): RunState {
   return { status: "idle", output: [] };
+}
+
+function historyToRunState(history: RunHistoryResponse): RunState {
+  const logEntries = history.attempts.flatMap((attempt) => attempt.log_entries || []);
+  const taskResults = history.attempts.flatMap((attempt) => attempt.task_results || []);
+  return {
+    ...history.run,
+    log_entries: logEntries,
+    task_results: taskResults,
+    output: []
+  };
 }
 
 function mergeScheduleRuntimeFields(current: ScheduleResponse, latest: ScheduleResponse): ScheduleResponse {

@@ -626,11 +626,11 @@ def _metadata_dict(metadata: dict[str, object], key: str) -> dict[str, object]:
 
 def _tone_from_metadata(metadata: dict[str, object], default: LogTone) -> LogTone:
     value = metadata.get("tone")
-    return value if value in {"default", "success", "warning", "danger", "info"} else default
+    return value if value in {"default", "success", "warning", "danger", "info", "theme"} else default
 
 
 def _status_from_metadata(metadata: dict[str, object]) -> BlockStatus | None:
     value = metadata.get("status_override", metadata.get("status"))
-    if value in {"default", "running", "succeeded", "failed", "stopped", "unknown", "warning"}:
+    if value in {"default", "running", "succeeded", "failed", "stopped", "unknown", "unfinished", "warning"}:
         return value  # type: ignore[return-value]
     return None

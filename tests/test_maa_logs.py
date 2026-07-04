@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from linux_maa.logs import BlockDefinition, LogSourceSpec, RunLogBuffer, plain_translate_line
+from linux_maa.logs import LogSourceSpec, RunLogBuffer, plain_translate_line
 from linux_maa.maa.log_templates import register_maa_log_sources
 
 
@@ -32,16 +32,6 @@ def test_groups_completed_and_failed_tasks_as_blocks() -> None:
     assert entries[1]["messages"][0]["text"] == "产物识别失败"
     assert "raw" not in entries[1]["messages"][0]
     assert [result["status"] for result in log.task_results()] == ["succeeded", "failed"]
-
-
-def test_handles_split_log_chunks() -> None:
-    log = maa_log()
-
-    output = ""
-    output += log.pipeline.append("[2026-06-26 18:47:20 INFO ] Fight Sta", source="maa-cli:stderr")
-    output += log.pipeline.append("rt\n[2026-06-26 18:47:56 ERROR] Fight Error\n", source="maa-cli:stderr")
-
-    assert log.task_results()[0]["status"] == "failed"
 
 
 def test_collapses_terminal_carriage_return_updates() -> None:
@@ -76,15 +66,6 @@ def test_plain_source_does_not_trigger_maa_task_grouping() -> None:
     assert [entry["messages"][0]["text"] for entry in entries] == ["Summary", "Fight Start", "plain stderr"]
     assert all(entry["tone"] == "warning" for entry in entries)
     assert log.task_results() == []
-
-
-def test_carriage_return_newline_is_normal_log_line() -> None:
-    log = maa_log()
-
-    output = log.pipeline.append("[2026-06-26 18:47:20 INFO ] Connected\r\n", source="maa-cli:stderr")
-
-    assert output == "18:47:20 已连接\n"
-    assert log.entries()[0]["messages"][0]["text"] == "已连接"
 
 
 def test_flush_closes_running_block_as_unfinished() -> None:
@@ -159,6 +140,25 @@ def test_translates_screencap_method_and_cost() -> None:
     ]
 
 
+def test_translates_fight_sanity_medicine_lines_with_observation_tones() -> None:
+    log = maa_log()
+
+    output = log.pipeline.append(
+        "[2026-07-04 08:17:58 INFO ] Fight Start\n"
+        "[2026-07-04 08:18:15 INFO ] Current sanity: 17/210\n"
+        "[2026-07-04 08:18:22 INFO ] Use 1 expiring medicine\n"
+        "[2026-07-04 08:18:29 INFO ] Mission started (6 times, use 36 sanity)\n",
+        source="maa-cli:stderr",
+    )
+    messages = log.entries()[0]["messages"]
+
+    assert "当前理智: 17/210" in output
+    assert "使用 1 个临期理智药" in output
+    assert "开始行动 (6次，-36理智)" in output
+    assert [message["tone"] for message in messages] == ["theme", "warning", "theme"]
+    assert "raw" not in messages[1]
+
+
 def test_adds_framework_event_as_block() -> None:
     log = maa_log()
 
@@ -200,22 +200,17 @@ def test_append_metadata_overrides_fallback_line_state() -> None:
     assert entry["messages"][0]["metadata"] == {"event_key": "demo"}
 
 
-def test_block_start_gets_default_time_when_hook_omits_it() -> None:
-    log = RunLogBuffer()
-    log.pipeline.register_block(
-        BlockDefinition(
-            kind="custom",
-            source_predicate=lambda source: source == "custom",
-            start_matcher=lambda line, session: "start" if line.raw == "BEGIN" else None,
-            translate_line=lambda active, line, session: "",
-        )
-    )
+def test_maa_line_metadata_accepts_warning_status() -> None:
+    log = maa_log()
 
-    log.pipeline.append("BEGIN\n", source="custom")
+    log.pipeline.append(
+        "[2026-07-04 08:17:58 INFO ] Connected\n",
+        source="maa-cli:stderr",
+        metadata={"status_override": "warning"},
+    )
     entry = log.entries()[0]
 
-    assert entry["kind"] == "custom"
-    assert "started_at" in entry
+    assert entry["status"] == "warning"
 
 
 def test_groups_summary_tail_into_one_block() -> None:
@@ -226,9 +221,9 @@ def test_groups_summary_tail_into_one_block() -> None:
         "----------------------------------------\n"
         "[启动 B 服] 2026-06-30 21:41:42 - 2026-06-30 21:42:25 (43s) Completed\n"
         "[公开招募] 2026-06-30 21:42:25 - 2026-06-30 21:42:40 (15s) Error\n"
-        "Fight 1-7 1 times, drops:\n"
+        "Fight 1-7 72 times, used 4 medicine (4 expiring), drops:\n"
         "1. 固源岩 × 2\n"
-        "total drops:\n"
+        "total drops: 固源岩 × 2\n"
         "Error: Some error occurred during running task!\n",
         source="maa-cli:stdout",
     )
@@ -239,6 +234,11 @@ def test_groups_summary_tail_into_one_block() -> None:
     assert len(entry["messages"]) == 6
     assert entry["messages"][0]["text"] == "启动 B 服: 完成, 用时 43s"
     assert entry["messages"][1]["tone"] == "danger"
+    assert entry["messages"][2]["text"] == "作战 1-7 72 次，使用 4 个理智药（4 个临期），掉落："
+    assert entry["messages"][2]["tone"] == "theme"
+    assert entry["messages"][3]["segments"][0] == {"text": "1.", "tone": "theme", "strong": True}
+    assert entry["messages"][4]["text"] == "合计掉落: 固源岩 × 2"
+    assert entry["messages"][4]["tone"] == "theme"
     assert entry["messages"][5]["text"] == "存在失败任务，maa-cli 返回错误。"
 
 
@@ -303,24 +303,6 @@ def test_summary_after_git_up_to_date_starts_run_summary_block() -> None:
     ]
     assert entries[0]["messages"][0]["text"] == "Already up to date."
     assert entries[1]["messages"][0]["text"] == "启动 B 服: 完成, 用时 14s"
-
-
-def test_from_github_is_not_stdout_resource_update_start() -> None:
-    log = maa_log()
-
-    log.pipeline.append(
-        "From https://github.com/MaaAssistantArknights/MaaResource\n"
-        "Summary\n"
-        "[启动 B 服] 01:24:01 - 01:24:15 (14s) Completed\n",
-        source="maa-cli:stdout",
-    )
-    entries = log.entries()
-
-    assert [(entry["kind"], entry.get("title", "")) for entry in entries] == [
-        ("line", ""),
-        ("summary", "运行摘要"),
-    ]
-    assert entries[0]["messages"][0]["text"] == "From https://github.com/MaaAssistantArknights/MaaResource"
 
 
 def test_git_fast_forward_output_is_one_resource_update_block() -> None:

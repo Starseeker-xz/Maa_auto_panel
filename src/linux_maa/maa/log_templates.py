@@ -33,8 +33,14 @@ SUMMARY_TASK_RE = re.compile(
     r"\((?P<elapsed>[^)]*)\)\s+"
     r"(?P<status>Completed|Error|Stopped|Unknown)\s*$"
 )
-SUMMARY_FIGHT_DROPS_RE = re.compile(r"^Fight\s+(?P<stage>\S+)\s+(?P<times>\d+)\s+times,\s+drops:\s*$")
+SUMMARY_FIGHT_DROPS_RE = re.compile(
+    r"^Fight\s+(?P<stage>\S+)\s+(?P<times>\d+)\s+times"
+    r"(?:,\s+used\s+(?P<medicine>\d+)\s+medicine(?:\s+\((?P<expiring>\d+)\s+expiring\))?)?,\s+drops:\s*$"
+)
 MISSION_STARTED_RE = re.compile(r"^Mission started \((?P<times>\d+) times, use (?P<sanity>\d+) sanity\)$")
+CURRENT_SANITY_RE = re.compile(r"^Current sanity:\s+(?P<current>\d+)/(?P<total>\d+)$")
+USE_MEDICINE_RE = re.compile(r"^Use\s+(?P<count>\d+)\s+(?P<expiring>expiring\s+)?medicine$")
+SUMMARY_DROP_ITEM_RE = re.compile(r"^(?P<index>\d+)\.\s+(?P<drops>.+)$")
 RECRUIT_TAGS_REFRESHED_RE = re.compile(r"^RecruitTagsRefreshed:\s+\d+\s+times$")
 SUMMARY_COUNT_RE = re.compile(r"^(?P<kind>Recruited|Refreshed)\s+(?P<count>\d+)\s+times$")
 ENTER_FACILITY_RE = re.compile(r"^EnterFacility\s+(?P<facility>[A-Za-z]+)(?:\s+(?P<index>#\d+))?$")
@@ -83,6 +89,7 @@ STATUS_LABEL: dict[BlockStatus, str] = {
     "stopped": "已停止",
     "unknown": "未知",
     "unfinished": "未完成",
+    "warning": "警告",
 }
 
 LEVEL_TONE: dict[str, LogTone] = {
@@ -309,16 +316,17 @@ def _translate_task_body_line(active: ActiveBlock, line: LogLineInput, session: 
     body = str(parsed["body"] or "")
     time_text = parsed["time"] or line.time
     level = parsed["level"]
-    tone = LEVEL_TONE.get(str(level), session.source_spec(line.source).default_tone) if level is not None else line.tone
-    translated_task_line = translate_task_line(body)
+    default_tone = LEVEL_TONE.get(str(level), session.source_spec(line.source).default_tone) if level is not None else line.tone
+    translated_task_line = translate_task_message(body)
     active.entry.lines.append(line.raw)
-    if translated_task_line is None:
+    if not translated_task_line.text:
         return ""
     message = LogMessage(
-        text=translated_task_line,
+        text=translated_task_line.text,
         time=time_text,
-        tone=tone,
-        raw=None if is_task_line_translated(body) else line.raw,
+        tone=translated_task_line.tone or default_tone,
+        raw=None if translated_task_line.translated else line.raw,
+        segments=translated_task_line.segments,
     )
     active.entry.messages.append(message)
     return f"{format_time_prefix(message.time)}{message.text}\n"
@@ -460,6 +468,11 @@ def translate_global_message(body: str) -> TranslatedMessage:
 
 
 def translate_task_line(body: str) -> str | None:
+    text = translate_task_message(body).text
+    return text or None
+
+
+def translate_task_message(body: str) -> TranslatedMessage:
     translations = {
         "GameOffline": "游戏掉线",
         "ProductUnknown": "产物识别失败",
@@ -476,39 +489,90 @@ def translate_task_line(body: str) -> str | None:
 
     mission_match = MISSION_STARTED_RE.match(body)
     if mission_match is not None:
-        return f"开始行动 ({mission_match.group('times')}次，-{mission_match.group('sanity')}理智)"
+        times = mission_match.group("times")
+        sanity = mission_match.group("sanity")
+        return TranslatedMessage(
+            f"开始行动 ({times}次，-{sanity}理智)",
+            translated=True,
+            tone="theme",
+            segments=[
+                {"text": "开始行动", "tone": "theme", "strong": True},
+                {"text": " ("},
+                {"text": f"{times}次", "tone": "theme", "strong": True},
+                {"text": "，-"},
+                {"text": f"{sanity}理智", "tone": "theme", "strong": True},
+                {"text": ")"},
+            ],
+        )
 
-    if body.startswith("Current sanity: "):
-        return body.replace("Current sanity", "当前理智", 1)
+    sanity_match = CURRENT_SANITY_RE.match(body)
+    if sanity_match is not None:
+        current = sanity_match.group("current")
+        total = sanity_match.group("total")
+        return TranslatedMessage(
+            f"当前理智: {current}/{total}",
+            translated=True,
+            tone="theme",
+            segments=[
+                {"text": "当前理智: ", "tone": "theme", "strong": True},
+                {"text": f"{current}/{total}", "tone": "theme", "strong": True},
+            ],
+        )
+
+    medicine_match = USE_MEDICINE_RE.match(body)
+    if medicine_match is not None:
+        count = medicine_match.group("count")
+        expiring = bool(medicine_match.group("expiring"))
+        label = "临期理智药" if expiring else "理智药"
+        return TranslatedMessage(
+            f"使用 {count} 个{label}",
+            translated=True,
+            tone="warning",
+            segments=[
+                {"text": "使用 ", "tone": "warning"},
+                {"text": count, "tone": "warning", "strong": True},
+                {"text": f" 个{label}", "tone": "warning", "strong": True},
+            ],
+        )
 
     if body.startswith("Drops: "):
-        return replace_common_terms(body.replace("Drops", "掉落统计", 1))
+        drops = replace_common_terms(body.removeprefix("Drops: "))
+        return TranslatedMessage(
+            f"掉落统计: {drops}",
+            translated=True,
+            tone="theme",
+            segments=[
+                {"text": "掉落统计: ", "tone": "theme", "strong": True},
+                {"text": drops},
+            ],
+        )
 
     if RECRUIT_TAGS_REFRESHED_RE.match(body):
-        return None
+        return TranslatedMessage("", translated=True)
 
     if body.startswith("RecruitResult: "):
-        return body.replace("RecruitResult", "公招识别结果", 1)
+        return TranslatedMessage(body.replace("RecruitResult", "公招识别结果", 1), translated=True)
     if body.startswith("RecruitResult "):
-        return body.replace("RecruitResult", "公招识别结果", 1)
+        return TranslatedMessage(body.replace("RecruitResult", "公招识别结果", 1), translated=True)
 
     if body.startswith("RecruitTagsSelected: "):
-        return body.replace("RecruitTagsSelected", "选择公招标签", 1)
+        return TranslatedMessage(body.replace("RecruitTagsSelected", "选择公招标签", 1), translated=True)
 
     facility_match = ENTER_FACILITY_RE.match(body)
     if facility_match is not None:
         facility = facility_label(facility_match.group("facility"))
         index = facility_match.group("index")
-        return f"进入设施: {facility}{f' {index}' if index else ''}"
+        return TranslatedMessage(f"进入设施: {facility}{f' {index}' if index else ''}", translated=True)
 
     if body.startswith("ProductOfFacility: "):
         product = body.split(": ", 1)[1]
-        return f"设施产物: {product_label(product)}"
+        return TranslatedMessage(f"设施产物: {product_label(product)}", translated=True)
 
     if body.startswith("CustomInfrastRoomOperators: "):
-        return body.replace("CustomInfrastRoomOperators", "换班干员", 1)
+        return TranslatedMessage(body.replace("CustomInfrastRoomOperators", "换班干员", 1), translated=True)
 
-    return replace_common_terms(translations.get(body, body))
+    translated = replace_common_terms(translations.get(body, body))
+    return TranslatedMessage(translated, translated=translated != body)
 
 
 def translate_summary_message(body: str) -> LogMessage | None:
@@ -538,23 +602,71 @@ def translate_summary_message(body: str) -> LogMessage | None:
     if fight_match is not None:
         stage = fight_match.group("stage")
         times = fight_match.group("times")
+        medicine = fight_match.group("medicine")
+        expiring = fight_match.group("expiring")
+        medicine_text = ""
+        medicine_segments: list[dict[str, object]] = []
+        if medicine:
+            if expiring:
+                medicine_text = f"，使用 {medicine} 个理智药（{expiring} 个临期）"
+                medicine_segments = [
+                    {"text": "，使用 "},
+                    {"text": medicine, "tone": "warning", "strong": True},
+                    {"text": " 个理智药（"},
+                    {"text": expiring, "tone": "warning", "strong": True},
+                    {"text": " 个临期）"},
+                ]
+            else:
+                medicine_text = f"，使用 {medicine} 个理智药"
+                medicine_segments = [
+                    {"text": "，使用 "},
+                    {"text": medicine, "tone": "warning", "strong": True},
+                    {"text": " 个理智药"},
+                ]
         return LogMessage(
-            text=f"作战 {stage} {times} 次，掉落：",
-            tone="info",
+            text=f"作战 {stage} {times} 次{medicine_text}，掉落：",
+            tone="theme",
             raw=body,
             segments=[
                 {"text": "作战 "},
-                {"text": stage, "tone": "info", "strong": True},
-                {"text": f" {times} 次，掉落："},
+                {"text": stage, "tone": "theme", "strong": True},
+                {"text": " "},
+                {"text": times, "tone": "theme", "strong": True},
+                {"text": " 次"},
+                *medicine_segments,
+                {"text": "，掉落："},
+            ],
+        )
+
+    drop_item_match = SUMMARY_DROP_ITEM_RE.match(body)
+    if drop_item_match is not None:
+        index = drop_item_match.group("index")
+        drops = replace_common_terms(drop_item_match.group("drops"))
+        return LogMessage(
+            text=f"{index}. {drops}",
+            tone="theme",
+            raw=body,
+            segments=[
+                {"text": f"{index}.", "tone": "theme", "strong": True},
+                {"text": f" {drops}"},
             ],
         )
 
     if body == "Detected tags:":
         return LogMessage(text="识别到的公招标签：", tone="info", raw=body)
     if body == "total drops:":
-        return LogMessage(text="合计掉落：", tone="info", raw=body)
+        return LogMessage(text="合计掉落：", tone="theme", raw=body, segments=[{"text": "合计掉落：", "tone": "theme", "strong": True}])
     if body.startswith("total drops: "):
-        return LogMessage(text=replace_common_terms(body.replace("total drops", "合计掉落", 1)), tone="info", raw=body)
+        drops = replace_common_terms(body.removeprefix("total drops: "))
+        return LogMessage(
+            text=f"合计掉落: {drops}",
+            tone="theme",
+            raw=body,
+            segments=[
+                {"text": "合计掉落: ", "tone": "theme", "strong": True},
+                {"text": drops},
+            ],
+        )
 
     count_match = SUMMARY_COUNT_RE.match(body)
     if count_match is not None:
@@ -587,7 +699,7 @@ def is_global_line_translated(body: str) -> bool:
 
 
 def is_task_line_translated(body: str) -> bool:
-    return translate_task_line(body) != body
+    return translate_task_message(body).translated
 
 
 def replace_common_terms(text: str) -> str:
@@ -645,7 +757,7 @@ def tone_for_status(status: BlockStatus) -> LogTone:
         return "success"
     if status == "failed":
         return "danger"
-    if status in {"stopped", "unknown", "unfinished"}:
+    if status in {"stopped", "unknown", "unfinished", "warning"}:
         return "warning"
     return "info"
 
@@ -673,11 +785,11 @@ def _metadata_dict(metadata: dict[str, object], key: str) -> dict[str, object]:
 
 def _metadata_tone(metadata: dict[str, object], default: LogTone) -> LogTone:
     value = metadata.get("tone")
-    return value if value in {"default", "success", "warning", "danger", "info"} else default
+    return value if value in {"default", "success", "warning", "danger", "info", "theme"} else default
 
 
 def _metadata_status(metadata: dict[str, object]) -> BlockStatus | None:
     value = metadata.get("status_override", metadata.get("status"))
-    if value in {"default", "running", "succeeded", "failed", "stopped", "unknown", "unfinished"}:
+    if value in {"default", "running", "succeeded", "failed", "stopped", "unknown", "unfinished", "warning"}:
         return value  # type: ignore[return-value]
     return None

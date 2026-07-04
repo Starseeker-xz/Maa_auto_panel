@@ -2,6 +2,9 @@
 
 ## Active Sessions（活跃引用 — 含架构决策或已知未解决问题）
 
+- `2026-07-04_1047-audit-log-pipeline-audit`: 审计自 `7820a5b 模块化日志管线尝试` 以来的改动；发现 stop 退化为仅 SIGTERM、bounded log cursor 切片丢 attempt history、历史日志忽略 events/no-attempt schedule logs、`history/` 未忽略、`warning` 状态契约不一致等问题。
+- `2026-07-04_1003-audit-log-pipeline`: 审计最近日志管线共通块逻辑并调整定时执行日志翻译/主题色高亮。
+- `2026-07-04_clone-maa-sources`: 克隆 MAA 和 maa-cli 上游源码到 `external/` 目录以供参考。
 - `2026-07-04_0341-log-template-framework`: 日志管线从 source template 重构为通用 source/block-rule 框架；事件改为普通 metadata 输入，前端日志 kind/status 放开为通用 block 渲染。
 - `2026-07-04_0055-modularize-log-pipeline`: 可见日志管线破坏性模块化；统一 block-shaped `log_entries`，MAA 模板移到 `maa/log_templates.py`，原始文本保存仍归 Diagnostics。
 - `2026-07-03_2049-review-latest-change`: 审查最近更改；确认测试/构建通过，发现审计文档中 `buttonVariants` 未使用导入说法已过时。

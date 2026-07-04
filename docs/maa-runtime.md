@@ -5,12 +5,15 @@ This project keeps downloaded `maa-cli`/MaaCore runtime assets under
 binaries, MaaCore libraries/resources, caches, logs, generated config, and
 machine-local state.
 
-Editable maa-cli/framework configuration lives separately under `config/maa/`.
+Editable maa-cli/framework configuration lives separately under `config/maa/`
+and `config/linux-maa/`. These local config directories are ignored by git
+because they are routinely edited for manual testing.
 
 ## Layout
 
 - `runtime/maa/bin/maa`: project-local `maa-cli` binary.
 - `config/maa`: managed editable configuration (`profiles/`, `tasks/`, `infrast/`, etc.).
+- `config/linux-maa`: framework settings, schedules, and scripts.
 - `runtime/maa/generated-configs`: temporary sanitized config generated for `maa-cli`.
 - `runtime/maa/data/maa/lib`: MaaCore shared libraries.
 - `runtime/maa/data/maa/resource`: bundled MaaCore resources.
@@ -293,9 +296,10 @@ The scheduler persists state as readable JSON under `state/linux-maa/`:
 - `state/linux-maa/scheduler/triggered-schedule-entries.json`: schedule entries
   already triggered for a game day, used to avoid duplicate execution.
 
-The `debug/` and `state/` directories remain ignored by git, but they have
-different semantics: `debug/` is disposable diagnostics; `state/` is framework
-runtime state.
+The `config/`, `history/`, `debug/`, and `state/` runtime directories remain
+ignored by git, but they have different semantics: `config/` is local editable
+input, `history/` is durable visible run history, `debug/` is disposable
+diagnostics, and `state/` is framework runtime state.
 
 Schedule entries store their own `task_ids`; these are independent from the
 main task editor's `enable` checkbox. When a scheduled attempt is generated, the
