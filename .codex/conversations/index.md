@@ -38,3 +38,5 @@
 - `2026-07-01_2153-manage-service-history` — Systemd 服务管理 + SQLite→JSON 迁移
 - `2026-07-02_2245-tools-page` — 三栏工具页面
 - `2026-07-03_1926-project-review` — 死代码清理
+
+- `2026-07-04_1126-logpanel-spacing`: Fixed LogPane header/footer spacing: CardHeader default empty second grid row was removed for LogPane; footer error text right-aligned and padded away from details button. Build passed.

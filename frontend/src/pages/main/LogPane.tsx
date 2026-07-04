@@ -86,8 +86,8 @@ export function LogPane({ run, error, title = "日志", emptyText = "等待 maa-
 
   return (
     <Card className="relative grid min-h-0 grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden p-0 max-xl:col-span-2 max-md:col-span-1 max-xl:min-h-80">
-      <CardHeader className="border-b px-3 py-2">
-        <div className="flex min-h-10 items-center justify-between gap-3">
+      <CardHeader className="grid-rows-none gap-0 border-b px-3 py-2">
+        <div className="flex min-h-12 items-center justify-between gap-3">
           <div className="grid min-w-0 gap-1">
             <CardTitle className="truncate">{title}</CardTitle>
             <span className={`status-pill ${viewingHistory ? "history" : visibleRun.status}`}>{viewingHistory ? STATUS_LABELS.history : STATUS_LABELS[visibleRun.status] || visibleRun.status}</span>
@@ -123,7 +123,7 @@ export function LogPane({ run, error, title = "日志", emptyText = "等待 maa-
       >
         <Info className="size-3.5" />
       </Button>
-      {error ? <CardContent className="border-t p-2 text-xs text-destructive break-anywhere">{error}</CardContent> : null}
+      {error ? <CardContent className="border-t py-2 pl-12 pr-2 text-right text-xs text-destructive break-anywhere">{error}</CardContent> : null}
     </Card>
   );
 }
