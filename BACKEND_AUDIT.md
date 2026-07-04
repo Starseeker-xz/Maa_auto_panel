@@ -16,21 +16,18 @@ Session: `2026-06-30_2342-full-project-audit`
 
 - `src/linux_maa/cli.py`
   - CLI 子命令：
-    - `update-game`
-    - `get-download-link`
-    - `run-maa-task`
     - `webui`
   - 只做参数解析和分发，结构清晰。
+  - 已移除：`update-game`、`get-download-link`（→ `tools/game/`）、`run-maa-task`。
 - ~~`src/linux_maa/adb.py`、`constants.py`、`game_update.py`、`maa_runner.py`~~
   - 已删除 (`2026-07-03_1926-project-review`)：兼容 re-export 模块，全局零引用。
 
-### ADB 与游戏更新
+### 游戏更新（第三方工具集成）
 
-- `src/linux_maa/android/adb.py`
-  - `ADBDevice` 封装 `adb -s <serial>`、连接检查、版本号读取、安装、pull。
-  - 当前是同步阻塞 CLI 工具，不与 WebUI 强耦合。
-- `src/linux_maa/game/update.py`
+- `src/linux_maa/tools/game/update.py`
+  - 原 `src/linux_maa/game/update.py`，已整体迁移至 `tools/game/`。
   - 负责 Bilibili API 查询、APK/增量补丁缓存、下载、安装、校验。
+  - 作为与 MAA 无关的第三方组件集成在框架中，独立命令行入口：`python -m linux_maa.tools.game update-game`。
   - 已将 manifest 保存改为原子写，降低中途中断导致缓存状态损坏的风险。
   - 仍缺少网络/ADB fake 测试，属于后续可补项。
 
@@ -43,8 +40,7 @@ Session: `2026-06-30_2342-full-project-audit`
   - `run_maa_cli_process()` 是当前 manual/scheduled run 共用的 subprocess/tail/timeout 原语。
   - 这是正确抽象，应继续保持为执行层边界。
 - `src/linux_maa/maa/runner.py`
-  - CLI 粗重试 `run_maa_task()`。
-  - WebUI manual run 的 `MaaRunManager`。
+  - WebUI manual run 的 `MaaRunManager`（CLI 粗重试 `run_maa_task()` 已移除）。
   - `prepare_maa_cli_task()` 负责读取任务配置、选择子任务、投影框架 metadata、生成 runtime JSON，并为 maa-cli 构造临时配置目录。
   - 已统一 task 文件解析、slug、生成文件原子写、相对路径显示，并删除无效 `seen` 变量。
 

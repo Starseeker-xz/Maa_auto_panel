@@ -3,19 +3,16 @@ from __future__ import annotations
 import json
 import subprocess
 import threading
-import time
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 import tomllib
 
-from linux_maa.android import ADBDevice
 from linux_maa.config.tasks import TASK_SUFFIXES, prepare_framework_task_config
 from linux_maa.diagnostics import Diagnostics, get_logger
 from linux_maa.logs import RunLogBuffer
 from linux_maa.maa.log_templates import register_maa_log_sources
-from linux_maa.settings import DEFAULT_DEVICE_SERIAL, DEFAULT_TARGET_PACKAGE
 from linux_maa.maa.runtime import MaaRuntime, find_repo_root
 from linux_maa.process import run_streaming_process
 from linux_maa.run_state import RunStateStore
@@ -24,92 +21,6 @@ from linux_maa.utils import relative_path, resolve_existing_named_file, slugify,
 
 
 logger = get_logger(__name__)
-
-
-def recover_android(adb: ADBDevice, package_name: str, *, force_stop: bool, delay_seconds: float) -> None:
-    """Reconnect ADB, optionally force-stop game, return to home screen, and wait."""
-    print("恢复: reconnect adb")
-    adb.connect()
-
-    if force_stop:
-        print(f"恢复: force-stop {package_name}")
-        adb.run(["shell", "am", "force-stop", package_name], check=False, timeout=30)
-
-    print("恢复: 返回 Android 桌面")
-    adb.run(["shell", "input", "keyevent", "HOME"], check=False, timeout=30)
-
-    if delay_seconds > 0:
-        print(f"恢复: 等待 {delay_seconds:g}s")
-        time.sleep(delay_seconds)
-
-
-def run_maa_task(
-    task: str,
-    *,
-    attempts: int,
-    timeout_seconds: int,
-    serial: str = DEFAULT_DEVICE_SERIAL,
-    package_name: str = DEFAULT_TARGET_PACKAGE,
-    adb_path: str = "adb",
-    force_stop: bool = True,
-    recovery_delay_seconds: float = 5.0,
-    profile: str = "default",
-    repo_root: Path | None = None,
-) -> int:
-    """Run a named MAA task via maa-cli with configurable retry attempts, timeout, and Android recovery."""
-    runtime = MaaRuntime(find_repo_root(repo_root))
-    runtime.run_log_dir.mkdir(parents=True, exist_ok=True)
-
-    adb = ADBDevice(serial, adb_path)
-    started_at = datetime.now().strftime("%Y%m%d-%H%M%S")
-
-    for attempt in range(1, attempts + 1):
-        log_file = runtime.run_log_dir / f"{started_at}-{task}-attempt-{attempt}.log"
-        run_task, run_env = prepare_maa_cli_task(runtime, task, run_id=f"cli-{started_at}", attempt=attempt)
-        cmd = [
-            str(runtime.maa_bin),
-            "run",
-            run_task,
-            "--batch",
-            "--profile",
-            profile,
-            f"--log-file={log_file}",
-        ]
-
-        print(f"尝试 {attempt}/{attempts}: {' '.join(cmd)}")
-        try:
-            proc = subprocess.run(
-                cmd,
-                cwd=runtime.repo_root,
-                env=run_env,
-                text=True,
-                capture_output=True,
-                timeout=timeout_seconds,
-                encoding="utf-8",
-                errors="replace",
-            )
-            if proc.stdout:
-                print(proc.stdout, end="")
-            if proc.stderr:
-                print(proc.stderr, end="")
-
-            if proc.returncode == 0:
-                print(f"任务 {task} 成功，日志: {log_file}")
-                return 0
-
-            print(f"任务 {task} 失败，退出码 {proc.returncode}，日志: {log_file}")
-        except subprocess.TimeoutExpired as exc:
-            if exc.stdout:
-                print(exc.stdout, end="" if exc.stdout.endswith("\n") else "\n")
-            if exc.stderr:
-                print(exc.stderr, end="" if exc.stderr.endswith("\n") else "\n")
-            print(f"任务 {task} 超时 {timeout_seconds}s，日志: {log_file}")
-
-        if attempt < attempts:
-            recover_android(adb, package_name, force_stop=force_stop, delay_seconds=recovery_delay_seconds)
-
-    print(f"任务 {task} 在 {attempts} 次尝试后仍失败")
-    return 1
 
 
 def prepare_maa_cli_task(

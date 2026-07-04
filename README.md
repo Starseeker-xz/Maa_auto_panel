@@ -4,9 +4,8 @@ Linux-side automation helpers for running MaaAssistantArknights against Android 
 
 Current packaged features:
 
-- `linux-maa update-game`: fetch the latest Bilibili Arknights Android package, reuse local APK cache or Bilibili incremental patches when possible, and install the package to a target ADB device.
-- `linux-maa run-maa-task`: run a managed `maa-cli` task with coarse timeout/retry/recovery behavior.
 - `linux-maa webui`: start the local FastAPI + React WebUI.
+- WebUI tools: game update (download and install Bilibili Arknights APK) is available as an integrated third-party tool via `python -m linux_maa.tools.game update-game`.
 - WebUI scheduled execution: define per-schedule task/profile bindings, game-day-aware time entries, child-task enable sets, retry limits, timeout settings, restart-script hooks, and recent run statistics.
 ## Development
 
@@ -35,12 +34,8 @@ Task files under `config/maa/tasks/` may contain Linux MAA metadata such as
 WebUI to run those tasks; it generates a sanitized temporary maa-cli config under
 `runtime/maa/generated-configs/`.
 
-The framework wrapper treats `maa-cli` as an unreliable external process and
-retries coarse failures:
-
-```bash
-uv run linux-maa run-maa-task test --attempts 3 --timeout 900
-```
+The framework wrapper treats `maa-cli` as an unreliable external process;
+use the WebUI for managed runs with logging and diagnostics.
 
 ## WebUI
 

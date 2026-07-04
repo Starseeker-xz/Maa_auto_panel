@@ -356,7 +356,7 @@ def _build_game_update_command(manager: ToolRunManager, config: dict[str, object
             sys.executable,
             "-u",
             "-m",
-            "linux_maa.cli",
+            "linux_maa.tools.game",
             "update-game",
             "--serial",
             address,

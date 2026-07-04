@@ -72,7 +72,7 @@ def test_game_update_tool_runs_python_unbuffered(tmp_path: Path) -> None:
 
     command = _build_game_update_command(manager, {"address": "127.0.0.1:5555"})
 
-    assert command.cmd[:4] == [sys.executable, "-u", "-m", "linux_maa.cli"]
+    assert command.cmd[:4] == [sys.executable, "-u", "-m", "linux_maa.tools.game"]
     assert command.cmd[4] == "update-game"
 
 
