@@ -3,9 +3,26 @@ from __future__ import annotations
 import re
 import time
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
-from linux_maa.logs.pipeline import LogPipelineSession, format_time_prefix
-from linux_maa.logs.records import LogEntry, LogMessage, LogTone, TaskStatus
+from linux_maa.logs.pipeline import (
+    ActiveBlock,
+    BlockDefinition,
+    BlockStartContext,
+    BlockStartOutcome,
+    CloseReason,
+    LogLineInput,
+    LogLineTranslation,
+    LogPipelineSession,
+    LogSourceSpec,
+    default_tone_for_source,
+    format_time_prefix,
+    plain_translate_line,
+)
+from linux_maa.logs.records import BlockStatus, LogMessage, LogTone
+
+if TYPE_CHECKING:
+    from linux_maa.logs import RunLogBuffer
 
 
 TIME_VALUE_RE = r"(?:\d{4}-\d{2}-\d{2}\s+)?\d{2}:\d{2}:\d{2}"
@@ -58,12 +75,14 @@ COMMON_TERM_LABELS = {
     "Recruited": "已招募",
 }
 
-STATUS_LABEL: dict[TaskStatus, str] = {
+STATUS_LABEL: dict[BlockStatus, str] = {
+    "default": "默认",
     "running": "运行中",
     "succeeded": "成功",
     "failed": "失败",
     "stopped": "已停止",
-    "unknown": "未确认结束",
+    "unknown": "未知",
+    "unfinished": "未完成",
 }
 
 LEVEL_TONE: dict[str, LogTone] = {
@@ -76,6 +95,7 @@ LEVEL_TONE: dict[str, LogTone] = {
 @dataclass(frozen=True)
 class TranslatedMessage:
     """Result of translating a raw MAA log message: text, translated flag, optional tone."""
+
     text: str
     translated: bool = False
     tone: LogTone | None = None
@@ -83,16 +103,9 @@ class TranslatedMessage:
 
 
 @dataclass
-class MaaLogTemplate:
-    """MAA-specific block assembly and message translation template."""
-
+class MaaLogState:
     expected_tasks: list[dict[str, str]] = field(default_factory=list)
     expected_task_index: int = 0
-    current_by_source: dict[str, LogEntry] = field(default_factory=dict)
-    current_summary_by_source: dict[str, LogEntry] = field(default_factory=dict)
-    current_git_block_by_source: dict[str, LogEntry] = field(default_factory=dict)
-    task_records: list[LogEntry] = field(default_factory=list)
-    max_task_records: int = 500
 
     def begin_task_sequence(self, tasks: list[dict[str, str]]) -> None:
         self.expected_tasks = [
@@ -106,245 +119,7 @@ class MaaLogTemplate:
         ]
         self.expected_task_index = 0
 
-    def handle_line(self, session: LogPipelineSession, source: str, raw: str) -> str:
-        raw = raw.rstrip("\r\n")
-        parsed = parse_log_line(raw)
-
-        if source in self.current_git_block_by_source:
-            if parsed["body"] == "Summary":
-                self.current_git_block_by_source.pop(source, None)
-            elif parsed["time"] is None:
-                return self._handle_git_output_line(session, raw, source)
-            else:
-                self.current_git_block_by_source.pop(source, None)
-
-        if parsed["time"] is not None:
-            self.current_summary_by_source.pop(source, None)
-
-        if parsed["time"] is None and is_stderr_fetch_start(raw, source):
-            self.current_summary_by_source.pop(source, None)
-            return self._handle_git_output_start(session, raw, source, title="资源拉取诊断")
-
-        if parsed["time"] is None and is_stdout_resource_update_start(raw):
-            self.current_summary_by_source.pop(source, None)
-            return self._handle_git_output_start(session, raw, source)
-
-        if parsed["body"] == "Summary":
-            return self._handle_summary_start(session, raw, source)
-
-        if source in self.current_summary_by_source and parsed["time"] is None:
-            return self._handle_summary_line(raw, parsed, source)
-
-        task_match = TASK_EVENT_RE.match(str(parsed["body"] or ""))
-        if task_match is not None:
-            status = task_status(task_match.group("event"))
-            if status is not None:
-                return self._handle_task_event(session, raw, parsed, source, task_match.group("task"), status)
-
-        return self._handle_default_line(session, raw, parsed, source)
-
-    def flush_source(self, session: LogPipelineSession, source: str) -> str:
-        output = ""
-        if source in self.current_by_source:
-            output += self._close_current("unknown", source)
-        self.current_summary_by_source.pop(source, None)
-        self.current_git_block_by_source.pop(source, None)
-        return output
-
-    def task_results(self, *, max_items: int = 500) -> list[dict[str, object]]:
-        return [task_entry_to_result(record) for record in self.task_records][-max_items:]
-
-    def current_block_elapsed_seconds(self, *, kind: str | None = None) -> tuple[str, float] | None:
-        if kind not in {None, "task"}:
-            return None
-        active = [
-            (float(started), record)
-            for record in self.current_by_source.values()
-            for started in [record.metadata.get("started_monotonic")]
-            if isinstance(started, (int, float))
-        ]
-        if not active:
-            return None
-        started, record = max(active, key=lambda item: item[0])
-        return record.name or record.title, time.monotonic() - started
-
-    def _handle_summary_start(self, session: LogPipelineSession, raw: str, source: str) -> str:
-        output = ""
-        if source in self.current_by_source:
-            output += self._close_current("unknown", source)
-        record = session.append_block(
-            source,
-            kind="summary",
-            title="运行摘要",
-            status="succeeded",
-            tone="success",
-            lines=[raw],
-        )
-        self.current_summary_by_source[source] = record
-        return f"{output}运行摘要\n"
-
-    def _handle_summary_line(self, raw: str, parsed: dict[str, str | None], source: str) -> str:
-        record = self.current_summary_by_source[source]
-        body = str(parsed["body"] or "")
-        message = translate_summary_message(body)
-        record.lines.append(raw)
-        if message is None:
-            return ""
-        record.messages.append(message)
-        if message.tone == "danger":
-            record.status = "failed"
-            record.tone = "danger"
-        elif message.tone == "warning" and record.status != "failed":
-            record.status = "stopped"
-            record.tone = "warning"
-        return f"{message.text}\n"
-
-    def _handle_git_output_start(self, session: LogPipelineSession, raw: str, source: str, *, title: str = "资源拉取结果") -> str:
-        record = session.append_block(
-            source,
-            kind="summary",
-            title=title,
-            status="succeeded",
-            tone="info",
-            lines=[raw],
-        )
-        self.current_git_block_by_source[source] = record
-        return f"{title}\n" + self._handle_git_output_line(session, raw, source)
-
-    def _handle_git_output_line(self, session: LogPipelineSession, raw: str, source: str) -> str:
-        record = self.current_git_block_by_source[source]
-        message = LogMessage(text=raw, tone="info", raw=raw)
-        record.messages.append(message)
-        if not record.lines or record.lines[-1] != raw:
-            record.lines.append(raw)
-        return f"{raw}\n"
-
-    def _handle_task_event(
-        self,
-        session: LogPipelineSession,
-        raw: str,
-        parsed: dict[str, str | None],
-        source: str,
-        task_name: str,
-        status: TaskStatus,
-    ) -> str:
-        if status == "running":
-            output = ""
-            if source in self.current_by_source:
-                output += self._close_current("unknown", source)
-            expected_task = self._next_expected_task(task_name)
-            display_name = expected_task.get("name") or task_name
-            record = session.append_block(
-                source,
-                kind="task",
-                title=f"任务 {display_name}",
-                status="running",
-                started_at=parsed["time"],
-                tone="info",
-                lines=[raw],
-                name=display_name,
-                task_id=expected_task.get("task_id") or None,
-                source_name=task_name,
-                rule_id="maa-task-lifecycle",
-                panel_kind="task",
-                metadata={"started_monotonic": time.monotonic()},
-            )
-            self.current_by_source[source] = record
-            self._append_task_record(record)
-            return f"{output}{format_time_prefix(parsed['time'])}已开始任务: {display_name}\n"
-
-        current = self.current_by_source.get(source)
-        if current is None or (current.source_name or current.name) != task_name:
-            return self._record_unmatched_task_end(session, raw, parsed, task_name, status, source)
-
-        current.lines.append(raw)
-        current.status = status
-        current.ended_at = parsed["time"]
-        return self._close_current(status, source)
-
-    def _record_unmatched_task_end(
-        self,
-        session: LogPipelineSession,
-        raw: str,
-        parsed: dict[str, str | None],
-        task_name: str,
-        status: TaskStatus,
-        source: str,
-    ) -> str:
-        output = ""
-        if source in self.current_by_source:
-            output += self._close_current("unknown", source)
-        expected_task = self._next_expected_task(task_name)
-        display_name = expected_task.get("name") or task_name
-        record = session.append_block(
-            source,
-            kind="task",
-            title=f"任务 {display_name}",
-            status=status,
-            ended_at=parsed["time"],
-            tone=tone_for_status(status),
-            lines=[raw],
-            name=display_name,
-            task_id=expected_task.get("task_id") or None,
-            source_name=task_name,
-            rule_id="maa-task-lifecycle",
-            panel_kind="task",
-        )
-        self._append_task_record(record)
-        return f"{output}{format_time_prefix(parsed['time'])}任务 {display_name} {STATUS_LABEL[status]}\n"
-
-    def _handle_default_line(self, session: LogPipelineSession, raw: str, parsed: dict[str, str | None], source: str) -> str:
-        body = str(parsed["body"] or "")
-        time_text = parsed["time"]
-        level = parsed["level"]
-        tone = LEVEL_TONE.get(str(level), "default") if level is not None else session.source_spec(source).default_tone
-
-        current = self.current_by_source.get(source)
-        if current is None:
-            translated = translate_global_message(body)
-            message = LogMessage(
-                text=translated.text,
-                time=time_text,
-                tone=translated.tone or tone,
-                raw=None if translated.translated else raw,
-                segments=translated.segments,
-            )
-            session.append_block(
-                source,
-                kind="line",
-                time=time_text,
-                tone=message.tone,
-                messages=[message],
-                lines=[raw],
-                raw=None if translated.translated else raw,
-            )
-            return f"{format_time_prefix(message.time)}{message.text}\n"
-
-        translated_task_line = translate_task_line(body)
-        current.lines.append(raw)
-        if translated_task_line is None:
-            return ""
-        message = LogMessage(
-            text=translated_task_line,
-            time=time_text,
-            tone=tone,
-            raw=None if is_task_line_translated(body) else raw,
-        )
-        current.messages.append(message)
-        return f"{format_time_prefix(message.time)}{message.text}\n"
-
-    def _close_current(self, status: TaskStatus, source: str) -> str:
-        current = self.current_by_source.pop(source, None)
-        if current is None:
-            return ""
-        current.status = status
-        current.tone = tone_for_status(status)
-        current.metadata.pop("started_monotonic", None)
-        task_name = current.name or current.title
-        ended_at = current.ended_at or current.started_at
-        return f"{format_time_prefix(ended_at)}任务 {task_name} {STATUS_LABEL[status]}\n"
-
-    def _next_expected_task(self, source_name: str) -> dict[str, str]:
+    def next_expected_task(self, source_name: str) -> dict[str, str]:
         for index in range(self.expected_task_index, len(self.expected_tasks)):
             task = self.expected_tasks[index]
             if task.get("source_name") != source_name:
@@ -353,11 +128,306 @@ class MaaLogTemplate:
             return task
         return {"task_id": "", "source_name": source_name, "name": source_name}
 
-    def _append_task_record(self, record: LogEntry) -> None:
-        self.task_records.append(record)
-        overflow = len(self.task_records) - self.max_task_records
-        if overflow > 0:
-            del self.task_records[:overflow]
+
+@dataclass(frozen=True)
+class TaskEventMatch:
+    task_name: str
+    status: BlockStatus
+    parsed: dict[str, str | None]
+    interrupted: bool = False
+
+
+def register_maa_log_sources(log: "RunLogBuffer") -> MaaLogState:
+    state = MaaLogState()
+    log.pipeline.register_task_sequence_handler(state.begin_task_sequence)
+    for source in ("maa-cli:stdout", "maa-cli:stderr"):
+        log.register_source(LogSourceSpec(source, default_tone_for_source(source), translate_maa_cli_line))
+    for definition in maa_block_definitions(state):
+        log.pipeline.register_block(definition)
+    return state
+
+
+def maa_block_definitions(state: MaaLogState) -> list[BlockDefinition]:
+    return [
+        BlockDefinition(
+            kind="task",
+            source_predicate=lambda source: source == "maa-cli:stderr",
+            start_matcher=_match_task_event,
+            end_matcher=_match_task_end,
+            translate_line=_translate_task_body_line,
+            on_start=lambda active, line, match, context: _on_task_start(state, active, line, match, context),
+            on_close=_on_task_close,
+            default_status="running",
+            default_tone="info",
+            projection_key="task",
+            rule_id="maa-task-lifecycle",
+            panel_kind="task",
+        ),
+        BlockDefinition(
+            kind="summary",
+            source_predicate=lambda source: source == "maa-cli:stdout",
+            start_matcher=_match_run_summary_start,
+            passive_boundary_matcher=_match_timestamp_boundary,
+            translate_line=_translate_summary_line,
+            on_start=_on_summary_start,
+            on_close=_on_inert_close,
+            default_title="运行摘要",
+            default_status="succeeded",
+            default_tone="success",
+            rule_id="maa-run-summary",
+            panel_kind="summary",
+        ),
+        BlockDefinition(
+            kind="output",
+            source_predicate=lambda source: source == "maa-cli:stdout",
+            start_matcher=_match_stdout_resource_update_start,
+            passive_boundary_matcher=_match_stdout_resource_update_boundary,
+            translate_line=_translate_resource_output_line,
+            on_start=lambda active, line, match, context: _on_resource_output_start(active, line, context.session, title="资源拉取结果"),
+            on_close=_on_inert_close,
+            default_title="资源拉取结果",
+            default_status="succeeded",
+            default_tone="info",
+            rule_id="maa-stdout-resource-update",
+            panel_kind="summary",
+        ),
+        BlockDefinition(
+            kind="output",
+            source_predicate=lambda source: source.endswith(":stderr"),
+            start_matcher=_match_stderr_fetch_start,
+            passive_boundary_matcher=_match_timestamp_boundary,
+            translate_line=_translate_resource_output_line,
+            on_start=lambda active, line, match, context: _on_resource_output_start(active, line, context.session, title="资源拉取诊断"),
+            on_close=_on_inert_close,
+            default_title="资源拉取诊断",
+            default_status="succeeded",
+            default_tone="info",
+            rule_id="maa-stderr-fetch-diagnostics",
+            panel_kind="summary",
+        ),
+    ]
+
+
+def translate_maa_cli_line(source: str, raw: str, metadata: dict[str, object], context: LogPipelineSession) -> LogLineTranslation | None:
+    if "message_override" in metadata or "kind_override" in metadata:
+        return plain_translate_line(source, raw, metadata, context)
+
+    parsed = parse_log_line(raw)
+    body = str(parsed["body"] or "")
+    time_text = _metadata_str(metadata, "time") or parsed["time"]
+    level = parsed["level"]
+    default_tone = context.source_spec(source).default_tone
+    tone = _metadata_tone(metadata, LEVEL_TONE.get(str(level), default_tone) if level is not None else default_tone)
+    translated = translate_global_message(body)
+    message = LogMessage(
+        text=translated.text,
+        time=time_text,
+        tone=translated.tone or tone,
+        raw=None if translated.translated else raw,
+        segments=translated.segments,
+        metadata=_metadata_dict(metadata, "message_metadata"),
+    )
+    return LogLineTranslation(
+        text=message.text,
+        kind=_metadata_str(metadata, "kind_override") or "line",
+        title=_metadata_str(metadata, "title_override") or "",
+        status=_metadata_status(metadata) or "default",
+        time=time_text,
+        tone=message.tone,
+        messages=[message],
+        lines=[raw],
+        raw=None if translated.translated else raw,
+        metadata=_metadata_dict(metadata, "entry_metadata"),
+    )
+
+
+def _match_task_event(line: LogLineInput, session: LogPipelineSession) -> TaskEventMatch | None:
+    parsed = parse_log_line(line.raw)
+    match = TASK_EVENT_RE.match(str(parsed["body"] or ""))
+    if match is None:
+        return None
+    status = task_status(match.group("event"))
+    if status is None:
+        return None
+    return TaskEventMatch(task_name=match.group("task"), status=status, parsed=parsed)
+
+
+def _match_task_end(active: ActiveBlock, line: LogLineInput, session: LogPipelineSession) -> TaskEventMatch | None:
+    parsed = parse_log_line(line.raw)
+    body = str(parsed["body"] or "")
+    current_name = active.entry.source_name or active.entry.name
+    if body == "Error: Interrupted by user!":
+        return TaskEventMatch(task_name=current_name or active.entry.title, status="unfinished", parsed=parsed, interrupted=True)
+
+    match = TASK_EVENT_RE.match(body)
+    if match is None:
+        return None
+    status = task_status(match.group("event"))
+    if status is None or status == "running":
+        return None
+    task_name = match.group("task")
+    if current_name != task_name:
+        return None
+    return TaskEventMatch(task_name=task_name, status=status, parsed=parsed)
+
+
+def _on_task_start(
+    state: MaaLogState,
+    active: ActiveBlock,
+    line: LogLineInput,
+    match: object | None,
+    context: BlockStartContext,
+) -> BlockStartOutcome:
+    if not isinstance(match, TaskEventMatch):
+        return BlockStartOutcome()
+
+    expected_task = state.next_expected_task(match.task_name)
+    display_name = expected_task.get("name") or match.task_name
+    entry = active.entry
+    entry.title = f"任务 {display_name}"
+    entry.status = match.status
+    entry.tone = tone_for_status(match.status)
+    entry.name = display_name
+    entry.task_id = expected_task.get("task_id") or None
+    entry.source_name = match.task_name
+    entry.rule_id = "maa-task-lifecycle"
+    entry.panel_kind = "task"
+
+    if match.status == "running":
+        entry.started_at = match.parsed["time"] or line.time
+        started = time.monotonic()
+        entry.metadata["started_monotonic"] = started
+        active.context["started_monotonic"] = started
+        return BlockStartOutcome()
+
+    entry.ended_at = match.parsed["time"] or line.time
+    return BlockStartOutcome(keep_active=False)
+
+
+def _translate_task_body_line(active: ActiveBlock, line: LogLineInput, session: LogPipelineSession) -> str:
+    parsed = parse_log_line(line.raw)
+    body = str(parsed["body"] or "")
+    time_text = parsed["time"] or line.time
+    level = parsed["level"]
+    tone = LEVEL_TONE.get(str(level), session.source_spec(line.source).default_tone) if level is not None else line.tone
+    translated_task_line = translate_task_line(body)
+    active.entry.lines.append(line.raw)
+    if translated_task_line is None:
+        return ""
+    message = LogMessage(
+        text=translated_task_line,
+        time=time_text,
+        tone=tone,
+        raw=None if is_task_line_translated(body) else line.raw,
+    )
+    active.entry.messages.append(message)
+    return f"{format_time_prefix(message.time)}{message.text}\n"
+
+
+def _on_task_close(
+    active: ActiveBlock,
+    reason: CloseReason,
+    line: LogLineInput | None,
+    match: object | None,
+    session: LogPipelineSession,
+) -> str:
+    entry = active.entry
+    status: BlockStatus = "unknown"
+    time_text: str | None = None
+
+    if reason == "matched_end" and isinstance(match, TaskEventMatch):
+        status = match.status
+        time_text = match.parsed["time"]
+        if line is not None and match.interrupted:
+            entry.messages.append(LogMessage(text="用户中断", time=time_text, tone="warning", raw=line.raw))
+    elif entry.status and entry.status not in {"default", "running"}:
+        status = entry.status
+
+    entry.status = status
+    entry.tone = tone_for_status(status)
+    if time_text and not entry.ended_at:
+        entry.ended_at = time_text
+    entry.metadata.pop("started_monotonic", None)
+    active.context.pop("started_monotonic", None)
+    active.locked_fields.update({"status", "tone", "ended_at"})
+    return ""
+
+
+def _match_run_summary_start(line: LogLineInput, session: LogPipelineSession) -> str | None:
+    parsed = parse_log_line(line.raw)
+    return "summary" if parsed["body"] == "Summary" else None
+
+
+def _on_summary_start(active: ActiveBlock, line: LogLineInput, match: object | None, context: BlockStartContext) -> str:
+    active.entry.title = "运行摘要"
+    active.entry.status = "succeeded"
+    active.entry.tone = "success"
+    active.entry.lines.append(line.raw)
+    return "运行摘要\n"
+
+
+def _translate_summary_line(active: ActiveBlock, line: LogLineInput, session: LogPipelineSession) -> str:
+    parsed = parse_log_line(line.raw)
+    body = str(parsed["body"] or "")
+    message = translate_summary_message(body)
+    active.entry.lines.append(line.raw)
+    if message is None:
+        return ""
+    active.entry.messages.append(message)
+    if message.tone == "danger":
+        active.entry.status = "failed"
+        active.entry.tone = "danger"
+    elif message.tone == "warning" and active.entry.status != "failed":
+        active.entry.status = "stopped"
+        active.entry.tone = "warning"
+    return f"{message.text}\n"
+
+
+def _match_stdout_resource_update_start(line: LogLineInput, session: LogPipelineSession) -> str | None:
+    return "resource-update" if is_stdout_resource_update_start(line.raw) else None
+
+
+def _match_stderr_fetch_start(line: LogLineInput, session: LogPipelineSession) -> str | None:
+    return "stderr-fetch" if is_stderr_fetch_start(line.raw, line.source) else None
+
+
+def _on_resource_output_start(active: ActiveBlock, line: LogLineInput, session: LogPipelineSession, *, title: str) -> str:
+    active.entry.title = title
+    active.entry.status = "succeeded"
+    active.entry.tone = "info"
+    return f"{title}\n" + _translate_resource_output_line(active, line, session)
+
+
+def _translate_resource_output_line(active: ActiveBlock, line: LogLineInput, session: LogPipelineSession) -> str:
+    message = LogMessage(text=line.raw, tone="info", raw=line.raw)
+    active.entry.messages.append(message)
+    if not active.entry.lines or active.entry.lines[-1] != line.raw:
+        active.entry.lines.append(line.raw)
+    return f"{line.raw}\n"
+
+
+def _match_timestamp_boundary(active: ActiveBlock, line: LogLineInput, session: LogPipelineSession) -> str | None:
+    parsed = parse_log_line(line.raw)
+    return "timestamped-line" if parsed["time"] is not None else None
+
+
+def _match_stdout_resource_update_boundary(active: ActiveBlock, line: LogLineInput, session: LogPipelineSession) -> str | None:
+    parsed = parse_log_line(line.raw)
+    if parsed["body"] == "Summary":
+        return "summary"
+    if parsed["time"] is not None:
+        return "timestamped-line"
+    return None
+
+
+def _on_inert_close(
+    active: ActiveBlock,
+    reason: CloseReason,
+    line: LogLineInput | None,
+    match: object | None,
+    session: LogPipelineSession,
+) -> str:
+    return ""
 
 
 def translate_global_message(body: str) -> TranslatedMessage:
@@ -556,7 +626,7 @@ def parse_log_line(raw: str) -> dict[str, str | None]:
     }
 
 
-def task_status(event: str) -> TaskStatus | None:
+def task_status(event: str) -> BlockStatus | None:
     if event == "Start":
         return "running"
     if event == "Completed":
@@ -568,12 +638,12 @@ def task_status(event: str) -> TaskStatus | None:
     return None
 
 
-def tone_for_status(status: TaskStatus) -> LogTone:
+def tone_for_status(status: BlockStatus) -> LogTone:
     if status == "succeeded":
         return "success"
     if status == "failed":
         return "danger"
-    if status in {"stopped", "unknown"}:
+    if status in {"stopped", "unknown", "unfinished"}:
         return "warning"
     return "info"
 
@@ -586,21 +656,26 @@ def is_stderr_fetch_start(raw: str, source: str) -> bool:
     return source.endswith(":stderr") and raw.startswith("From https://github.com/")
 
 
-def task_entry_to_result(record: LogEntry) -> dict[str, object]:
-    return {
-        key: value
-        for key, value in {
-            "type": "task",
-            "name": record.name or record.title,
-            "task_id": record.task_id,
-            "source_name": record.source_name,
-            "status": record.status or "unknown",
-            "rule_id": record.rule_id,
-            "panel_kind": record.panel_kind,
-            "started_at": record.started_at,
-            "ended_at": record.ended_at,
-            "messages": [message.to_dict() for message in record.messages],
-            "lines": list(record.lines),
-        }.items()
-        if value is not None
-    }
+def _metadata_str(metadata: dict[str, object], key: str) -> str | None:
+    value = metadata.get(key)
+    if value is None:
+        return None
+    text = str(value)
+    return text if text else None
+
+
+def _metadata_dict(metadata: dict[str, object], key: str) -> dict[str, object]:
+    value = metadata.get(key)
+    return dict(value) if isinstance(value, dict) else {}
+
+
+def _metadata_tone(metadata: dict[str, object], default: LogTone) -> LogTone:
+    value = metadata.get("tone")
+    return value if value in {"default", "success", "warning", "danger", "info"} else default
+
+
+def _metadata_status(metadata: dict[str, object]) -> BlockStatus | None:
+    value = metadata.get("status_override", metadata.get("status"))
+    if value in {"default", "running", "succeeded", "failed", "stopped", "unknown", "unfinished"}:
+        return value  # type: ignore[return-value]
+    return None

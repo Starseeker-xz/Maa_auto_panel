@@ -10,9 +10,9 @@ from typing import Any
 
 from linux_maa.config import ConfigManager, FrameworkSettingsManager
 from linux_maa.diagnostics import Diagnostics, get_logger
-from linux_maa.logs import LogSourceSpec, PlainLogTemplate, RunLogBuffer
+from linux_maa.logs import LogSourceSpec, RunLogBuffer, plain_translate_line
 from linux_maa.logs.pipeline import default_tone_for_source
-from linux_maa.maa.log_templates import MaaLogTemplate
+from linux_maa.maa.log_templates import register_maa_log_sources
 from linux_maa.maa.runner import load_task_file, prepare_maa_cli_task, resolve_task_file
 from linux_maa.maa.runtime import MaaRuntime
 from linux_maa.process import run_streaming_process
@@ -341,7 +341,7 @@ class SchedulerService:
         )
 
         if not selected:
-            self._append_event(state, "本次没有需要运行的子任务。", tone="info")
+            self._append_framework_event(state, "本次没有需要运行的子任务。", tone="info")
             self._append_skip_events(state, policy_by_id, selection.skipped, entry)
             self.store.finish_run(
                 state.id,
@@ -357,7 +357,7 @@ class SchedulerService:
             self._set_done(state, "skipped", 0)
             return
 
-        self._append_event(state, f"本次运行实际任务: {', '.join(_task_names(policy_by_id, selected))}", tone="info")
+        self._append_framework_event(state, f"本次运行实际任务: {', '.join(_task_names(policy_by_id, selected))}", tone="info")
         self._append_skip_events(state, policy_by_id, selection.skipped, entry)
         self._run_restart_script(state, config, "before_run")
 
@@ -373,11 +373,11 @@ class SchedulerService:
         while next_task_ids and not state.stop_requested:
             if attempt_in_group >= config.retry.max_attempts_per_group:
                 if retry_group >= config.retry.max_groups:
-                    self._append_event(state, "重试组次数已达上限，放弃本次定时运行。", tone="danger")
+                    self._append_framework_event(state, "重试组次数已达上限，放弃本次定时运行。", tone="danger")
                     break
                 retry_group += 1
                 attempt_in_group = 0
-                self._append_event(state, f"进入第 {retry_group} 个重试组，缓冲 {config.retry.group_buffer_seconds}s。", tone="warning")
+                self._append_framework_event(state, f"进入第 {retry_group} 个重试组，缓冲 {config.retry.group_buffer_seconds}s。", tone="warning")
                 self._run_restart_script(state, config, "before_retry_group")
                 if config.retry.group_buffer_seconds:
                     time.sleep(config.retry.group_buffer_seconds)
@@ -419,7 +419,7 @@ class SchedulerService:
                 run_successful_task_ids=run_successful_task_ids,
             )
             if next_task_ids:
-                self._append_event(state, f"准备重试: {', '.join(_task_names(policy_by_id, next_task_ids))}", tone="warning")
+                self._append_framework_event(state, f"准备重试: {', '.join(_task_names(policy_by_id, next_task_ids))}", tone="warning")
             else:
                 final_status = _final_status(policies, entry, stats, attempt_result["status_by_task_id"], run_successful_task_ids)
 
@@ -490,10 +490,10 @@ class SchedulerService:
         if state.log_level > 0:
             cmd.extend(["-v"] * state.log_level)
 
-        self._append_event(state, f"开始第 {attempt_index} 次尝试: {', '.join(_task_names(policy_by_id, task_ids))}", tone="info")
+        self._append_framework_event(state, f"开始第 {attempt_index} 次尝试: {', '.join(_task_names(policy_by_id, task_ids))}", tone="info")
         state.log.begin_task_sequence(_expected_log_tasks(policy_by_id, task_ids))
         for message in prepare_messages:
-            self._append_event(state, message, tone="info")
+            self._append_framework_event(state, message, tone="info")
         attempt_started = _now()
         translator_start = len(state.log.task_results())
         log_entry_start = len(state.log.entries())
@@ -549,13 +549,13 @@ class SchedulerService:
         try:
             command = self.scripts.command(config.restart.script, config.restart.variables)
         except FileNotFoundError:
-            self._append_event(state, f"重启脚本不存在: {config.restart.script}", tone="warning")
+            self._append_framework_event(state, f"重启脚本不存在: {config.restart.script}", tone="warning")
             return
         except Exception as exc:
-            self._append_event(state, f"重启脚本启动失败: {exc}", tone="danger")
+            self._append_framework_event(state, f"重启脚本启动失败: {exc}", tone="danger")
             return
 
-        self._append_event(state, f"运行重启脚本({mode}): {config.restart.script}", tone="info")
+        self._append_framework_event(state, f"运行重启脚本({mode}): {config.restart.script}", tone="info")
         try:
             result = run_streaming_process(
                 self.runtime,
@@ -569,13 +569,13 @@ class SchedulerService:
             )
             self._flush_run_log(state)
         except Exception as exc:
-            self._append_event(state, f"重启脚本启动失败: {exc}", tone="danger")
+            self._append_framework_event(state, f"重启脚本启动失败: {exc}", tone="danger")
             logger.exception("schedule restart script failed run_id=%s script=%s", state.id, config.restart.script)
             return
         if result.timed_out:
-            self._append_event(state, "重启脚本运行超时，已终止。", tone="danger")
+            self._append_framework_event(state, "重启脚本运行超时，已终止。", tone="danger")
         if result.return_code != 0:
-            self._append_event(state, f"重启脚本退出码: {result.return_code}", tone="warning")
+            self._append_framework_event(state, f"重启脚本退出码: {result.return_code}", tone="warning")
 
     def _append_skip_events(
         self,
@@ -590,14 +590,14 @@ class SchedulerService:
             if task_id not in enabled:
                 continue
             task_name = policy_by_id[task_id].name if task_id in policy_by_id else task_id
-            self._append_event(state, f"跳过子任务: {task_name}，原因: {item.get('reason', '未说明')}", tone="info")
+            self._append_framework_event(state, f"跳过子任务: {task_name}，原因: {item.get('reason', '未说明')}", tone="info")
 
     def _mark_log_updated(self, state: ScheduleRunState) -> None:
         with self._lock:
             state.updated_at = _now()
             self._notify_locked()
 
-    def _append_event(self, state: ScheduleRunState, text: str, *, tone: str = "info") -> None:
+    def _append_framework_event(self, state: ScheduleRunState, text: str, *, tone: str = "info") -> None:
         self.diagnostics.append_run_event(state.id, "schedule", "framework", text, tone=tone)
         if tone == "danger":
             logger.error("scheduled run event run_id=%s text=%s", state.id, text)
@@ -605,7 +605,7 @@ class SchedulerService:
             logger.warning("scheduled run event run_id=%s text=%s", state.id, text)
         else:
             logger.info("scheduled run event run_id=%s text=%s", state.id, text)
-        if state.log.append_event(text, time=datetime.now().strftime("%H:%M:%S"), tone=tone):  # type: ignore[arg-type]
+        if state.log.append(f"{text.rstrip()}\n", source="framework:event", metadata={"time": datetime.now().strftime("%H:%M:%S"), "tone": tone}):
             self._mark_log_updated(state)
 
     def _append_maa_log(self, state: ScheduleRunState, text: str, stream: str = "output") -> None:
@@ -627,15 +627,15 @@ class SchedulerService:
 
     def _append_timeout_event(self, state: ScheduleRunState, level: str, elapsed: float) -> None:
         if level == "warning":
-            self._append_event(state, f"运行时间已超过 {elapsed:.0f}s。", tone="warning")
+            self._append_framework_event(state, f"运行时间已超过 {elapsed:.0f}s。", tone="warning")
         elif level == "danger":
-            self._append_event(state, f"运行时间已超过 {elapsed:.0f}s，即将触发硬停止。", tone="danger")
+            self._append_framework_event(state, f"运行时间已超过 {elapsed:.0f}s，即将触发硬停止。", tone="danger")
         else:
-            self._append_event(state, f"运行时间已超过上限，正在终止 maa-cli。", tone="danger")
+            self._append_framework_event(state, f"运行时间已超过上限，正在终止 maa-cli。", tone="danger")
 
     def _append_script_timeout_event(self, state: ScheduleRunState, level: str, elapsed: float) -> None:
         if level == "kill":
-            self._append_event(state, f"重启脚本运行超过 {elapsed:.0f}s，正在终止。", tone="danger")
+            self._append_framework_event(state, f"重启脚本运行超过 {elapsed:.0f}s，正在终止。", tone="danger")
 
     def _child_timeout_checker(self, state: ScheduleRunState, config: ScheduleConfig):
         warned_task = ""
@@ -650,14 +650,14 @@ class SchedulerService:
             task_name, elapsed = current
             if config.timeouts.child_warning_seconds and warned_task != task_name and elapsed >= config.timeouts.child_warning_seconds:
                 warned_task = task_name
-                self._append_event(state, f"子任务 {task_name} 已运行 {elapsed:.0f}s。", tone="warning")
+                self._append_framework_event(state, f"子任务 {task_name} 已运行 {elapsed:.0f}s。", tone="warning")
             if config.timeouts.child_danger_seconds and dangered_task != task_name and elapsed >= config.timeouts.child_danger_seconds:
                 dangered_task = task_name
-                self._append_event(state, f"子任务 {task_name} 已运行 {elapsed:.0f}s，即将触发硬停止。", tone="danger")
+                self._append_framework_event(state, f"子任务 {task_name} 已运行 {elapsed:.0f}s，即将触发硬停止。", tone="danger")
             if config.timeouts.child_kill_seconds and killed_task != task_name and elapsed >= config.timeouts.child_kill_seconds:
                 killed_task = task_name
                 state.stop_requested = True
-                self._append_event(state, f"子任务 {task_name} 超过上限，正在终止 maa-cli。", tone="danger")
+                self._append_framework_event(state, f"子任务 {task_name} 超过上限，正在终止 maa-cli。", tone="danger")
 
         return check
 
@@ -732,13 +732,10 @@ def _expected_log_tasks(policy_by_id: dict[str, TaskPolicy], task_ids: list[str]
 
 
 def _register_schedule_log_sources(log: RunLogBuffer, *, include_script: bool) -> None:
-    maa_template = MaaLogTemplate()
-    for source in ("maa-cli:stdout", "maa-cli:stderr"):
-        log.register_source(LogSourceSpec(source, maa_template, default_tone_for_source(source)))
+    register_maa_log_sources(log)
     if include_script:
-        script_template = PlainLogTemplate()
         for source in ("script:stdout", "script:stderr"):
-            log.register_source(LogSourceSpec(source, script_template, default_tone_for_source(source)))
+            log.register_source(LogSourceSpec(source, default_tone_for_source(source), plain_translate_line))
 
 
 def _final_status(

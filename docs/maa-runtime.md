@@ -158,27 +158,30 @@ The WebUI captures visible process channels through the shared
 The WebUI run manager does not pass raw `maa-cli` log chunks straight through.
 The `src/linux_maa/logs/` package owns the generic WebUI-visible log pipeline:
 source registration, terminal control characters, block assembly, bounded
-`output`, and unified `log_entries`. Callers register a source with an explicit
-template. MAA-aware parsing and translation live in
-`src/linux_maa/maa/log_templates.py`, while arbitrary script and tool output use
-the generic plain-line template. Raw stdout/stderr persistence remains owned by
-`Diagnostics`.
+`output`, and unified `log_entries`. Callers register source defaults
+(`default_tone` and `default_translate_line`) plus source-scoped block
+definitions. The pipeline owns one active block per source and closes blocks
+with `matched_end`, `superseded`, `passive_boundary`, or `flush`. MAA-aware
+rules and translation hooks live in `src/linux_maa/maa/log_templates.py`, while
+arbitrary script and tool output use the generic plain-line fallback. Raw
+stdout/stderr persistence remains owned by `Diagnostics`.
 
 The visible log API uses one block shape for all rows. Plain lines, MAA child
 task blocks, run summaries, git output groups, and framework events differ by
-`kind` and metadata rather than by separate record types. MAA templates project
-task-kind blocks into `task_results` for scheduler policy decisions, and expose
-current block elapsed time for child timeout checks.
+open-ended `kind`, generic block status, and metadata rather than by separate
+record types. MAA hooks project task blocks into `task_results` for scheduler
+policy decisions, and the pipeline exposes current active block elapsed time
+for child timeout checks.
 
-Framework preprocessing events also enter the same structured log stream;
-current examples include the resolved Fight stage and Infrast plan before
-`maa-cli` starts. The run-state API exposes structured `log_entries` for UI
-rendering and `task_results` for per-child status. The frontend renders these
-entries as timeline-style cards, leaving room for future colored text segments
-and inline images. Already translated events do not show the original raw log
-line in the normal log UI. The final maa-cli `Summary` tail is grouped into one
-structured summary panel instead of being rendered as one global log card per
-line.
+Framework preprocessing events also enter the same structured log stream as
+ordinary `append(..., source="framework:event", metadata={...})` input; current
+examples include the resolved Fight stage and Infrast plan before `maa-cli`
+starts. The run-state API exposes structured `log_entries` for UI rendering and
+`task_results` for per-child status. The frontend renders these entries with a
+generic block renderer, leaving room for future colored text segments and inline
+images. Already translated events do not show the original raw log line in the
+normal log UI. The final maa-cli `Summary` tail is grouped into one structured
+summary panel instead of being rendered as one global log card per line.
 
 The current-run UI state is delivered through Server-Sent Events:
 

@@ -255,7 +255,7 @@ export type MaaTaskResult = {
   name: string;
   task_id?: string;
   source_name?: string;
-  status: "running" | "succeeded" | "failed" | "stopped" | "unknown";
+  status: MaaBlockStatus;
   rule_id?: string;
   panel_kind?: string;
   started_at?: string | null;
@@ -265,6 +265,7 @@ export type MaaTaskResult = {
 };
 
 export type MaaLogTone = "default" | "success" | "warning" | "danger" | "info";
+export type MaaBlockStatus = "default" | "running" | "succeeded" | "failed" | "stopped" | "unknown" | "warning";
 
 export type MaaLogSegment = {
   text: string;
@@ -294,9 +295,9 @@ export type MaaLogEntry = {
   type: "block";
   id: string;
   source: string;
-  kind: "line" | "task" | "summary" | "event";
+  kind: string;
   title?: string;
-  status?: "running" | "succeeded" | "failed" | "stopped" | "unknown";
+  status?: MaaBlockStatus;
   time?: string | null;
   started_at?: string | null;
   ended_at?: string | null;

@@ -3,8 +3,8 @@ from __future__ import annotations
 from collections import deque
 from dataclasses import dataclass, field
 
-from linux_maa.logs.pipeline import LogPipelineSession, LogSourceSpec
-from linux_maa.logs.records import LogTone
+from linux_maa.logs.pipeline import LogPipelineSession, LogSourceSpec, framework_event_translate_line
+from linux_maa.logs.records import LogEntry
 
 
 @dataclass
@@ -18,6 +18,7 @@ class RunLogBuffer:
 
     def __post_init__(self) -> None:
         self.output = deque(maxlen=self.max_output_chunks)
+        self.register_source(LogSourceSpec("framework:event", default_tone="info", default_translate_line=framework_event_translate_line))
 
     def register_source(self, spec: LogSourceSpec) -> None:
         self.pipeline.register_source(spec)
@@ -29,15 +30,8 @@ class RunLogBuffer:
             "log_entries": self.entries(),
         }
 
-    def append(self, text: str, *, source: str = "output") -> bool:
-        rendered = self.pipeline.append(text, source=source)
-        if not rendered:
-            return False
-        self.output.append(rendered)
-        return True
-
-    def append_event(self, text: str, *, source: str = "framework:event", time: str | None = None, tone: LogTone = "info") -> bool:
-        rendered = self.pipeline.append_event(text, source=source, time=time, tone=tone)
+    def append(self, text: str, *, source: str = "output", metadata: dict[str, object] | None = None) -> bool:
+        rendered = self.pipeline.append(text, source=source, metadata=metadata)
         if not rendered:
             return False
         self.output.append(rendered)
@@ -51,39 +45,34 @@ class RunLogBuffer:
         return True
 
     def task_results(self) -> list[dict[str, object]]:
-        results: list[dict[str, object]] = []
-        seen_templates: set[int] = set()
-        for spec in self.pipeline.sources.values():
-            template_id = id(spec.template)
-            if template_id in seen_templates:
-                continue
-            seen_templates.add(template_id)
-            getter = getattr(spec.template, "task_results", None)
-            if callable(getter):
-                results.extend(getter(max_items=self.max_task_records))
-        return results[-self.max_task_records :]
+        return [_task_entry_to_result(record) for record in self.pipeline.projected_entries("task")][-self.max_task_records :]
 
     def entries(self) -> list[dict[str, object]]:
         return self.pipeline.entries()
 
     def begin_task_sequence(self, tasks: list[dict[str, str]]) -> None:
-        for spec in self.pipeline.sources.values():
-            begin = getattr(spec.template, "begin_task_sequence", None)
-            if callable(begin):
-                begin(tasks)
+        self.pipeline.begin_task_sequence(tasks)
 
     def current_block_elapsed_seconds(self, *, kind: str | None = None) -> tuple[str, float] | None:
-        candidates: list[tuple[str, float]] = []
-        seen_templates: set[int] = set()
-        for spec in self.pipeline.sources.values():
-            template_id = id(spec.template)
-            if template_id in seen_templates:
-                continue
-            seen_templates.add(template_id)
-            getter = getattr(spec.template, "current_block_elapsed_seconds", None)
-            if callable(getter):
-                current = getter(kind=kind)
-                if current is not None:
-                    candidates.append(current)
-                continue
-        return max(candidates, key=lambda item: item[1]) if candidates else None
+        return self.pipeline.current_block_elapsed_seconds(kind=kind)
+
+
+def _task_entry_to_result(record: LogEntry) -> dict[str, object]:
+    status = record.status if record.status and record.status != "default" else "unknown"
+    return {
+        key: value
+        for key, value in {
+            "type": "task",
+            "name": record.name or record.title,
+            "task_id": record.task_id,
+            "source_name": record.source_name,
+            "status": status,
+            "rule_id": record.rule_id,
+            "panel_kind": record.panel_kind,
+            "started_at": record.started_at,
+            "ended_at": record.ended_at,
+            "messages": [message.to_dict() for message in record.messages],
+            "lines": list(record.lines),
+        }.items()
+        if value is not None
+    }

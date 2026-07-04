@@ -12,9 +12,8 @@ from typing import Any
 import requests
 
 from linux_maa.diagnostics import Diagnostics, get_logger
-from linux_maa.logs import LogSourceSpec, RunLogBuffer
-from linux_maa.logs.pipeline import default_tone_for_source
-from linux_maa.maa.log_templates import MaaLogTemplate
+from linux_maa.logs import RunLogBuffer
+from linux_maa.maa.log_templates import register_maa_log_sources
 from linux_maa.maa.runtime import MaaRuntime
 from linux_maa.process import run_streaming_process
 from linux_maa.run_state import RunStateStore
@@ -143,7 +142,11 @@ class MaintenanceActionManager:
         else:
             self.diagnostics.append_run_event(state.id, "maintenance", source, text)
             logger.info("maintenance event run_id=%s source=%s text=%s", state.id, source, text.strip())
-            appended = state.log.append_event(text.strip(), time=datetime.now().strftime("%H:%M:%S"), tone="info")
+            appended = state.log.append(
+                f"{text.strip()}\n",
+                source="framework:event",
+                metadata={"time": datetime.now().strftime("%H:%M:%S"), "tone": "info"},
+            )
         with self._lock:
             if appended:
                 state.updated_at = datetime.now().isoformat(timespec="seconds")
@@ -198,9 +201,7 @@ class MaintenanceActionManager:
 
 
 def _register_maa_cli_log_sources(log: RunLogBuffer) -> None:
-    template = MaaLogTemplate()
-    for source in ("maa-cli:stdout", "maa-cli:stderr"):
-        log.register_source(LogSourceSpec(source, template, default_tone_for_source(source)))
+    register_maa_log_sources(log)
 
 
 def _current_versions(runtime: MaaRuntime, errors: list[str]) -> dict[str, object]:

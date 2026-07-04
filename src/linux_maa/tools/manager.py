@@ -10,7 +10,7 @@ from typing import Any, Callable
 
 from linux_maa.config import ConfigManager
 from linux_maa.diagnostics import Diagnostics, get_logger
-from linux_maa.logs import LogSourceSpec, PlainLogTemplate, RunLogBuffer
+from linux_maa.logs import LogSourceSpec, RunLogBuffer, plain_translate_line
 from linux_maa.logs.pipeline import default_tone_for_source
 from linux_maa.maa.runtime import MaaRuntime
 from linux_maa.process import run_streaming_process
@@ -228,7 +228,7 @@ class ToolRunManager:
                 state.status = "stopping"
                 state.updated_at = datetime.now().isoformat(timespec="seconds")
                 self.diagnostics.append_run_event(state.id, "tool", "framework", "收到停止请求，正在终止工具进程...\n", tone="warning")
-                self._append_event_locked(state, "收到停止请求，正在终止工具进程...", tone="warning")
+                self._append_framework_event_locked(state, "收到停止请求，正在终止工具进程...", tone="warning")
                 logger.warning("tool stop requested run_id=%s tool_id=%s", state.id, state.tool_id)
                 self._notify_locked()
             return state
@@ -237,12 +237,12 @@ class ToolRunManager:
         try:
             command = spec.build_command(self, state.config)
         except Exception as exc:
-            self._append_event(state, f"工具配置无效: {exc}", tone="danger")
+            self._append_framework_event(state, f"工具配置无效: {exc}", tone="danger")
             logger.exception("tool command build failed run_id=%s tool_id=%s", state.id, state.tool_id)
             self._set_done(state, "failed", None)
             return
 
-        self._append_event(state, f"运行: {state.tool_title}")
+        self._append_framework_event(state, f"运行: {state.tool_title}")
         try:
             result = run_streaming_process(
                 self.runtime,
@@ -255,20 +255,20 @@ class ToolRunManager:
             )
             self._flush_tool_log(state)
         except Exception as exc:
-            self._append_event(state, f"工具启动失败: {exc}", tone="danger")
+            self._append_framework_event(state, f"工具启动失败: {exc}", tone="danger")
             logger.exception("tool process failed run_id=%s tool_id=%s", state.id, state.tool_id)
             self._set_done(state, "failed", None)
             return
 
         return_code = result.return_code
         if result.stopped or state.status == "stopping":
-            self._append_event(state, f"工具退出码: {return_code}", tone="warning")
+            self._append_framework_event(state, f"工具退出码: {return_code}", tone="warning")
             self._set_done(state, "stopped", return_code)
         elif return_code == 0:
-            self._append_event(state, "工具执行完成", tone="success")
+            self._append_framework_event(state, "工具执行完成", tone="success")
             self._set_done(state, "succeeded", 0)
         else:
-            self._append_event(state, f"工具退出码: {return_code}", tone="danger")
+            self._append_framework_event(state, f"工具退出码: {return_code}", tone="danger")
             self._set_done(state, "failed", return_code)
 
     def _append_stream_output(self, state: ToolRunState, stream: str, text: str) -> None:
@@ -285,15 +285,15 @@ class ToolRunManager:
             state.updated_at = datetime.now().isoformat(timespec="seconds")
             self._notify_locked()
 
-    def _append_event(self, state: ToolRunState, text: str, *, tone: str = "info") -> None:
+    def _append_framework_event(self, state: ToolRunState, text: str, *, tone: str = "info") -> None:
         self.diagnostics.append_run_event(state.id, "tool", "framework", _ensure_newline(text), tone=tone)
         logger.info("tool event run_id=%s text=%s", state.id, text)
         with self._lock:
-            self._append_event_locked(state, text, tone=tone)
+            self._append_framework_event_locked(state, text, tone=tone)
             self._notify_locked()
 
-    def _append_event_locked(self, state: ToolRunState, text: str, *, tone: str = "info") -> None:
-        state.log.append_event(text, time=datetime.now().strftime("%H:%M:%S"), tone=tone)  # type: ignore[arg-type]
+    def _append_framework_event_locked(self, state: ToolRunState, text: str, *, tone: str = "info") -> None:
+        state.log.append(_ensure_newline(text), source="framework:event", metadata={"time": datetime.now().strftime("%H:%M:%S"), "tone": tone})
         state.updated_at = datetime.now().isoformat(timespec="seconds")
 
     def _set_done(self, state: ToolRunState, status: str, return_code: int | None) -> None:
@@ -378,6 +378,5 @@ def _ensure_newline(text: str) -> str:
 
 
 def _register_tool_log_sources(log: RunLogBuffer) -> None:
-    template = PlainLogTemplate()
     for source in ("tool:stdout", "tool:stderr"):
-        log.register_source(LogSourceSpec(source, template, default_tone_for_source(source)))
+        log.register_source(LogSourceSpec(source, default_tone_for_source(source), plain_translate_line))

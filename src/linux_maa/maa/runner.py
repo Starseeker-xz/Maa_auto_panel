@@ -13,9 +13,8 @@ import tomllib
 from linux_maa.android import ADBDevice
 from linux_maa.config.tasks import TASK_SUFFIXES, prepare_framework_task_config
 from linux_maa.diagnostics import Diagnostics, get_logger
-from linux_maa.logs import LogSourceSpec, RunLogBuffer
-from linux_maa.logs.pipeline import default_tone_for_source
-from linux_maa.maa.log_templates import MaaLogTemplate
+from linux_maa.logs import RunLogBuffer
+from linux_maa.maa.log_templates import register_maa_log_sources
 from linux_maa.settings import DEFAULT_DEVICE_SERIAL, DEFAULT_TARGET_PACKAGE
 from linux_maa.maa.runtime import MaaRuntime, find_repo_root
 from linux_maa.process import run_streaming_process
@@ -353,7 +352,11 @@ class MaaRunManager:
             if state.process and state.process.poll() is None:
                 self.diagnostics.append_run_event(state.id, "manual", "framework", "收到停止请求，正在终止 maa-cli...", tone="warning")
                 logger.warning("manual run stop requested run_id=%s", state.id)
-                state.log.append_event("收到停止请求，正在终止 maa-cli...", time=datetime.now().strftime("%H:%M:%S"), tone="warning")
+                state.log.append(
+                    "收到停止请求，正在终止 maa-cli...\n",
+                    source="framework:event",
+                    metadata={"time": datetime.now().strftime("%H:%M:%S"), "tone": "warning"},
+                )
                 state.process.terminate()
                 state.status = "stopping"
                 state.updated_at = datetime.now().isoformat(timespec="seconds")
@@ -377,7 +380,7 @@ class MaaRunManager:
     def _append_framework_log(self, state: MaaRunState, text: str) -> None:
         self.diagnostics.append_run_event(state.id, "manual", "framework", text)
         logger.info("manual run event run_id=%s text=%s", state.id, text)
-        if state.log.append_event(text, time=datetime.now().strftime("%H:%M:%S"), tone="info"):
+        if state.log.append(f"{text.rstrip()}\n", source="framework:event", metadata={"time": datetime.now().strftime("%H:%M:%S"), "tone": "info"}):
             self._mark_log_updated(state)
 
     def _set_done(self, state: MaaRunState, status: str, return_code: int | None) -> None:
@@ -477,6 +480,4 @@ class MaaRunManager:
 
 
 def _register_maa_cli_log_sources(log: RunLogBuffer) -> None:
-    template = MaaLogTemplate()
-    for source in ("maa-cli:stdout", "maa-cli:stderr"):
-        log.register_source(LogSourceSpec(source, template, default_tone_for_source(source)))
+    register_maa_log_sources(log)

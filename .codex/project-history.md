@@ -52,11 +52,11 @@ Confidence: Confirmed / Likely / Hypothesis / Unknown.
   - **领域服务**：`maa/`（运行时、运行编排、关卡/基建选项、维护）、`config/`（配置 CRUD、验证、任务投影）、`scheduler/`（定时配置、策略、脚本、后台循环）、`logs/`（流式翻译器、解析规则、缓冲区）、`game/`（APK 下载安装）、`android/`（ADB 封装）、`tools/`（工具执行器）
   - **Web/API**：`web/`（FastAPI 工厂、SSE 引擎、8 个路由模块）
   - **入口**：`cli.py`（argparse → 4 子命令）、`diagnostics.py`（日志基础设施）、`run_state.py`（持久化状态）、`settings.py`（常量）
-- Confirmed (`2026-07-04_0055-modularize-log-pipeline`): WebUI 可见日志系统已破坏性迁移为 source/template/block 管线：
-  - `logs/pipeline.py`：通用 `LogPipelineSession`、`LogSourceSpec`、plain/event 模板，负责 source 注册、流切分、ANSI/`\r`/`\b` 处理、block 维护。
-  - `logs/records.py`：单一 block-shaped `LogEntry` 和 `LogMessage`；旧 `line`/`task`/`summary` union 不再输出。
-  - `logs/state.py`：`RunLogBuffer` 有界缓存，汇总 `log_entries`、`output`，并委托模板投影 `task_results` 与 current block elapsed。
-  - `maa/log_templates.py`：MAA 专用 task lifecycle、summary、git output、招募/基建/掉落翻译；task 相关状态不在通用 pipeline 内。
+- Confirmed (`2026-07-04_0341-log-template-framework`): WebUI 可见日志系统已破坏性迁移为通用 source/block-rule 管线：
+  - `logs/pipeline.py`：通用 `LogPipelineSession`、`LogSourceSpec`、`BlockDefinition`、`ActiveBlock`；负责 source 注册、流切分、ANSI/`\r`/`\b` 处理、每 source 唯一 active block、`matched_end|superseded|passive_boundary|flush` 关闭原因和 fallback 行块。
+  - `logs/records.py`：单一 block-shaped `LogEntry` 和 `LogMessage`；`kind` 是开放字符串，`status` 是通用 `BlockStatus`（含 `default`、`warning`）。
+  - `logs/state.py`：`RunLogBuffer` 有界缓存，汇总 `log_entries`、`output`，从 pipeline projection 读取 `task_results`，从 active block 读取 current elapsed。
+  - `maa/log_templates.py`：MAA 侧只注册 block definitions/source defaults 和翻译 hooks；task lifecycle、summary、git output、招募/基建/掉落翻译仍在此模块。
   - 原始 stdout/stderr 保存仍归 `Diagnostics`，未并入可见日志管线。
 - Confirmed (`2026-07-03_0105-audit-log-module`): `process.py` 中的 `run_streaming_process()` 是通用流式子进程原语，保留原始回车符供翻译器折叠终端重绘输出（如 tqdm）。
 - Confirmed (`2026-07-01_2153-manage-service-history`): 状态与诊断分离：
@@ -99,9 +99,9 @@ Confidence: Confirmed / Likely / Hypothesis / Unknown.
 ### 工具页面
 - Confirmed (`2026-07-02_2245-tools-page`): `ToolRunManager` 驱动可插拔工具。初始注册工具 `game-update`。工具运行复用共享 RunLogBuffer + SSE patch 模式。运行中/停止中状态拒绝新启动。
 
-- Confirmed (`2026-07-04_0055-modularize-log-pipeline`): `RunLogBuffer` 的 `log_entries`、`task_results`、`output` 仍有界，但 `log_entries` 现在统一为 `type="block"`、`kind=line|task|summary|event` 的单一结构。前端不再兼容旧 `line`/`task`/`summary` union。
-- Confirmed (`2026-07-04_0055-modularize-log-pipeline`): MAA 任务生命周期、summary、关卡信息、掉落/家具、招募结果、基建换班、Git fetch/update 输出分组在 `maa/log_templates.py`；通用 `logs/` 模块只处理 source/template 管线和终端控制字符。
-- Confirmed (`2026-07-04_0055-modularize-log-pipeline`): scheduler child timeout 使用 `current_block_elapsed_seconds(kind="task")`。`task_results` 由 MAA task-kind block 投影，task 状态不属于通用 pipeline。
+- Confirmed (`2026-07-04_0341-log-template-framework`): `RunLogBuffer` 的 `log_entries`、`task_results`、`output` 仍有界；`log_entries` 统一为 `type="block"` 的单一结构，`kind` 不再限制为固定前端 union。前端不再兼容旧 `line`/`task`/`summary` union。
+- Confirmed (`2026-07-04_0341-log-template-framework`): MAA 任务生命周期、summary、关卡信息、掉落/家具、招募结果、基建换班、Git fetch/update 输出分组在 `maa/log_templates.py`；通用 `logs/` 模块只处理 source/block-rule 管线、fallback 行块、metadata 覆写和终端控制字符。
+- Confirmed (`2026-07-04_0341-log-template-framework`): scheduler child timeout 使用 `current_block_elapsed_seconds(kind="task")`。`task_results` 由 pipeline projection 中的 task block 生成，task 状态现在是通用 block status；`Error: Interrupted by user!` 会把当前 task 关闭为 `warning`。
 - Confirmed (`2026-07-04_0055-modularize-log-pipeline`): stdout 资源变化块只由 `Already up to date.` 或 `Updating <sha>..<sha>` 开始，并以 `Summary` 为边界；stderr 的 `From https://github.com/...` 是单独资源 fetch 诊断块，不属于 stdout 资源变化规则。已有回归测试覆盖。
 - Confirmed (`2026-07-04_0055-modularize-log-pipeline`): 统一日志块不再保存在 `state/`。`state/linux-maa/run-history/scheduled-run-attempts.json` 只是 attempt 索引，包含 `log_entries_file`；实际日志块历史保存在 `history/linux-maa/runs/`：
   - `schedules/<schedule-id>/<run-id>.json`
@@ -159,6 +159,9 @@ Confidence: Confirmed / Likely / Hypothesis / Unknown.
 
 ## Latest Verification
 
+- Confirmed (`2026-07-04_0341-log-template-framework`): `uv run pytest -q` — 51 tests pass ✅
+- Confirmed (`2026-07-04_0341-log-template-framework`): `uv run python -m compileall -q src tests` ✅
+- Confirmed (`2026-07-04_0341-log-template-framework`): `cd frontend && npm run build` — pass (existing Vite chunk warning only) ✅
 - Confirmed (`2026-07-03_1200-audit-and-refactor-codex`): `uv run python -m compileall -q src tests` ✅
 - Confirmed (`2026-07-03_1200-audit-and-refactor-codex`): `uv run pytest -q` — 45 tests pass ✅
 - Confirmed (`2026-07-03_1200-audit-and-refactor-codex`): `cd frontend && npm run build` — pass (existing Vite chunk warning only) ✅

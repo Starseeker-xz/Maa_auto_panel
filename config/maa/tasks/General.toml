@@ -112,7 +112,7 @@ blacklist = "__linux_maa_runtime__:array:blacklist"
 reserve_max_credit = true
 formation_index = 3
 force_shopping_if_credit_full = true
-enable = true
+enable = false
 
 [tasks.linux_maa]
 id = "mall-7d4ad25c"

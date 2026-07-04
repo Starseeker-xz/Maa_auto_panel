@@ -2,6 +2,7 @@
 
 ## Active Sessions（活跃引用 — 含架构决策或已知未解决问题）
 
+- `2026-07-04_0341-log-template-framework`: 日志管线从 source template 重构为通用 source/block-rule 框架；事件改为普通 metadata 输入，前端日志 kind/status 放开为通用 block 渲染。
 - `2026-07-04_0055-modularize-log-pipeline`: 可见日志管线破坏性模块化；统一 block-shaped `log_entries`，MAA 模板移到 `maa/log_templates.py`，原始文本保存仍归 Diagnostics。
 - `2026-07-03_2049-review-latest-change`: 审查最近更改；确认测试/构建通过，发现审计文档中 `buttonVariants` 未使用导入说法已过时。
 - `2026-06-30_1626-maa-stage-candidates`: `linux_maa.managed_params` 架构设计，Fight stage 候选和 Infrast plan 动态选项 API。

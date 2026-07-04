@@ -209,7 +209,9 @@
 }
 
 .status-pill.soft_failed,
-.status-pill.skipped {
+.status-pill.skipped,
+.status-pill.warning,
+.status-pill.unknown {
   @apply bg-amber-50 text-amber-700;
 }
 

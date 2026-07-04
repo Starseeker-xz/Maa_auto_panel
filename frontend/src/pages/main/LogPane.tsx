@@ -13,28 +13,34 @@ type LogPaneProps = {
   emptyText?: string;
 };
 
-const TASK_STATUS_LABELS: Record<string, string> = {
+const BLOCK_STATUS_LABELS: Record<string, string> = {
+  default: "",
   running: "进行中",
   succeeded: "完成",
   failed: "失败",
   stopped: "已停止",
-  unknown: "未确认结束"
+  unknown: "未确认结束",
+  warning: "警告"
 };
 
-const TASK_STATUS_CLASS: Record<string, string> = {
+const BLOCK_STATUS_CLASS: Record<string, string> = {
+  default: "text-muted-foreground",
   running: "text-sky-600 dark:text-sky-300",
   succeeded: "text-emerald-600 dark:text-emerald-300",
   failed: "text-destructive",
   stopped: "text-amber-600 dark:text-amber-300",
-  unknown: "text-muted-foreground"
+  unknown: "text-muted-foreground",
+  warning: "text-amber-600 dark:text-amber-300"
 };
 
-const TASK_PANEL_CLASS: Record<string, string> = {
+const BLOCK_PANEL_CLASS: Record<string, string> = {
+  default: "border-border bg-background shadow-sm",
   running: "border-primary/70 bg-background shadow-sm shadow-primary/10",
   succeeded: "border-border bg-background shadow-sm",
   failed: "border-amber-500 bg-amber-50/40 shadow-sm shadow-amber-500/10 dark:bg-amber-950/10",
   stopped: "border-amber-500 bg-amber-50/40 shadow-sm shadow-amber-500/10 dark:bg-amber-950/10",
-  unknown: "border-border bg-background shadow-sm"
+  unknown: "border-border bg-background shadow-sm",
+  warning: "border-amber-500 bg-amber-50/40 shadow-sm shadow-amber-500/10 dark:bg-amber-950/10"
 };
 
 const MESSAGE_TONE_CLASS: Record<string, string> = {
@@ -185,12 +191,12 @@ function flattenMessages(entries: MaaLogEntry[]): MaaLogMessage[] {
 }
 
 function LogEntryView({ entry }: { entry: MaaLogEntry }) {
-  const isCompact = entry.kind === "line" || entry.kind === "event";
-  const status = entry.status || "unknown";
-  const statusClass = TASK_STATUS_CLASS[status] || TASK_STATUS_CLASS.unknown;
-  const panelClass = TASK_PANEL_CLASS[status] || TASK_PANEL_CLASS.unknown;
+  const status = entry.status || "default";
+  const title = status === "default" ? "" : blockTitle(entry);
+  const isCompact = !title && status === "default";
+  const statusClass = BLOCK_STATUS_CLASS[status] || BLOCK_STATUS_CLASS.default;
+  const panelClass = BLOCK_PANEL_CLASS[status] || BLOCK_PANEL_CLASS.default;
   const time = entry.ended_at || entry.started_at || entry.time || undefined;
-  const title = blockTitle(entry);
   const messages = entry.messages?.length ? entry.messages : fallbackMessages(entry);
 
   return (
@@ -240,18 +246,19 @@ function MessageContent({ message }: { message: MaaLogMessage }) {
 }
 
 function blockTitle(entry: MaaLogEntry) {
-  if (entry.kind === "task") return `任务 ${entry.name || entry.title || ""} ${entry.status ? TASK_STATUS_LABELS[entry.status] || entry.status : ""}`.trim();
-  if (entry.kind === "summary") return entry.title || "运行摘要";
-  if (entry.kind === "event") return entry.title || "";
-  return "";
+  const status = entry.status || "default";
+  const statusLabel = BLOCK_STATUS_LABELS[status] || status;
+  const title = entry.name || entry.title || "";
+  if (entry.panel_kind === "task" || entry.task_id || entry.source_name) {
+    return `任务 ${title} ${statusLabel}`.trim();
+  }
+  return title || entry.kind;
 }
 
 function fallbackMessages(entry: MaaLogEntry): MaaLogMessage[] {
-  if ((entry.kind === "line" || entry.kind === "event") && entry.lines.length) {
+  if (entry.lines.length) {
     return entry.lines.map((line) => ({ text: line, tone: entry.tone || "default" }));
   }
-  if (entry.kind === "line" || entry.kind === "event") {
-    if (entry.title) return [{ text: entry.title, tone: entry.tone || "default" }];
-  }
+  if (entry.title) return [{ text: entry.title, tone: entry.tone || "default" }];
   return [];
 }

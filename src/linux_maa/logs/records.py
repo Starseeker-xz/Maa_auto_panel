@@ -4,9 +4,8 @@ from dataclasses import dataclass, field
 from typing import Literal
 
 
-TaskStatus = Literal["running", "succeeded", "failed", "stopped", "unknown"]
+BlockStatus = Literal["default", "running", "succeeded", "failed", "stopped", "unknown", "unfinished"]
 LogTone = Literal["default", "success", "warning", "danger", "info"]
-LogBlockKind = Literal["line", "task", "summary", "event"]
 
 
 @dataclass
@@ -45,9 +44,9 @@ class LogEntry:
 
     id: str
     source: str
-    kind: LogBlockKind
+    kind: str
     title: str = ""
-    status: TaskStatus | None = None
+    status: BlockStatus | None = None
     time: str | None = None
     started_at: str | None = None
     ended_at: str | None = None

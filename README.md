@@ -8,7 +8,6 @@ Current packaged features:
 - `linux-maa run-maa-task`: run a managed `maa-cli` task with coarse timeout/retry/recovery behavior.
 - `linux-maa webui`: start the local FastAPI + React WebUI.
 - WebUI scheduled execution: define per-schedule task/profile bindings, game-day-aware time entries, child-task enable sets, retry limits, timeout settings, restart-script hooks, and recent run statistics.
-
 ## Development
 
 ```bash

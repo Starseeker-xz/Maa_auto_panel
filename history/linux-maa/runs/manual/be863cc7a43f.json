@@ -1,0 +1,766 @@
+{
+  "attempts": [
+    {
+      "attempt_index": 1,
+      "ended_at": "2026-07-04T04:24:32",
+      "generated_config_dir": "runtime/maa/generated-configs/be863cc7a43f",
+      "id": "be863cc7a43f-1",
+      "log_entries": [
+        {
+          "id": "log-1",
+          "kind": "event",
+          "lines": [
+            "运行: General"
+          ],
+          "messages": [
+            {
+              "text": "运行: General",
+              "time": "04:21:45",
+              "tone": "info"
+            }
+          ],
+          "source": "framework:event",
+          "status": "default",
+          "time": "04:21:45",
+          "title": "运行: General",
+          "tone": "info",
+          "type": "block"
+        },
+        {
+          "id": "log-2",
+          "kind": "event",
+          "lines": [
+            "选择基建计划: 排班.json / 休息（1）"
+          ],
+          "messages": [
+            {
+              "text": "选择基建计划: 排班.json / 休息（1）",
+              "time": "04:21:45",
+              "tone": "info"
+            }
+          ],
+          "source": "framework:event",
+          "status": "default",
+          "time": "04:21:45",
+          "title": "选择基建计划: 排班.json / 休息（1）",
+          "tone": "info",
+          "type": "block"
+        },
+        {
+          "id": "log-3",
+          "kind": "event",
+          "lines": [
+            "选择战斗关卡: Annihilation"
+          ],
+          "messages": [
+            {
+              "text": "选择战斗关卡: Annihilation",
+              "time": "04:21:45",
+              "tone": "info"
+            }
+          ],
+          "source": "framework:event",
+          "status": "default",
+          "time": "04:21:45",
+          "title": "选择战斗关卡: Annihilation",
+          "tone": "info",
+          "type": "block"
+        },
+        {
+          "id": "log-4",
+          "kind": "event",
+          "lines": [
+            "选择战斗关卡: 1-7"
+          ],
+          "messages": [
+            {
+              "text": "选择战斗关卡: 1-7",
+              "time": "04:21:45",
+              "tone": "info"
+            }
+          ],
+          "source": "framework:event",
+          "status": "default",
+          "time": "04:21:45",
+          "title": "选择战斗关卡: 1-7",
+          "tone": "info",
+          "type": "block"
+        },
+        {
+          "id": "log-5",
+          "kind": "line",
+          "lines": [
+            "[2026-07-04 04:21:45 INFO ] Updating hot update files..."
+          ],
+          "messages": [
+            {
+              "text": "检查热更新资源...",
+              "time": "04:21:45",
+              "tone": "info"
+            }
+          ],
+          "source": "maa-cli:stderr",
+          "status": "default",
+          "time": "04:21:45",
+          "tone": "info",
+          "type": "block"
+        },
+        {
+          "id": "log-6",
+          "kind": "line",
+          "lines": [
+            "[2026-07-04 04:21:45 INFO ] Hot update completed successfully"
+          ],
+          "messages": [
+            {
+              "text": "热更新资源检查完成",
+              "time": "04:21:45",
+              "tone": "info"
+            }
+          ],
+          "source": "maa-cli:stderr",
+          "status": "default",
+          "time": "04:21:45",
+          "tone": "info",
+          "type": "block"
+        },
+        {
+          "id": "log-7",
+          "kind": "output",
+          "lines": [
+            "From https://github.com/MaaAssistantArknights/MaaResource",
+            " * branch            main       -> FETCH_HEAD"
+          ],
+          "messages": [
+            {
+              "raw": "From https://github.com/MaaAssistantArknights/MaaResource",
+              "text": "From https://github.com/MaaAssistantArknights/MaaResource",
+              "tone": "info"
+            },
+            {
+              "raw": " * branch            main       -> FETCH_HEAD",
+              "text": " * branch            main       -> FETCH_HEAD",
+              "tone": "info"
+            }
+          ],
+          "panel_kind": "summary",
+          "rule_id": "maa-stderr-fetch-diagnostics",
+          "source": "maa-cli:stderr",
+          "started_at": "04:21:46",
+          "status": "succeeded",
+          "title": "资源拉取诊断",
+          "tone": "info",
+          "type": "block"
+        },
+        {
+          "id": "log-8",
+          "kind": "output",
+          "lines": [
+            "Already up to date."
+          ],
+          "messages": [
+            {
+              "raw": "Already up to date.",
+              "text": "Already up to date.",
+              "tone": "info"
+            }
+          ],
+          "panel_kind": "summary",
+          "rule_id": "maa-stdout-resource-update",
+          "source": "maa-cli:stdout",
+          "started_at": "04:21:46",
+          "status": "succeeded",
+          "title": "资源拉取结果",
+          "tone": "info",
+          "type": "block"
+        },
+        {
+          "id": "log-9",
+          "kind": "line",
+          "lines": [
+            "[2026-07-04 04:22:46 INFO ] Connected"
+          ],
+          "messages": [
+            {
+              "text": "已连接",
+              "time": "04:22:46",
+              "tone": "info"
+            }
+          ],
+          "source": "maa-cli:stderr",
+          "status": "default",
+          "time": "04:22:46",
+          "tone": "info",
+          "type": "block"
+        },
+        {
+          "id": "log-10",
+          "kind": "line",
+          "lines": [
+            "[2026-07-04 04:22:52 INFO ] FastestWayToScreencap RawWithGzip 147"
+          ],
+          "messages": [
+            {
+              "segments": [
+                {
+                  "text": "已选择截图方式: "
+                },
+                {
+                  "strong": true,
+                  "text": "RawWithGzip",
+                  "tone": "info"
+                },
+                {
+                  "text": ", 最短耗时 "
+                },
+                {
+                  "strong": true,
+                  "text": "147 ms",
+                  "tone": "success"
+                }
+              ],
+              "text": "已选择截图方式: RawWithGzip, 最短耗时 147 ms",
+              "time": "04:22:52",
+              "tone": "info"
+            }
+          ],
+          "source": "maa-cli:stderr",
+          "status": "default",
+          "time": "04:22:52",
+          "tone": "info",
+          "type": "block"
+        },
+        {
+          "ended_at": "04:23:38",
+          "id": "log-11",
+          "kind": "task",
+          "lines": [],
+          "messages": [],
+          "name": "StartUp",
+          "panel_kind": "task",
+          "rule_id": "maa-task-lifecycle",
+          "source": "maa-cli:stderr",
+          "started_at": "04:22:52",
+          "status": "succeeded",
+          "title": "任务 StartUp",
+          "tone": "success",
+          "type": "block"
+        },
+        {
+          "ended_at": "04:23:38",
+          "id": "log-12",
+          "kind": "task",
+          "lines": [],
+          "messages": [],
+          "name": "Infrast",
+          "panel_kind": "task",
+          "rule_id": "maa-task-lifecycle",
+          "source": "maa-cli:stderr",
+          "started_at": "04:23:38",
+          "status": "succeeded",
+          "title": "任务 Infrast",
+          "tone": "success",
+          "type": "block"
+        },
+        {
+          "ended_at": "04:24:05",
+          "id": "log-13",
+          "kind": "task",
+          "lines": [],
+          "messages": [],
+          "name": "Recruit",
+          "panel_kind": "task",
+          "rule_id": "maa-task-lifecycle",
+          "source": "maa-cli:stderr",
+          "started_at": "04:23:39",
+          "status": "failed",
+          "title": "任务 Recruit",
+          "tone": "danger",
+          "type": "block"
+        },
+        {
+          "ended_at": "04:24:06",
+          "id": "log-14",
+          "kind": "task",
+          "lines": [],
+          "messages": [],
+          "name": "Mall",
+          "panel_kind": "task",
+          "rule_id": "maa-task-lifecycle",
+          "source": "maa-cli:stderr",
+          "started_at": "04:24:06",
+          "status": "succeeded",
+          "title": "任务 Mall",
+          "tone": "success",
+          "type": "block"
+        },
+        {
+          "ended_at": "04:24:11",
+          "id": "log-15",
+          "kind": "task",
+          "lines": [],
+          "messages": [],
+          "name": "Fight",
+          "panel_kind": "task",
+          "rule_id": "maa-task-lifecycle",
+          "source": "maa-cli:stderr",
+          "started_at": "04:24:06",
+          "status": "failed",
+          "title": "任务 Fight",
+          "tone": "danger",
+          "type": "block"
+        },
+        {
+          "ended_at": "04:24:15",
+          "id": "log-16",
+          "kind": "task",
+          "lines": [],
+          "messages": [],
+          "name": "Fight",
+          "panel_kind": "task",
+          "rule_id": "maa-task-lifecycle",
+          "source": "maa-cli:stderr",
+          "started_at": "04:24:11",
+          "status": "failed",
+          "title": "任务 Fight",
+          "tone": "danger",
+          "type": "block"
+        },
+        {
+          "ended_at": "04:24:31",
+          "id": "log-17",
+          "kind": "task",
+          "lines": [],
+          "messages": [],
+          "name": "Award",
+          "panel_kind": "task",
+          "rule_id": "maa-task-lifecycle",
+          "source": "maa-cli:stderr",
+          "started_at": "04:24:16",
+          "status": "failed",
+          "title": "任务 Award",
+          "tone": "danger",
+          "type": "block"
+        },
+        {
+          "ended_at": "04:24:32",
+          "id": "log-18",
+          "kind": "task",
+          "lines": [],
+          "messages": [],
+          "name": "CloseDown",
+          "panel_kind": "task",
+          "rule_id": "maa-task-lifecycle",
+          "source": "maa-cli:stderr",
+          "started_at": "04:24:32",
+          "status": "succeeded",
+          "title": "任务 CloseDown",
+          "tone": "success",
+          "type": "block"
+        },
+        {
+          "id": "log-19",
+          "kind": "summary",
+          "lines": [
+            "Summary",
+            "----------------------------------------",
+            "[启动 B 服] 04:22:52 - 04:23:38 (46s) Completed",
+            "----------------------------------------",
+            "[基建换班] 04:23:38 - 04:23:38 (0s) Completed",
+            "----------------------------------------",
+            "[自动公招] 04:23:39 - 04:24:05 (26s) Error",
+            "----------------------------------------",
+            "[信用商店] 04:24:06 - 04:24:06 (0s) Completed",
+            "----------------------------------------",
+            "[剿灭] 04:24:06 - 04:24:11 (4s) Error",
+            "----------------------------------------",
+            "[刷理智] 04:24:11 - 04:24:15 (4s) Error",
+            "----------------------------------------",
+            "[领取奖励] 04:24:16 - 04:24:31 (15s) Error",
+            "----------------------------------------",
+            "[关闭游戏] 04:24:32 - 04:24:32 (0s) Completed"
+          ],
+          "messages": [
+            {
+              "raw": "[启动 B 服] 04:22:52 - 04:23:38 (46s) Completed",
+              "segments": [
+                {
+                  "strong": true,
+                  "text": "启动 B 服"
+                },
+                {
+                  "text": ": "
+                },
+                {
+                  "strong": true,
+                  "text": "完成",
+                  "tone": "success"
+                },
+                {
+                  "text": ", 用时 46s"
+                }
+              ],
+              "text": "启动 B 服: 完成, 用时 46s",
+              "tone": "success"
+            },
+            {
+              "raw": "[基建换班] 04:23:38 - 04:23:38 (0s) Completed",
+              "segments": [
+                {
+                  "strong": true,
+                  "text": "基建换班"
+                },
+                {
+                  "text": ": "
+                },
+                {
+                  "strong": true,
+                  "text": "完成",
+                  "tone": "success"
+                },
+                {
+                  "text": ", 用时 0s"
+                }
+              ],
+              "text": "基建换班: 完成, 用时 0s",
+              "tone": "success"
+            },
+            {
+              "raw": "[自动公招] 04:23:39 - 04:24:05 (26s) Error",
+              "segments": [
+                {
+                  "strong": true,
+                  "text": "自动公招"
+                },
+                {
+                  "text": ": "
+                },
+                {
+                  "strong": true,
+                  "text": "失败",
+                  "tone": "danger"
+                },
+                {
+                  "text": ", 用时 26s"
+                }
+              ],
+              "text": "自动公招: 失败, 用时 26s",
+              "tone": "danger"
+            },
+            {
+              "raw": "[信用商店] 04:24:06 - 04:24:06 (0s) Completed",
+              "segments": [
+                {
+                  "strong": true,
+                  "text": "信用商店"
+                },
+                {
+                  "text": ": "
+                },
+                {
+                  "strong": true,
+                  "text": "完成",
+                  "tone": "success"
+                },
+                {
+                  "text": ", 用时 0s"
+                }
+              ],
+              "text": "信用商店: 完成, 用时 0s",
+              "tone": "success"
+            },
+            {
+              "raw": "[剿灭] 04:24:06 - 04:24:11 (4s) Error",
+              "segments": [
+                {
+                  "strong": true,
+                  "text": "剿灭"
+                },
+                {
+                  "text": ": "
+                },
+                {
+                  "strong": true,
+                  "text": "失败",
+                  "tone": "danger"
+                },
+                {
+                  "text": ", 用时 4s"
+                }
+              ],
+              "text": "剿灭: 失败, 用时 4s",
+              "tone": "danger"
+            },
+            {
+              "raw": "[刷理智] 04:24:11 - 04:24:15 (4s) Error",
+              "segments": [
+                {
+                  "strong": true,
+                  "text": "刷理智"
+                },
+                {
+                  "text": ": "
+                },
+                {
+                  "strong": true,
+                  "text": "失败",
+                  "tone": "danger"
+                },
+                {
+                  "text": ", 用时 4s"
+                }
+              ],
+              "text": "刷理智: 失败, 用时 4s",
+              "tone": "danger"
+            },
+            {
+              "raw": "[领取奖励] 04:24:16 - 04:24:31 (15s) Error",
+              "segments": [
+                {
+                  "strong": true,
+                  "text": "领取奖励"
+                },
+                {
+                  "text": ": "
+                },
+                {
+                  "strong": true,
+                  "text": "失败",
+                  "tone": "danger"
+                },
+                {
+                  "text": ", 用时 15s"
+                }
+              ],
+              "text": "领取奖励: 失败, 用时 15s",
+              "tone": "danger"
+            },
+            {
+              "raw": "[关闭游戏] 04:24:32 - 04:24:32 (0s) Completed",
+              "segments": [
+                {
+                  "strong": true,
+                  "text": "关闭游戏"
+                },
+                {
+                  "text": ": "
+                },
+                {
+                  "strong": true,
+                  "text": "完成",
+                  "tone": "success"
+                },
+                {
+                  "text": ", 用时 0s"
+                }
+              ],
+              "text": "关闭游戏: 完成, 用时 0s",
+              "tone": "success"
+            }
+          ],
+          "panel_kind": "summary",
+          "rule_id": "maa-run-summary",
+          "source": "maa-cli:stdout",
+          "started_at": "04:24:32",
+          "status": "failed",
+          "title": "运行摘要",
+          "tone": "danger",
+          "type": "block"
+        },
+        {
+          "id": "log-20",
+          "kind": "line",
+          "lines": [
+            "[2026-07-04 04:24:32 INFO ] AllTasksCompleted"
+          ],
+          "messages": [
+            {
+              "text": "全部任务结束",
+              "time": "04:24:32",
+              "tone": "info"
+            }
+          ],
+          "source": "maa-cli:stderr",
+          "status": "default",
+          "time": "04:24:32",
+          "tone": "info",
+          "type": "block"
+        },
+        {
+          "id": "log-21",
+          "kind": "line",
+          "lines": [
+            "Error: Some error occurred during running task!"
+          ],
+          "messages": [
+            {
+              "raw": "Error: Some error occurred during running task!",
+              "text": "Error: Some error occurred during running task!",
+              "tone": "warning"
+            }
+          ],
+          "raw": "Error: Some error occurred during running task!",
+          "source": "maa-cli:stderr",
+          "status": "default",
+          "tone": "warning",
+          "type": "block"
+        },
+        {
+          "id": "log-22",
+          "kind": "event",
+          "lines": [
+            "maa-cli 退出码: 1"
+          ],
+          "messages": [
+            {
+              "text": "maa-cli 退出码: 1",
+              "time": "04:24:32",
+              "tone": "info"
+            }
+          ],
+          "source": "framework:event",
+          "status": "default",
+          "time": "04:24:32",
+          "title": "maa-cli 退出码: 1",
+          "tone": "info",
+          "type": "block"
+        }
+      ],
+      "log_file": "debug/linux-maa/external/maa-cli/be863cc7a43f.stdout.log",
+      "log_files": {
+        "stderr": "debug/linux-maa/external/maa-cli/be863cc7a43f.stderr.log",
+        "stdout": "debug/linux-maa/external/maa-cli/be863cc7a43f.stdout.log"
+      },
+      "retry_group": 1,
+      "return_code": 1,
+      "run_id": "be863cc7a43f",
+      "started_at": "2026-07-04T04:21:45",
+      "status": "failed",
+      "task_ids": [],
+      "task_results": [
+        {
+          "ended_at": "04:23:38",
+          "lines": [],
+          "messages": [],
+          "name": "StartUp",
+          "panel_kind": "task",
+          "rule_id": "maa-task-lifecycle",
+          "source_name": "StartUp",
+          "started_at": "04:22:52",
+          "status": "succeeded",
+          "type": "task"
+        },
+        {
+          "ended_at": "04:23:38",
+          "lines": [],
+          "messages": [],
+          "name": "Infrast",
+          "panel_kind": "task",
+          "rule_id": "maa-task-lifecycle",
+          "source_name": "Infrast",
+          "started_at": "04:23:38",
+          "status": "succeeded",
+          "type": "task"
+        },
+        {
+          "ended_at": "04:24:05",
+          "lines": [],
+          "messages": [],
+          "name": "Recruit",
+          "panel_kind": "task",
+          "rule_id": "maa-task-lifecycle",
+          "source_name": "Recruit",
+          "started_at": "04:23:39",
+          "status": "failed",
+          "type": "task"
+        },
+        {
+          "ended_at": "04:24:06",
+          "lines": [],
+          "messages": [],
+          "name": "Mall",
+          "panel_kind": "task",
+          "rule_id": "maa-task-lifecycle",
+          "source_name": "Mall",
+          "started_at": "04:24:06",
+          "status": "succeeded",
+          "type": "task"
+        },
+        {
+          "ended_at": "04:24:11",
+          "lines": [],
+          "messages": [],
+          "name": "Fight",
+          "panel_kind": "task",
+          "rule_id": "maa-task-lifecycle",
+          "source_name": "Fight",
+          "started_at": "04:24:06",
+          "status": "failed",
+          "type": "task"
+        },
+        {
+          "ended_at": "04:24:15",
+          "lines": [],
+          "messages": [],
+          "name": "Fight",
+          "panel_kind": "task",
+          "rule_id": "maa-task-lifecycle",
+          "source_name": "Fight",
+          "started_at": "04:24:11",
+          "status": "failed",
+          "type": "task"
+        },
+        {
+          "ended_at": "04:24:31",
+          "lines": [],
+          "messages": [],
+          "name": "Award",
+          "panel_kind": "task",
+          "rule_id": "maa-task-lifecycle",
+          "source_name": "Award",
+          "started_at": "04:24:16",
+          "status": "failed",
+          "type": "task"
+        },
+        {
+          "ended_at": "04:24:32",
+          "lines": [],
+          "messages": [],
+          "name": "CloseDown",
+          "panel_kind": "task",
+          "rule_id": "maa-task-lifecycle",
+          "source_name": "CloseDown",
+          "started_at": "04:24:32",
+          "status": "succeeded",
+          "type": "task"
+        }
+      ]
+    }
+  ],
+  "description": "Durable run history with visible log blocks.",
+  "run": {
+    "attempt_count": 0,
+    "created_at": "2026-07-04T04:21:45",
+    "ended_at": null,
+    "event_log_file": "debug/linux-maa/events/be863cc7a43f.jsonl",
+    "generated_config_dir": null,
+    "id": "be863cc7a43f",
+    "kind": "manual",
+    "log_file": "debug/linux-maa/external/maa-cli/be863cc7a43f.stdout.log",
+    "log_files": {
+      "stderr": "debug/linux-maa/external/maa-cli/be863cc7a43f.stderr.log",
+      "stdout": "debug/linux-maa/external/maa-cli/be863cc7a43f.stdout.log"
+    },
+    "maacore_log_file": null,
+    "profile": "default",
+    "retry_group_count": 0,
+    "return_code": null,
+    "selected_task_ids": [],
+    "started_at": "2026-07-04T04:21:45",
+    "status": "running",
+    "summary": {},
+    "task": "General",
+    "title": "General"
+  },
+  "updated_at": "2026-07-04T04:24:32"
+}

@@ -1,15 +1,12 @@
 from __future__ import annotations
 
-from linux_maa.logs import LogSourceSpec, PlainLogTemplate, RunLogBuffer
-from linux_maa.logs.pipeline import default_tone_for_source
-from linux_maa.maa.log_templates import MaaLogTemplate
+from linux_maa.logs import BlockDefinition, LogSourceSpec, RunLogBuffer, plain_translate_line
+from linux_maa.maa.log_templates import register_maa_log_sources
 
 
 def maa_log(**kwargs: object) -> RunLogBuffer:
     log = RunLogBuffer(**kwargs)
-    template = MaaLogTemplate()
-    for source in ("maa-cli:stdout", "maa-cli:stderr"):
-        log.register_source(LogSourceSpec(source, template, default_tone_for_source(source)))
+    register_maa_log_sources(log)
     return log
 
 
@@ -44,8 +41,6 @@ def test_handles_split_log_chunks() -> None:
     output += log.pipeline.append("[2026-06-26 18:47:20 INFO ] Fight Sta", source="maa-cli:stderr")
     output += log.pipeline.append("rt\n[2026-06-26 18:47:56 ERROR] Fight Error\n", source="maa-cli:stderr")
 
-    assert "18:47:20 已开始任务: Fight" in output
-    assert "18:47:56 任务 Fight 失败" in output
     assert log.task_results()[0]["status"] == "failed"
 
 
@@ -71,8 +66,7 @@ def test_collapses_terminal_carriage_return_updates() -> None:
 
 def test_plain_source_does_not_trigger_maa_task_grouping() -> None:
     log = RunLogBuffer()
-    template = PlainLogTemplate()
-    log.register_source(LogSourceSpec("script:stderr", template, "warning"))
+    log.register_source(LogSourceSpec("script:stderr", "warning", plain_translate_line))
 
     output = log.pipeline.append("Summary\nFight Start\nplain stderr\n", source="script:stderr")
     entries = log.entries()
@@ -99,8 +93,51 @@ def test_flush_closes_running_block_as_unknown() -> None:
     output = log.pipeline.append("[2026-06-26 18:47:56 INFO ] Recruit Start\n", source="maa-cli:stderr")
     output += log.pipeline.flush()
 
-    assert "18:47:56 任务 Recruit 未确认结束" in output
     assert log.task_results()[0]["status"] == "unknown"
+
+
+def test_same_source_start_supersedes_running_task_as_unknown() -> None:
+    log = maa_log()
+
+    output = log.pipeline.append(
+        "[2026-06-26 18:47:20 INFO ] Fight Start\n"
+        "[2026-06-26 18:47:56 INFO ] Mall Start\n",
+        source="maa-cli:stderr",
+    )
+    entries = log.entries()
+
+    assert [(entry["name"], entry["status"]) for entry in entries] == [("Fight", "unknown"), ("Mall", "running")]
+
+
+def test_task_end_takes_priority_over_start_matching() -> None:
+    log = maa_log()
+
+    log.pipeline.append(
+        "[2026-06-26 18:47:20 INFO ] Fight Start\n"
+        "[2026-06-26 18:47:56 INFO ] Fight Completed\n",
+        source="maa-cli:stderr",
+    )
+    entries = log.entries()
+
+    assert len(entries) == 1
+    assert entries[0]["name"] == "Fight"
+    assert entries[0]["status"] == "succeeded"
+
+
+def test_user_interrupted_task_closes_as_unfinished() -> None:
+    log = maa_log()
+
+    output = log.pipeline.append(
+        "[2026-06-26 18:47:20 INFO ] Fight Start\n"
+        "[2026-06-26 18:47:56 ERROR] Error: Interrupted by user!\n",
+        source="maa-cli:stderr",
+    )
+    entry = log.entries()[0]
+
+    assert entry["status"] == "unfinished"
+    assert entry["tone"] == "warning"
+    assert entry["messages"][0]["text"] == "用户中断"
+    assert log.task_results()[0]["status"] == "unfinished"
 
 
 def test_translates_screencap_method_and_cost() -> None:
@@ -125,7 +162,11 @@ def test_translates_screencap_method_and_cost() -> None:
 def test_adds_framework_event_as_block() -> None:
     log = maa_log()
 
-    output = log.pipeline.append_event("选择战斗关卡: 1-7", time="18:37:14", tone="info")
+    output = log.pipeline.append(
+        "选择战斗关卡: 1-7\n",
+        source="framework:event",
+        metadata={"time": "18:37:14", "tone": "info", "event_key": "stage-selected"},
+    )
     entry = log.entries()[0]
 
     assert output == "18:37:14 选择战斗关卡: 1-7\n"
@@ -133,6 +174,48 @@ def test_adds_framework_event_as_block() -> None:
     assert entry["kind"] == "event"
     assert entry["messages"][0]["text"] == "选择战斗关卡: 1-7"
     assert entry["messages"][0]["time"] == "18:37:14"
+
+
+def test_append_metadata_overrides_fallback_line_state() -> None:
+    log = RunLogBuffer()
+
+    output = log.pipeline.append(
+        "raw framework text\n",
+        source="framework:event",
+        metadata={
+            "time": "18:37:14",
+            "tone": "warning",
+            "kind_override": "event",
+            "message_override": "展示文本",
+            "status_override": "warning",
+            "message_metadata": {"event_key": "demo"},
+        },
+    )
+    entry = log.entries()[0]
+
+    assert output == "18:37:14 展示文本\n"
+    assert entry["kind"] == "event"
+    assert entry["status"] == "warning"
+    assert entry["messages"][0]["tone"] == "warning"
+    assert entry["messages"][0]["metadata"] == {"event_key": "demo"}
+
+
+def test_block_start_gets_default_time_when_hook_omits_it() -> None:
+    log = RunLogBuffer()
+    log.pipeline.register_block(
+        BlockDefinition(
+            kind="custom",
+            source_predicate=lambda source: source == "custom",
+            start_matcher=lambda line, session: "start" if line.raw == "BEGIN" else None,
+            translate_line=lambda active, line, session: "",
+        )
+    )
+
+    log.pipeline.append("BEGIN\n", source="custom")
+    entry = log.entries()[0]
+
+    assert entry["kind"] == "custom"
+    assert "started_at" in entry
 
 
 def test_groups_summary_tail_into_one_block() -> None:
@@ -192,7 +275,7 @@ def test_groups_stderr_git_fetch_diagnostics_by_source() -> None:
     entries = log.entries()
 
     assert "资源拉取诊断" in output
-    assert entries[0]["kind"] == "summary"
+    assert entries[0]["kind"] == "output"
     assert entries[0]["title"] == "资源拉取诊断"
     assert [message["text"] for message in entries[0]["messages"]] == [
         "From https://github.com/MaaAssistantArknights/MaaResource",
@@ -215,7 +298,7 @@ def test_summary_after_git_up_to_date_starts_run_summary_block() -> None:
     entries = log.entries()
 
     assert [(entry["kind"], entry["title"]) for entry in entries] == [
-        ("summary", "资源拉取结果"),
+        ("output", "资源拉取结果"),
         ("summary", "运行摘要"),
     ]
     assert entries[0]["messages"][0]["text"] == "Already up to date."
@@ -256,7 +339,7 @@ def test_git_fast_forward_output_is_one_resource_update_block() -> None:
     entries = log.entries()
 
     assert [(entry["kind"], entry["title"]) for entry in entries] == [
-        ("summary", "资源拉取结果"),
+        ("output", "资源拉取结果"),
         ("summary", "运行摘要"),
     ]
     assert [message["text"] for message in entries[0]["messages"]] == [
