@@ -206,6 +206,8 @@ class SchedulerService:
                 raise KeyError("no-current-schedule-run")
             self._current.stop_requested = True
             if self._current.process and self._current.process.poll() is None:
+                self.diagnostics.append_run_event(self._current.id, "schedule", "framework", "收到停止请求，正在终止 maa-cli...", tone="warning")
+                self._append_framework_event(self._current, "收到停止请求，正在终止 maa-cli...", tone="warning")
                 self._current.process.terminate()
             logger.warning("scheduled run stop requested run_id=%s schedule_id=%s", self._current.id, self._current.schedule_id)
             self._current.status = "stopping"

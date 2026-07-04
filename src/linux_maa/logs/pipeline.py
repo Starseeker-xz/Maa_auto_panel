@@ -148,6 +148,7 @@ class LogPipelineSession:
     block_definitions: list[BlockDefinition] = field(default_factory=list)
     active_blocks: dict[str, ActiveBlock] = field(default_factory=dict)
     context: dict[str, object] = field(default_factory=dict)
+    state_generation: int = 0
     _source_states: dict[str, _SourceState] = field(default_factory=dict)
     _projection_entries: dict[str, list[LogEntry]] = field(default_factory=dict)
     _task_sequence_handlers: list[Callable[[list[dict[str, str]]], None]] = field(default_factory=list)
@@ -257,6 +258,7 @@ class LogPipelineSession:
             panel_kind=panel_kind,
         )
         self.entries_list.append(entry)
+        self.state_generation += 1
         self._trim()
         return entry
 
@@ -399,6 +401,7 @@ class LogPipelineSession:
         active = self.active_blocks.pop(normalize_source(source), None)
         if active is None:
             return ""
+        self.state_generation += 1
         if active.definition.on_close is None:
             return ""
         return active.definition.on_close(active, reason, line, match, self) or ""

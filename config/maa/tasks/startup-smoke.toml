@@ -22,7 +22,7 @@ type = "CloseDown"
 
 [tasks.params]
 client_type = "Bilibili"
-enable = true
+enable = false
 
 [tasks.linux_maa]
 id = "closedown-b2541c9a"

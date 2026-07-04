@@ -87,16 +87,16 @@ def test_carriage_return_newline_is_normal_log_line() -> None:
     assert log.entries()[0]["messages"][0]["text"] == "已连接"
 
 
-def test_flush_closes_running_block_as_unknown() -> None:
+def test_flush_closes_running_block_as_unfinished() -> None:
     log = maa_log()
 
     output = log.pipeline.append("[2026-06-26 18:47:56 INFO ] Recruit Start\n", source="maa-cli:stderr")
     output += log.pipeline.flush()
 
-    assert log.task_results()[0]["status"] == "unknown"
+    assert log.task_results()[0]["status"] == "unfinished"
 
 
-def test_same_source_start_supersedes_running_task_as_unknown() -> None:
+def test_same_source_start_supersedes_running_task_as_unfinished() -> None:
     log = maa_log()
 
     output = log.pipeline.append(
@@ -106,7 +106,7 @@ def test_same_source_start_supersedes_running_task_as_unknown() -> None:
     )
     entries = log.entries()
 
-    assert [(entry["name"], entry["status"]) for entry in entries] == [("Fight", "unknown"), ("Mall", "running")]
+    assert [(entry["name"], entry["status"]) for entry in entries] == [("Fight", "unfinished"), ("Mall", "running")]
 
 
 def test_task_end_takes_priority_over_start_matching() -> None:

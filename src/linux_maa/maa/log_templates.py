@@ -342,6 +342,8 @@ def _on_task_close(
             entry.messages.append(LogMessage(text="用户中断", time=time_text, tone="warning", raw=line.raw))
     elif entry.status and entry.status not in {"default", "running"}:
         status = entry.status
+    elif entry.status == "running":
+        status = "unfinished"
 
     entry.status = status
     entry.tone = tone_for_status(status)

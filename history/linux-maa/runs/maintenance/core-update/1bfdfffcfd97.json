@@ -1,0 +1,119 @@
+{
+  "attempts": [
+    {
+      "attempt_index": 1,
+      "ended_at": "2026-07-04T04:44:25",
+      "generated_config_dir": null,
+      "id": "1bfdfffcfd97-1",
+      "log_entries": [
+        {
+          "id": "log-1",
+          "kind": "event",
+          "lines": [
+            "$ /root/Linux_maa/runtime/maa/bin/maa update --batch"
+          ],
+          "messages": [
+            {
+              "text": "$ /root/Linux_maa/runtime/maa/bin/maa update --batch",
+              "time": "04:44:24",
+              "tone": "info"
+            }
+          ],
+          "source": "framework:event",
+          "status": "default",
+          "time": "04:44:24",
+          "title": "$ /root/Linux_maa/runtime/maa/bin/maa update --batch",
+          "tone": "info",
+          "type": "block"
+        },
+        {
+          "id": "log-2",
+          "kind": "output",
+          "lines": [
+            "From https://github.com/MaaAssistantArknights/MaaResource",
+            " * branch            main       -> FETCH_HEAD"
+          ],
+          "messages": [
+            {
+              "raw": "From https://github.com/MaaAssistantArknights/MaaResource",
+              "text": "From https://github.com/MaaAssistantArknights/MaaResource",
+              "tone": "info"
+            },
+            {
+              "raw": " * branch            main       -> FETCH_HEAD",
+              "text": " * branch            main       -> FETCH_HEAD",
+              "tone": "info"
+            }
+          ],
+          "panel_kind": "summary",
+          "rule_id": "maa-stderr-fetch-diagnostics",
+          "source": "maa-cli:stderr",
+          "started_at": "04:44:25",
+          "status": "succeeded",
+          "title": "资源拉取诊断",
+          "tone": "info",
+          "type": "block"
+        },
+        {
+          "id": "log-3",
+          "kind": "output",
+          "lines": [
+            "Already up to date."
+          ],
+          "messages": [
+            {
+              "raw": "Already up to date.",
+              "text": "Already up to date.",
+              "tone": "info"
+            }
+          ],
+          "panel_kind": "summary",
+          "rule_id": "maa-stdout-resource-update",
+          "source": "maa-cli:stdout",
+          "started_at": "04:44:25",
+          "status": "succeeded",
+          "title": "资源拉取结果",
+          "tone": "info",
+          "type": "block"
+        }
+      ],
+      "log_file": "debug/linux-maa/external/maa-cli/1bfdfffcfd97.stdout.log",
+      "log_files": {
+        "stderr": "debug/linux-maa/external/maa-cli/1bfdfffcfd97.stderr.log",
+        "stdout": "debug/linux-maa/external/maa-cli/1bfdfffcfd97.stdout.log"
+      },
+      "retry_group": 1,
+      "return_code": 0,
+      "run_id": "1bfdfffcfd97",
+      "started_at": "2026-07-04T04:44:24",
+      "status": "succeeded",
+      "task_ids": [],
+      "task_results": []
+    }
+  ],
+  "description": "Durable run history with visible log blocks.",
+  "run": {
+    "attempt_count": 0,
+    "created_at": "2026-07-04T04:44:24",
+    "ended_at": null,
+    "event_log_file": "debug/linux-maa/events/1bfdfffcfd97.jsonl",
+    "generated_config_dir": null,
+    "id": "1bfdfffcfd97",
+    "kind": "maintenance",
+    "log_file": "debug/linux-maa/external/maa-cli/1bfdfffcfd97.stdout.log",
+    "log_files": {
+      "stderr": "debug/linux-maa/external/maa-cli/1bfdfffcfd97.stderr.log",
+      "stdout": "debug/linux-maa/external/maa-cli/1bfdfffcfd97.stdout.log"
+    },
+    "maacore_log_file": null,
+    "maintenance_kind": "core-update",
+    "retry_group_count": 0,
+    "return_code": null,
+    "selected_task_ids": [],
+    "started_at": "2026-07-04T04:44:24",
+    "status": "running",
+    "summary": {},
+    "title": "更新 MaaCore 与基础资源"
+  },
+  "updated_at": "2026-07-04T04:44:25"
+}

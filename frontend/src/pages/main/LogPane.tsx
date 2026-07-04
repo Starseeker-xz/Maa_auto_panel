@@ -20,7 +20,7 @@ const BLOCK_STATUS_LABELS: Record<string, string> = {
   failed: "失败",
   stopped: "已停止",
   unknown: "未确认结束",
-  warning: "警告"
+  unfinished: "未完成"
 };
 
 const BLOCK_STATUS_CLASS: Record<string, string> = {
@@ -30,7 +30,7 @@ const BLOCK_STATUS_CLASS: Record<string, string> = {
   failed: "text-destructive",
   stopped: "text-amber-600 dark:text-amber-300",
   unknown: "text-muted-foreground",
-  warning: "text-amber-600 dark:text-amber-300"
+  unfinished: "text-amber-600 dark:text-amber-300"
 };
 
 const BLOCK_PANEL_CLASS: Record<string, string> = {
@@ -40,7 +40,7 @@ const BLOCK_PANEL_CLASS: Record<string, string> = {
   failed: "border-amber-500 bg-amber-50/40 shadow-sm shadow-amber-500/10 dark:bg-amber-950/10",
   stopped: "border-amber-500 bg-amber-50/40 shadow-sm shadow-amber-500/10 dark:bg-amber-950/10",
   unknown: "border-border bg-background shadow-sm",
-  warning: "border-amber-500 bg-amber-50/40 shadow-sm shadow-amber-500/10 dark:bg-amber-950/10"
+  unfinished: "border-amber-500 bg-amber-50/40 shadow-sm shadow-amber-500/10 dark:bg-amber-950/10"
 };
 
 const MESSAGE_TONE_CLASS: Record<string, string> = {
@@ -259,6 +259,5 @@ function fallbackMessages(entry: MaaLogEntry): MaaLogMessage[] {
   if (entry.lines.length) {
     return entry.lines.map((line) => ({ text: line, tone: entry.tone || "default" }));
   }
-  if (entry.title) return [{ text: entry.title, tone: entry.tone || "default" }];
   return [];
 }

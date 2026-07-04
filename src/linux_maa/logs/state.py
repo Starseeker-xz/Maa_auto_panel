@@ -31,18 +31,20 @@ class RunLogBuffer:
         }
 
     def append(self, text: str, *, source: str = "output", metadata: dict[str, object] | None = None) -> bool:
+        before = self.pipeline.state_generation
         rendered = self.pipeline.append(text, source=source, metadata=metadata)
-        if not rendered:
-            return False
-        self.output.append(rendered)
-        return True
+        changed = bool(rendered) or self.pipeline.state_generation != before
+        if rendered:
+            self.output.append(rendered)
+        return changed
 
     def flush(self) -> bool:
+        before = self.pipeline.state_generation
         rendered = self.pipeline.flush()
-        if not rendered:
-            return False
-        self.output.append(rendered)
-        return True
+        changed = bool(rendered) or self.pipeline.state_generation != before
+        if rendered:
+            self.output.append(rendered)
+        return changed
 
     def task_results(self) -> list[dict[str, object]]:
         return [_task_entry_to_result(record) for record in self.pipeline.projected_entries("task")][-self.max_task_records :]

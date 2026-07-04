@@ -103,7 +103,7 @@ def run_streaming_process(
 
             if should_stop is not None and should_stop() and proc.poll() is None:
                 stopped = True
-                _terminate_process(proc)
+                proc.terminate()
 
             if proc.poll() is not None:
                 for pipe, stream in streams.items():

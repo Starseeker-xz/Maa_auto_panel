@@ -1,0 +1,324 @@
+{
+  "attempts": [
+    {
+      "attempt_index": 1,
+      "ended_at": "2026-07-04T04:50:01",
+      "generated_config_dir": "runtime/maa/generated-configs/schedule-32c49b591571",
+      "id": "32c49b591571-1",
+      "log_entries": [
+        {
+          "id": "log-6",
+          "kind": "line",
+          "lines": [
+            "[2026-07-04 04:49:54 INFO ] Updating hot update files..."
+          ],
+          "messages": [
+            {
+              "text": "检查热更新资源...",
+              "time": "04:49:54",
+              "tone": "info"
+            }
+          ],
+          "source": "maa-cli:stderr",
+          "status": "default",
+          "time": "04:49:54",
+          "tone": "info",
+          "type": "block"
+        },
+        {
+          "id": "log-7",
+          "kind": "line",
+          "lines": [
+            "[2026-07-04 04:49:54 INFO ] Hot update completed successfully"
+          ],
+          "messages": [
+            {
+              "text": "热更新资源检查完成",
+              "time": "04:49:54",
+              "tone": "info"
+            }
+          ],
+          "source": "maa-cli:stderr",
+          "status": "default",
+          "time": "04:49:54",
+          "tone": "info",
+          "type": "block"
+        },
+        {
+          "id": "log-8",
+          "kind": "output",
+          "lines": [
+            "From https://github.com/MaaAssistantArknights/MaaResource",
+            " * branch            main       -> FETCH_HEAD"
+          ],
+          "messages": [
+            {
+              "raw": "From https://github.com/MaaAssistantArknights/MaaResource",
+              "text": "From https://github.com/MaaAssistantArknights/MaaResource",
+              "tone": "info"
+            },
+            {
+              "raw": " * branch            main       -> FETCH_HEAD",
+              "text": " * branch            main       -> FETCH_HEAD",
+              "tone": "info"
+            }
+          ],
+          "panel_kind": "summary",
+          "rule_id": "maa-stderr-fetch-diagnostics",
+          "source": "maa-cli:stderr",
+          "started_at": "04:49:54",
+          "status": "succeeded",
+          "title": "资源拉取诊断",
+          "tone": "info",
+          "type": "block"
+        },
+        {
+          "id": "log-9",
+          "kind": "output",
+          "lines": [
+            "Already up to date."
+          ],
+          "messages": [
+            {
+              "raw": "Already up to date.",
+              "text": "Already up to date.",
+              "tone": "info"
+            }
+          ],
+          "panel_kind": "summary",
+          "rule_id": "maa-stdout-resource-update",
+          "source": "maa-cli:stdout",
+          "started_at": "04:49:54",
+          "status": "succeeded",
+          "title": "资源拉取结果",
+          "tone": "info",
+          "type": "block"
+        },
+        {
+          "id": "log-10",
+          "kind": "line",
+          "lines": [
+            "[2026-07-04 04:49:54 INFO ] Connected"
+          ],
+          "messages": [
+            {
+              "text": "已连接",
+              "time": "04:49:54",
+              "tone": "info"
+            }
+          ],
+          "source": "maa-cli:stderr",
+          "status": "default",
+          "time": "04:49:54",
+          "tone": "info",
+          "type": "block"
+        },
+        {
+          "id": "log-11",
+          "kind": "line",
+          "lines": [
+            "[2026-07-04 04:50:00 INFO ] FastestWayToScreencap RawWithGzip 151"
+          ],
+          "messages": [
+            {
+              "segments": [
+                {
+                  "text": "已选择截图方式: "
+                },
+                {
+                  "strong": true,
+                  "text": "RawWithGzip",
+                  "tone": "info"
+                },
+                {
+                  "text": ", 最短耗时 "
+                },
+                {
+                  "strong": true,
+                  "text": "151 ms",
+                  "tone": "success"
+                }
+              ],
+              "text": "已选择截图方式: RawWithGzip, 最短耗时 151 ms",
+              "time": "04:50:00",
+              "tone": "info"
+            }
+          ],
+          "source": "maa-cli:stderr",
+          "status": "default",
+          "time": "04:50:00",
+          "tone": "info",
+          "type": "block"
+        },
+        {
+          "id": "log-12",
+          "kind": "task",
+          "lines": [],
+          "messages": [
+            {
+              "raw": "Error: Interrupted by user!",
+              "text": "用户中断",
+              "tone": "warning"
+            }
+          ],
+          "name": "启动 B 服",
+          "panel_kind": "task",
+          "rule_id": "maa-task-lifecycle",
+          "source": "maa-cli:stderr",
+          "source_name": "StartUp",
+          "started_at": "04:50:00",
+          "status": "unfinished",
+          "task_id": "startup-a5ce8dac",
+          "title": "任务 启动 B 服",
+          "tone": "warning",
+          "type": "block"
+        },
+        {
+          "id": "log-13",
+          "kind": "summary",
+          "lines": [
+            "Summary",
+            "----------------------------------------",
+            "[启动 B 服] 04:50:00 - Unfinished",
+            "----------------------------------------",
+            "[基建换班] Unstarted",
+            "----------------------------------------",
+            "[自动公招] Unstarted",
+            "----------------------------------------",
+            "[信用商店] Unstarted",
+            "----------------------------------------",
+            "[剿灭] Unstarted",
+            "----------------------------------------",
+            "[刷理智] Unstarted",
+            "----------------------------------------",
+            "[领取奖励] Unstarted",
+            "----------------------------------------",
+            "[关闭游戏] Unstarted"
+          ],
+          "messages": [
+            {
+              "text": "[启动 B 服] 04:50:00 - Unfinished",
+              "tone": "default"
+            },
+            {
+              "text": "[基建换班] Unstarted",
+              "tone": "default"
+            },
+            {
+              "text": "[自动公招] Unstarted",
+              "tone": "default"
+            },
+            {
+              "text": "[信用商店] Unstarted",
+              "tone": "default"
+            },
+            {
+              "text": "[剿灭] Unstarted",
+              "tone": "default"
+            },
+            {
+              "text": "[刷理智] Unstarted",
+              "tone": "default"
+            },
+            {
+              "text": "[领取奖励] Unstarted",
+              "tone": "default"
+            },
+            {
+              "text": "[关闭游戏] Unstarted",
+              "tone": "default"
+            }
+          ],
+          "panel_kind": "summary",
+          "rule_id": "maa-run-summary",
+          "source": "maa-cli:stdout",
+          "started_at": "04:50:01",
+          "status": "succeeded",
+          "title": "运行摘要",
+          "tone": "success",
+          "type": "block"
+        }
+      ],
+      "log_file": "debug/linux-maa/external/maa-cli/32c49b591571.stdout.log",
+      "log_files": {
+        "stderr": "debug/linux-maa/external/maa-cli/32c49b591571.stderr.log",
+        "stdout": "debug/linux-maa/external/maa-cli/32c49b591571.stdout.log"
+      },
+      "retry_group": 1,
+      "return_code": -15,
+      "run_id": "32c49b591571",
+      "started_at": "2026-07-04T04:49:54",
+      "status": "stopped",
+      "task_ids": [
+        "startup-a5ce8dac",
+        "infrast-37153e4c",
+        "recruit-d1901df5",
+        "mall-7d4ad25c",
+        "fight--2-1b5fc18a",
+        "fight-e6d4bc5d",
+        "award-8123686a",
+        "closedown-738e1424"
+      ],
+      "task_results": [
+        {
+          "lines": [],
+          "messages": [
+            {
+              "raw": "Error: Interrupted by user!",
+              "text": "用户中断",
+              "tone": "warning"
+            }
+          ],
+          "name": "启动 B 服",
+          "panel_kind": "task",
+          "rule_id": "maa-task-lifecycle",
+          "source_name": "StartUp",
+          "started_at": "04:50:00",
+          "status": "unfinished",
+          "task_id": "startup-a5ce8dac",
+          "type": "task"
+        }
+      ]
+    }
+  ],
+  "description": "Durable run history with visible log blocks.",
+  "run": {
+    "attempt_count": 0,
+    "created_at": "2026-07-04T04:49:54",
+    "ended_at": null,
+    "entry_id": "t0400",
+    "entry_name": "休息 1",
+    "event_log_file": "debug/linux-maa/events/32c49b591571.jsonl",
+    "game_day": "2026-07-04",
+    "generated_config_dir": null,
+    "id": "32c49b591571",
+    "kind": "schedule",
+    "log_file": "debug/linux-maa/external/maa-cli/32c49b591571.stdout.log",
+    "log_files": {
+      "stderr": "debug/linux-maa/external/maa-cli/32c49b591571.stderr.log",
+      "stdout": "debug/linux-maa/external/maa-cli/32c49b591571.stdout.log"
+    },
+    "maacore_log_file": null,
+    "retry_group_count": 0,
+    "return_code": null,
+    "schedule_id": "daily-test",
+    "schedule_name": "daily-test",
+    "selected_task_ids": [
+      "startup-a5ce8dac",
+      "infrast-37153e4c",
+      "recruit-d1901df5",
+      "mall-7d4ad25c",
+      "fight--2-1b5fc18a",
+      "fight-e6d4bc5d",
+      "award-8123686a",
+      "closedown-738e1424"
+    ],
+    "started_at": "2026-07-04T04:49:54",
+    "status": "running",
+    "summary": {},
+    "task_config": "General",
+    "title": "daily-test / 休息 1",
+    "trigger": "manual"
+  },
+  "updated_at": "2026-07-04T04:50:01"
+}
