@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from linux_maa.storage.files import append_jsonl, append_text, read_jsonl
+from linux_maa.time_utils import server_now_iso
 from linux_maa.utils import relative_path, write_text_atomic
 
 if TYPE_CHECKING:
@@ -306,4 +307,4 @@ def _mtime(path: Path) -> datetime:
 
 
 def _now() -> str:
-    return datetime.now().isoformat(timespec="seconds")
+    return server_now_iso()

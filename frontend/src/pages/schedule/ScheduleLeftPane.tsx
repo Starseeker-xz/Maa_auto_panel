@@ -274,7 +274,7 @@ export function ScheduleLeftPane({
       </div>
 
       <section className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-2">
-        <CardTitle className="text-sm">{selectedEntry?.name || "子任务启用"}</CardTitle>
+        <CardTitle className="text-sm">{selectedEntry?.name + " · 启用子任务" || "启用子任务"}</CardTitle>
         <ScrollArea className="min-h-0">
           <div className="grid grid-cols-2 gap-1.5 pr-2">
             {taskItems.map((item) => (

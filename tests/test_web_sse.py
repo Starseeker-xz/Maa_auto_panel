@@ -1,56 +1,34 @@
 from linux_maa.web.sse import build_cursor_patch, build_state_patch
 
 
-def test_state_patch_replaces_mutated_log_tail() -> None:
+def test_state_patch_replaces_mutated_current_retry() -> None:
     previous = {
-        "id": "run-1",
-        "status": "running",
-        "output": ["started\n"],
-        "task_results": [
+        "run": {"id": "run-1", "status": "running", "updated_at": "2026-07-01T15:00:00"},
+        "retries": [
             {
-                "type": "task",
-                "name": "StartUp",
+                "id": "run-1-1",
+                "run_id": "run-1",
+                "retry_index": 1,
+                "retry_group": 1,
                 "status": "running",
-                "messages": [],
-                "lines": ["StartUp Start"],
-            }
-        ],
-        "log_entries": [
-            {
-                "type": "block",
-                "id": "log-1",
-                "source": "maa-cli:stderr",
-                "kind": "task",
-                "name": "StartUp",
-                "status": "running",
-                "messages": [],
-                "lines": ["StartUp Start"],
+                "updated_at": "2026-07-01T15:00:00",
+                "closed": False,
+                "log_entries": [{"id": "log-1", "kind": "task", "status": "running"}],
             }
         ],
     }
     current = {
-        **previous,
-        "updated_at": "2026-07-01T15:10:00",
-        "output": ["started\n", "finished\n"],
-        "task_results": [
+        "run": {"id": "run-1", "status": "running", "updated_at": "2026-07-01T15:10:00"},
+        "retries": [
             {
-                "type": "task",
-                "name": "StartUp",
+                "id": "run-1-1",
+                "run_id": "run-1",
+                "retry_index": 1,
+                "retry_group": 1,
                 "status": "succeeded",
-                "messages": [{"type": "text", "text": "done", "tone": "info"}],
-                "lines": ["StartUp Start", "StartUp Completed"],
-            }
-        ],
-        "log_entries": [
-            {
-                "type": "block",
-                "id": "log-1",
-                "source": "maa-cli:stderr",
-                "kind": "task",
-                "name": "StartUp",
-                "status": "succeeded",
-                "messages": [{"text": "done", "tone": "info"}],
-                "lines": ["StartUp Start", "StartUp Completed"],
+                "updated_at": "2026-07-01T15:10:00",
+                "closed": True,
+                "log_entries": [{"id": "log-1", "kind": "task", "status": "succeeded"}],
             }
         ],
     }
@@ -59,57 +37,34 @@ def test_state_patch_replaces_mutated_log_tail() -> None:
 
     assert patch is not None
     assert patch["stream_version"] == 42
-    assert patch["state"] == {"id": "run-1", "status": "running", "updated_at": "2026-07-01T15:10:00"}
-    assert patch["output"] == {"replace_from": 1, "items": ["finished\n"]}
-    assert patch["task_results"] == {"replace_from": 0, "items": current["task_results"]}
-    assert patch["log_entries"] == {"replace_from": 0, "items": current["log_entries"]}
+    assert patch["state"] == {"run": current["run"]}
+    assert patch["retries"] == {"replace_from": 0, "items": current["retries"]}
 
 
-def test_cursor_patch_uses_client_offsets_and_resends_mutable_tail() -> None:
+def test_cursor_patch_resends_open_retry_when_client_count_matches() -> None:
     current = {
-        "id": "run-1",
-        "status": "running",
-        "output": ["line 1\n", "line 2\n", "line 3\n"],
-        "task_results": [
-            {"type": "task", "name": "StartUp", "status": "succeeded", "messages": [], "lines": []},
-            {"type": "task", "name": "Fight", "status": "running", "messages": [], "lines": []},
-        ],
-        "log_entries": [
-            {"type": "block", "id": "log-1", "source": "maa-cli:stderr", "kind": "task", "name": "StartUp", "status": "succeeded", "messages": [], "lines": []},
-            {"type": "block", "id": "log-2", "source": "maa-cli:stderr", "kind": "task", "name": "Fight", "status": "running", "messages": [], "lines": []},
+        "run": {"id": "run-1", "status": "running"},
+        "retries": [
+            {"id": "run-1-1", "retry_index": 1, "closed": True, "log_entries": []},
+            {"id": "run-1-2", "retry_index": 2, "closed": False, "log_entries": [{"id": "log-2"}]},
         ],
     }
 
-    patch = build_cursor_patch(
-        current,
-        {"output": 2, "task_results": 1, "log_entries": 1},
-        7,
-    )
+    patch = build_cursor_patch(current, {"retries": 2}, 7)
 
-    assert patch["state"] == {"id": "run-1", "status": "running"}
-    assert patch["output"] == {"replace_from": 2, "items": ["line 3\n"]}
-    assert patch["task_results"] == {"replace_from": 0, "items": current["task_results"]}
-    assert patch["log_entries"] == {"replace_from": 0, "items": current["log_entries"]}
+    assert patch["state"] == {"run": current["run"]}
+    assert patch["retries"] == {"replace_from": 1, "items": [current["retries"][1]]}
 
 
-def test_cursor_patch_resends_full_log_entries_even_when_client_length_matches() -> None:
+def test_cursor_patch_sends_only_new_closed_retries() -> None:
     current = {
-        "id": "run-1",
-        "status": "running",
-        "output": ["line 1\n"],
-        "task_results": [],
-        "log_entries": [
-            {"type": "block", "id": "log-1", "source": "maa-cli:stdout", "kind": "summary", "title": "运行摘要", "status": "succeeded", "messages": [], "lines": ["Summary"]},
-            {"type": "block", "id": "log-2", "source": "maa-cli:stdout", "kind": "line", "messages": [{"text": "done", "tone": "info"}], "lines": ["done"]},
+        "run": {"id": "run-1", "status": "running"},
+        "retries": [
+            {"id": "run-1-1", "retry_index": 1, "closed": True, "log_entries": []},
+            {"id": "run-1-2", "retry_index": 2, "closed": True, "log_entries": []},
         ],
     }
 
-    patch = build_cursor_patch(
-        current,
-        {"output": 1, "task_results": 0, "log_entries": 2},
-        8,
-    )
+    patch = build_cursor_patch(current, {"retries": 1}, 8)
 
-    assert "output" not in patch
-    assert "task_results" not in patch
-    assert patch["log_entries"] == {"replace_from": 0, "items": current["log_entries"]}
+    assert patch["retries"] == {"replace_from": 1, "items": [current["retries"][1]]}

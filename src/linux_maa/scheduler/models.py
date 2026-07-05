@@ -5,9 +5,10 @@ from copy import deepcopy
 from dataclasses import asdict, dataclass, field
 from typing import Any, Literal
 
+from linux_maa.run_executor import RunTimeouts
 from linux_maa.utils import slugify
 
-RestartMode = Literal["none", "before_run", "before_retry_group", "before_retry"]
+RestartMode = Literal["none", "before_run", "before_retry"]
 
 
 @dataclass(frozen=True)
@@ -25,10 +26,10 @@ class ScheduleEntry:
 
 @dataclass(frozen=True)
 class ScheduleRetryPolicy:
-    """Retry behaviour: max attempts per group, buffer seconds, max retry groups."""
-    max_attempts_per_group: int = 5
-    group_buffer_seconds: int = 300
-    max_groups: int = 3
+    """Retry behaviour for scheduled runs."""
+    max_retries: int = 5
+    buffer_every_retries: int = 0
+    buffer_seconds: int = 0
 
     def to_dict(self) -> dict[str, object]:
         return asdict(self)
@@ -36,16 +37,19 @@ class ScheduleRetryPolicy:
 
 @dataclass(frozen=True)
 class ScheduleTimeouts:
-    """Timeout thresholds at child-task and overall-run granularity (warning, danger, kill)."""
-    child_warning_seconds: int = 900
-    child_danger_seconds: int = 1200
-    child_kill_seconds: int = 1800
-    run_warning_seconds: int = 1800
-    run_danger_seconds: int = 2400
-    run_kill_seconds: int = 3600
+    """Generic timeout thresholds for scheduled attempts."""
+    no_output_warning_seconds: int = 900
+    no_output_kill_seconds: int = 1800
+    runtime_warning_seconds: int = 1800
+    runtime_kill_seconds: int = 3600
+    stop_warning_seconds: int = 60
+    stop_kill_seconds: int = 300
 
     def to_dict(self) -> dict[str, object]:
         return asdict(self)
+
+    def to_run_timeouts(self) -> RunTimeouts:
+        return RunTimeouts(**self.to_dict())
 
 
 @dataclass(frozen=True)

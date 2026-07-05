@@ -8,7 +8,7 @@ from typing import Any, Literal
 
 from linux_maa.maa.runtime import MaaRuntime
 from linux_maa.storage.files import read_json_object, write_json_object
-
+from linux_maa.time_utils import server_now_iso
 from linux_maa.utils import relative_path, slugify
 
 
@@ -18,7 +18,7 @@ RunKind = Literal["manual", "schedule", "maintenance", "tool"]
 @dataclass(frozen=True)
 class StateRetentionPolicy:
     max_run_records: int = 500
-    max_attempt_records: int = 2000
+    max_retry_records: int = 2000
     max_trigger_records: int = 2000
     max_scheduler_state_days: int = 90
 
@@ -29,13 +29,13 @@ class StoredRun:
     kind: RunKind
     status: str
     title: str
-    created_at: str
-    started_at: str | None = None
+    started_at: str
+    updated_at: str | None = None
     ended_at: str | None = None
     return_code: int | None = None
-    attempt_count: int = 0
+    max_retries: int = 1
+    retry_count: int = 0
     retry_group_count: int = 0
-    log_file: str | None = None
     log_files: dict[str, str] = field(default_factory=dict)
     event_log_file: str | None = None
     maacore_log_file: str | None = None
@@ -61,13 +61,13 @@ class StoredRun:
             "kind": self.kind,
             "status": self.status,
             "title": self.title,
-            "created_at": self.created_at,
             "started_at": self.started_at,
+            "updated_at": self.updated_at,
             "ended_at": self.ended_at,
             "return_code": self.return_code,
-            "attempt_count": self.attempt_count,
+            "max_retries": self.max_retries,
+            "retry_count": self.retry_count,
             "retry_group_count": self.retry_group_count,
-            "log_file": self.log_file,
             "log_files": dict(self.log_files),
             "event_log_file": self.event_log_file,
             "maacore_log_file": self.maacore_log_file,
@@ -101,19 +101,19 @@ class RunStateStore:
         self.ensure_dirs()
 
     @property
-    def run_records_path(self):
+    def run_records_path(self) -> Path:
         return self.runtime.run_state_dir / "recent-run-records.json"
 
     @property
-    def attempts_path(self):
-        return self.runtime.run_state_dir / "scheduled-run-attempts.json"
+    def retries_path(self) -> Path:
+        return self.runtime.run_state_dir / "run-retries.json"
 
     @property
-    def triggers_path(self):
+    def triggers_path(self) -> Path:
         return self.runtime.scheduler_state_dir / "triggered-schedule-entries.json"
 
     @property
-    def daily_stats_path(self):
+    def daily_stats_path(self) -> Path:
         return self.runtime.scheduler_state_dir / "daily-task-stats.json"
 
     def ensure_dirs(self) -> None:
@@ -124,14 +124,13 @@ class RunStateStore:
     def enforce_retention(self) -> None:
         with self._lock:
             self._write_runs(self.runs(limit=0))
-            attempts = self._attempt_items()[-self.retention.max_attempt_records :]
-            self._write_attempts(attempts)
+            retries = self._retry_items()[-self.retention.max_retry_records :]
+            self._write_retries(retries)
             triggers = self._trigger_items()[-self.retention.max_trigger_records :]
             self._write_triggers(triggers)
             self._prune_daily_stats()
 
     def recover_interrupted_runs(self) -> int:
-        """Mark persisted in-progress runs as stopped after a backend restart."""
         recovered = 0
         for item in self._run_items():
             run_id = str(item.get("id") or "")
@@ -140,270 +139,130 @@ class RunStateStore:
             summary = dict(item.get("summary")) if isinstance(item.get("summary"), dict) else {}
             summary["recovered_status"] = str(item.get("status") or "running")
             summary["recovered_reason"] = "backend restarted before run finalized"
-            self._upsert_run(
-                {
-                    "id": run_id,
-                    "status": "stopped",
-                    "ended_at": _now(),
-                    "summary": summary,
-                }
-            )
+            self._upsert_run({"id": run_id, "status": "stopped", "ended_at": _now(), "updated_at": _now(), "summary": summary})
             self._sync_run_history(run_id)
             recovered += 1
         return recovered
-
-    def create_manual_run(
-        self,
-        *,
-        run_id: str,
-        task: str,
-        profile: str,
-        log_file: str | None = None,
-        log_files: dict[str, str] | None = None,
-        event_log_file: str | None = None,
-    ) -> None:
-        self._upsert_run(
-            {
-                "id": run_id,
-                "kind": "manual",
-                "status": "running",
-                "title": task,
-                "created_at": _now(),
-                "started_at": _now(),
-                "task": task,
-                "profile": profile,
-                "log_file": log_file,
-                "log_files": log_files or {},
-                "event_log_file": event_log_file,
-            }
-        )
-
-    def create_maintenance_run(
-        self,
-        *,
-        run_id: str,
-        kind: str,
-        title: str,
-        log_file: str | None = None,
-        log_files: dict[str, str] | None = None,
-        event_log_file: str | None = None,
-    ) -> None:
-        self._upsert_run(
-            {
-                "id": run_id,
-                "kind": "maintenance",
-                "status": "running",
-                "title": title,
-                "created_at": _now(),
-                "started_at": _now(),
-                "maintenance_kind": kind,
-                "log_file": log_file,
-                "log_files": log_files or {},
-                "event_log_file": event_log_file,
-            }
-        )
-
-    def create_tool_run(
-        self,
-        *,
-        run_id: str,
-        tool_id: str,
-        title: str,
-        log_file: str | None = None,
-        log_files: dict[str, str] | None = None,
-        event_log_file: str | None = None,
-    ) -> None:
-        self._upsert_run(
-            {
-                "id": run_id,
-                "kind": "tool",
-                "status": "running",
-                "title": title,
-                "created_at": _now(),
-                "started_at": _now(),
-                "tool_id": tool_id,
-                "tool_title": title,
-                "log_file": log_file,
-                "log_files": log_files or {},
-                "event_log_file": event_log_file,
-            }
-        )
-
-    def finish_generic_run(
-        self,
-        run_id: str,
-        *,
-        status: str,
-        return_code: int | None = None,
-        summary: dict[str, Any] | None = None,
-        maacore_log_file: str | None = None,
-    ) -> None:
-        patch: dict[str, object] = {
-            "id": run_id,
-            "status": status,
-            "ended_at": _now(),
-            "return_code": return_code,
-        }
-        if summary is not None:
-            patch["summary"] = summary
-        if maacore_log_file is not None:
-            patch["maacore_log_file"] = maacore_log_file
-        self._upsert_run(patch)
-        self._sync_run_history(run_id)
 
     def create_run(
         self,
         *,
         run_id: str,
-        schedule_id: str,
-        schedule_name: str,
-        entry_id: str,
-        entry_name: str,
-        task_config: str,
-        game_day: str,
-        trigger: str,
-        selected_task_ids: list[str],
-        log_file: str | None = None,
+        kind: RunKind,
+        title: str,
+        max_retries: int = 1,
         log_files: dict[str, str] | None = None,
         event_log_file: str | None = None,
+        selected_task_ids: list[str] | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> None:
-        self._upsert_run(
-            {
-                "id": run_id,
-                "kind": "schedule",
-                "status": "running",
-                "title": f"{schedule_name} / {entry_name}",
-                "created_at": _now(),
-                "started_at": _now(),
-                "schedule_id": schedule_id,
-                "schedule_name": schedule_name,
-                "entry_id": entry_id,
-                "entry_name": entry_name,
-                "task_config": task_config,
-                "game_day": game_day,
-                "trigger": trigger,
-                "selected_task_ids": selected_task_ids,
-                "log_file": log_file,
-                "log_files": log_files or {},
-                "event_log_file": event_log_file,
-            }
-        )
+        started_at = _now()
+        data: dict[str, object] = {
+            "id": run_id,
+            "kind": kind,
+            "status": "running",
+            "title": title,
+            "started_at": started_at,
+            "updated_at": started_at,
+            "max_retries": max(1, max_retries),
+            "log_files": log_files or {},
+            "event_log_file": event_log_file,
+            "selected_task_ids": selected_task_ids or [],
+        }
+        if metadata:
+            data.update(metadata)
+        self._upsert_run(data)
 
     def finish_run(
         self,
         run_id: str,
         *,
         status: str,
-        attempt_count: int,
-        retry_group_count: int,
-        log_file: str | None,
-        summary: dict[str, Any],
+        return_code: int | None = None,
+        retry_count: int | None = None,
+        retry_group_count: int | None = None,
+        summary: dict[str, Any] | None = None,
         maacore_log_file: str | None = None,
-        log_files: dict[str, str] | None = None,
+        generated_config_dir: str | None = None,
     ) -> None:
         patch: dict[str, object] = {
             "id": run_id,
             "status": status,
             "ended_at": _now(),
-            "attempt_count": attempt_count,
-            "retry_group_count": retry_group_count,
-            "log_file": log_file,
-            "summary": summary,
+            "updated_at": _now(),
+            "return_code": return_code,
         }
-        if log_files is not None:
-            patch["log_files"] = log_files
+        if retry_count is not None:
+            patch["retry_count"] = retry_count
+        if retry_group_count is not None:
+            patch["retry_group_count"] = retry_group_count
+        if summary is not None:
+            patch["summary"] = summary
         if maacore_log_file is not None:
             patch["maacore_log_file"] = maacore_log_file
+        if generated_config_dir is not None:
+            patch["generated_config_dir"] = generated_config_dir
         self._upsert_run(patch)
         self._sync_run_history(run_id)
 
-    def add_attempt(
+    def add_retry(
         self,
         *,
-        attempt_id: str,
+        retry_id: str,
         run_id: str,
-        attempt_index: int,
+        retry_index: int,
         retry_group: int,
         status: str,
         started_at: str,
+        updated_at: str,
         ended_at: str,
         return_code: int | None,
         task_ids: list[str],
         task_results: list[dict[str, Any]],
         log_entries: list[dict[str, Any]],
-        log_file: str | None = None,
         log_files: dict[str, str] | None = None,
         generated_config_dir: str | None = None,
+        maacore_log_file: str | None = None,
     ) -> None:
         with self._lock:
-            history_file = self._write_attempt_history(
+            history_file = self._write_retry_history(
                 run_id=run_id,
-                attempt_id=attempt_id,
-                attempt_index=attempt_index,
+                retry_id=retry_id,
+                retry_index=retry_index,
                 retry_group=retry_group,
                 status=status,
                 started_at=started_at,
+                updated_at=updated_at,
                 ended_at=ended_at,
                 return_code=return_code,
                 task_ids=task_ids,
                 task_results=task_results,
                 log_entries=log_entries,
-                log_file=log_file,
                 log_files=log_files,
                 generated_config_dir=generated_config_dir,
+                maacore_log_file=maacore_log_file,
             )
-            attempts = [item for item in self._attempt_items() if item.get("id") != attempt_id]
-            attempts.append(
+            retries = [item for item in self._retry_items() if item.get("id") != retry_id]
+            retries.append(
                 {
-                    "id": attempt_id,
+                    "id": retry_id,
                     "run_id": run_id,
-                    "attempt_index": attempt_index,
+                    "retry_index": retry_index,
                     "retry_group": retry_group,
                     "status": status,
                     "started_at": started_at,
+                    "updated_at": updated_at,
                     "ended_at": ended_at,
                     "return_code": return_code,
                     "task_ids": task_ids,
                     "task_results": task_results,
                     "log_entries_file": history_file,
-                    "log_file": log_file,
                     "log_files": log_files or {},
                     "generated_config_dir": generated_config_dir,
+                    "maacore_log_file": maacore_log_file,
                 }
             )
-            self._write_attempts(attempts[-self.retention.max_attempt_records :])
-
-    def add_single_attempt(
-        self,
-        *,
-        run_id: str,
-        status: str,
-        started_at: str,
-        ended_at: str,
-        return_code: int | None,
-        task_results: list[dict[str, Any]],
-        log_entries: list[dict[str, Any]],
-        task_ids: list[str] | None = None,
-        log_file: str | None = None,
-        log_files: dict[str, str] | None = None,
-        generated_config_dir: str | None = None,
-    ) -> None:
-        self.add_attempt(
-            attempt_id=f"{run_id}-1",
-            run_id=run_id,
-            attempt_index=1,
-            retry_group=1,
-            status=status,
-            started_at=started_at,
-            ended_at=ended_at,
-            return_code=return_code,
-            task_ids=task_ids or [],
-            task_results=task_results,
-            log_entries=log_entries,
-            log_file=log_file,
-            log_files=log_files,
-            generated_config_dir=generated_config_dir,
-        )
+            self._write_retries(retries[-self.retention.max_retry_records :])
 
     def daily_stats(self, schedule_id: str, game_day: str) -> dict[str, object]:
         from linux_maa.scheduler.models import DailyTaskStats
@@ -466,11 +325,7 @@ class RunStateStore:
 
     def already_triggered(self, *, schedule_id: str, entry_id: str, game_day: str) -> bool:
         for item in self._trigger_items():
-            if (
-                item.get("schedule_id") == schedule_id
-                and item.get("entry_id") == entry_id
-                and item.get("game_day") == game_day
-            ):
+            if item.get("schedule_id") == schedule_id and item.get("entry_id") == entry_id and item.get("game_day") == game_day:
                 return True
         return False
 
@@ -487,7 +342,7 @@ class RunStateStore:
         runs = [record for record in records if record is not None]
         if kind is not None:
             runs = [record for record in runs if record.kind == kind]
-        runs.sort(key=lambda run: run.created_at, reverse=True)
+        runs.sort(key=lambda run: run.started_at, reverse=True)
         return runs if limit <= 0 else runs[:limit]
 
     def run(self, run_id: str) -> StoredRun | None:
@@ -496,10 +351,30 @@ class RunStateStore:
                 return _stored_run_from_data(item)
         return None
 
-    def attempts(self, run_id: str) -> list[dict[str, object]]:
-        rows = [item for item in self._attempt_items() if item.get("run_id") == run_id]
-        rows.sort(key=lambda item: _int_value(item.get("attempt_index")))
-        return [self._attempt_with_history(row) for row in rows]
+    def delete_run(self, run_id: str) -> dict[str, object]:
+        with self._lock:
+            run = self.run(run_id)
+            if run is None:
+                raise KeyError(run_id)
+            runs = [_stored_run_from_data(item) for item in self._run_items() if item.get("id") != run_id]
+            retries = [item for item in self._retry_items() if item.get("run_id") != run_id]
+            history_path = self._run_history_path(run_id, run)
+            history_deleted = False
+            if history_path.exists():
+                history_path.unlink()
+                history_deleted = True
+            self._write_runs(runs)
+            self._write_retries(retries)
+            return {
+                "id": run_id,
+                "history_deleted": history_deleted,
+                "history_path": relative_path(history_path, self.runtime.repo_root),
+            }
+
+    def retries(self, run_id: str) -> list[dict[str, object]]:
+        rows = [item for item in self._retry_items() if item.get("run_id") == run_id]
+        rows.sort(key=lambda item: _int_value(item.get("retry_index")))
+        return [self._retry_with_history(row) for row in rows]
 
     def _upsert_run(self, patch: dict[str, object]) -> None:
         with self._lock:
@@ -509,12 +384,10 @@ class RunStateStore:
             by_id = {str(item.get("id") or ""): item for item in self._run_items() if item.get("id")}
             data = dict(by_id.get(run_id) or {})
             data.update(patch)
-            if "created_at" not in data:
-                data["created_at"] = _now()
-            if "title" not in data:
-                data["title"] = run_id
-            if "kind" not in data:
-                data["kind"] = "manual"
+            data.setdefault("started_at", _now())
+            data.setdefault("updated_at", data["started_at"])
+            data.setdefault("title", run_id)
+            data.setdefault("kind", "manual")
             by_id[run_id] = data
             self._write_runs([_stored_run_from_data(item) for item in by_id.values()])
 
@@ -523,58 +396,61 @@ class RunStateStore:
         runs = data.get("runs")
         return [item for item in runs if isinstance(item, dict)] if isinstance(runs, list) else []
 
-    def _attempt_items(self) -> list[dict[str, object]]:
-        data = read_json_object(self.attempts_path)
-        attempts = data.get("attempts")
-        return [item for item in attempts if isinstance(item, dict)] if isinstance(attempts, list) else []
+    def _retry_items(self) -> list[dict[str, object]]:
+        data = read_json_object(self.retries_path)
+        retries = data.get("retries")
+        return [item for item in retries if isinstance(item, dict)] if isinstance(retries, list) else []
 
-    def _write_attempt_history(
+    def _write_retry_history(
         self,
         *,
         run_id: str,
-        attempt_id: str,
-        attempt_index: int,
+        retry_id: str,
+        retry_index: int,
         retry_group: int,
         status: str,
         started_at: str,
+        updated_at: str,
         ended_at: str,
         return_code: int | None,
         task_ids: list[str],
         task_results: list[dict[str, Any]],
         log_entries: list[dict[str, Any]],
-        log_file: str | None,
         log_files: dict[str, str] | None,
         generated_config_dir: str | None,
+        maacore_log_file: str | None,
     ) -> str:
         run = self.run(run_id)
         path = self._run_history_path(run_id, run)
         existing = read_json_object(path)
-        attempts = [item for item in existing.get("attempts", []) if isinstance(item, dict)]
-        attempts = [item for item in attempts if item.get("id") != attempt_id]
-        attempts.append(
+        retries = [item for item in existing.get("retries", []) if isinstance(item, dict)]
+        retries = [item for item in retries if item.get("id") != retry_id]
+        retries.append(
             {
-                "id": attempt_id,
+                "id": retry_id,
                 "run_id": run_id,
-                "attempt_index": attempt_index,
+                "retry_index": retry_index,
                 "retry_group": retry_group,
                 "status": status,
                 "started_at": started_at,
+                "updated_at": updated_at,
                 "ended_at": ended_at,
                 "return_code": return_code,
                 "task_ids": task_ids,
                 "task_results": task_results,
                 "log_entries": log_entries,
-                "log_file": log_file,
                 "log_files": log_files or {},
                 "generated_config_dir": generated_config_dir,
+                "maacore_log_file": maacore_log_file,
+                "closed": True,
             }
         )
-        attempts.sort(key=lambda item: _int_value(item.get("attempt_index")))
+        retries.sort(key=lambda item: _int_value(item.get("retry_index")))
         data: dict[str, object] = {
-            "description": "Durable run history with visible log blocks.",
+            "description": "Durable run history with retry-scoped visible log blocks.",
             "updated_at": _now(),
             "run": run.to_dict() if run is not None else {"id": run_id},
-            "attempts": attempts,
+            "retries": retries,
         }
         write_json_object(path, data)
         return relative_path(path, self.runtime.repo_root)
@@ -587,12 +463,12 @@ class RunStateStore:
         existing = read_json_object(path)
         if not existing:
             return
-        existing["description"] = existing.get("description") or "Durable run history with visible log blocks."
+        existing["description"] = existing.get("description") or "Durable run history with retry-scoped visible log blocks."
         existing["updated_at"] = _now()
         existing["run"] = run.to_dict()
         write_json_object(path, existing)
 
-    def _attempt_with_history(self, row: dict[str, object]) -> dict[str, object]:
+    def _retry_with_history(self, row: dict[str, object]) -> dict[str, object]:
         output = dict(row)
         if "log_entries" in output:
             return output
@@ -602,9 +478,9 @@ class RunStateStore:
             return output
         path = self.runtime.repo_root / history_file
         data = read_json_object(path)
-        attempt_id = output.get("id")
-        for item in data.get("attempts", []):
-            if isinstance(item, dict) and item.get("id") == attempt_id:
+        retry_id = output.get("id")
+        for item in data.get("retries", []):
+            if isinstance(item, dict) and item.get("id") == retry_id:
                 output["log_entries"] = item.get("log_entries") if isinstance(item.get("log_entries"), list) else []
                 if "task_results" not in output and isinstance(item.get("task_results"), list):
                     output["task_results"] = item["task_results"]
@@ -630,7 +506,7 @@ class RunStateStore:
 
     def _write_runs(self, runs: list[StoredRun | None]) -> None:
         records = [run for run in runs if run is not None]
-        records.sort(key=lambda run: run.created_at, reverse=True)
+        records.sort(key=lambda run: run.started_at, reverse=True)
         data = {
             "description": "Recent WebUI, scheduled, maintenance, and tool run records. The WebUI derives recent runs from this file.",
             "updated_at": _now(),
@@ -638,13 +514,13 @@ class RunStateStore:
         }
         write_json_object(self.run_records_path, data)
 
-    def _write_attempts(self, attempts: list[dict[str, object]]) -> None:
+    def _write_retries(self, retries: list[dict[str, object]]) -> None:
         data = {
-            "description": "Per-attempt run index. Log blocks are stored in history/linux-maa/runs and referenced by log_entries_file.",
+            "description": "Per-retry run index. Log blocks are stored in history/linux-maa/runs and referenced by log_entries_file.",
             "updated_at": _now(),
-            "attempts": attempts,
+            "retries": retries,
         }
-        write_json_object(self.attempts_path, data)
+        write_json_object(self.retries_path, data)
 
     def _write_triggers(self, triggers: list[dict[str, object]]) -> None:
         data = {
@@ -701,13 +577,13 @@ def _stored_run_from_data(data: dict[str, object]) -> StoredRun | None:
         kind=kind,  # type: ignore[arg-type]
         status=str(data.get("status") or "unknown"),
         title=str(data.get("title") or run_id),
-        created_at=str(data.get("created_at") or ""),
-        started_at=_optional_str(data.get("started_at")),
+        started_at=str(data.get("started_at") or ""),
+        updated_at=_optional_str(data.get("updated_at")),
         ended_at=_optional_str(data.get("ended_at")),
         return_code=_optional_int(data.get("return_code")),
-        attempt_count=_int_value(data.get("attempt_count")),
+        max_retries=max(1, _int_value(data.get("max_retries")) or 1),
+        retry_count=_int_value(data.get("retry_count")),
         retry_group_count=_int_value(data.get("retry_group_count")),
-        log_file=_optional_str(data.get("log_file")),
         log_files={str(key): str(value) for key, value in log_files.items()} if isinstance(log_files, dict) else {},
         event_log_file=_optional_str(data.get("event_log_file")),
         maacore_log_file=_optional_str(data.get("maacore_log_file")),
@@ -734,7 +610,7 @@ def _dict_value(value: object) -> dict[str, Any]:
 
 
 def _now() -> str:
-    return datetime.now().isoformat(timespec="seconds")
+    return server_now_iso()
 
 
 def _optional_str(value: object) -> str | None:

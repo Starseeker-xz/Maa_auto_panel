@@ -3,7 +3,9 @@ import { ArrowLeft, Info, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { STATUS_LABELS } from "@/lib/logs";
-import type { MaaLogEntry, MaaLogMessage, RunState } from "@/lib/types";
+import { formatTimeOfDay } from "@/lib/time";
+import type { MaaLogEntry, MaaLogMessage, RunRetry, RunState } from "@/lib/types";
+import { cn } from "@/lib/utils";
 import React from "react";
 
 type LogPaneProps = {
@@ -13,6 +15,8 @@ type LogPaneProps = {
   emptyText?: string;
   historyRun?: RunState | null;
   onCloseHistory?: () => void;
+  hideHeader?: boolean;
+  className?: string;
 };
 
 const BLOCK_STATUS_LABELS: Record<string, string> = {
@@ -57,7 +61,7 @@ const MESSAGE_TONE_CLASS: Record<string, string> = {
   theme: "text-primary"
 };
 
-export function LogPane({ run, error, title = "日志", emptyText = "等待 maa-cli info 日志...", historyRun = null, onCloseHistory }: LogPaneProps) {
+export function LogPane({ run, error, title = "日志", emptyText = "等待 maa-cli info 日志...", historyRun = null, onCloseHistory, hideHeader = false, className }: LogPaneProps) {
   const viewingHistory = Boolean(historyRun);
   const visibleRun = historyRun || run;
   const entries = normalizeEntries(visibleRun);
@@ -85,21 +89,29 @@ export function LogPane({ run, error, title = "日志", emptyText = "等待 maa-
   }
 
   return (
-    <Card className="relative grid min-h-0 grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden p-0 max-xl:col-span-2 max-md:col-span-1 max-xl:min-h-80">
-      <CardHeader className="grid-rows-none gap-0 border-b px-3 py-2">
-        <div className="flex min-h-12 items-center justify-between gap-3">
-          <div className="grid min-w-0 gap-1">
-            <CardTitle className="truncate">{title}</CardTitle>
-            <span className={`status-pill ${viewingHistory ? "history" : visibleRun.status}`}>{viewingHistory ? STATUS_LABELS.history : STATUS_LABELS[visibleRun.status] || visibleRun.status}</span>
+    <Card
+      className={cn(
+        "relative grid min-h-0 gap-0 overflow-hidden p-0",
+        hideHeader ? "grid-rows-[minmax(0,1fr)_auto]" : "grid-rows-[auto_minmax(0,1fr)_auto] max-xl:col-span-2 max-md:col-span-1 max-xl:min-h-80",
+        className
+      )}
+    >
+      {hideHeader ? null : (
+        <CardHeader className="grid-rows-none gap-0 border-b px-3 py-2">
+          <div className="flex min-h-12 items-center justify-between gap-3">
+            <div className="grid min-w-0 gap-1">
+              <CardTitle className="truncate">{title}</CardTitle>
+              <span className={`status-pill ${viewingHistory ? "history" : visibleRun.status}`}>{viewingHistory ? STATUS_LABELS.history : STATUS_LABELS[visibleRun.status] || visibleRun.status}</span>
+            </div>
+            {viewingHistory && onCloseHistory ? (
+              <Button type="button" variant="outline" size="sm" className="h-7 shrink-0 px-2 text-xs" onClick={onCloseHistory}>
+                {currentRunActive ? <ArrowLeft className="size-3.5" /> : <X className="size-3.5" />}
+                {currentRunActive ? "返回当前日志" : "关闭历史日志"}
+              </Button>
+            ) : null}
           </div>
-          {viewingHistory && onCloseHistory ? (
-            <Button type="button" variant="outline" size="sm" className="h-7 shrink-0 px-2 text-xs" onClick={onCloseHistory}>
-              {currentRunActive ? <ArrowLeft className="size-3.5" /> : <X className="size-3.5" />}
-              {currentRunActive ? "返回当前日志" : "关闭历史日志"}
-            </Button>
-          ) : null}
-        </div>
-      </CardHeader>
+        </CardHeader>
+      )}
       <div ref={viewportRef} onScroll={handleScroll} className="m-0 min-h-0 overflow-auto bg-card p-3">
         {entries.length ? (
           <div className="grid gap-1.5">
@@ -154,7 +166,11 @@ function RunDetailsPanel({ details }: { details: RunDetailItem[] }) {
 }
 
 function normalizeEntries(run: RunState): MaaLogEntry[] {
-  return run.log_entries || [];
+  const retries = run.retries || [];
+  if ((run.max_retries || 1) <= 1) {
+    return retries.flatMap((retry) => retry.log_entries || []);
+  }
+  return retries.flatMap((retry) => [retryMarkerEntry(retry), ...(retry.log_entries || [])]);
 }
 
 function runDetails(run: RunState, entries: MaaLogEntry[]): RunDetailItem[] {
@@ -166,8 +182,9 @@ function runDetails(run: RunState, entries: MaaLogEntry[]): RunDetailItem[] {
   for (const [label, path] of Object.entries(run.log_files || {})) {
     if (path) details.push({ label: `${label} log`, value: path });
   }
-  if (!run.log_files?.stdout && run.log_file) {
-    details.push({ label: "log", value: run.log_file });
+  for (const retry of run.retries || []) {
+    if (retry.maacore_log_file) details.push({ label: `retry ${retry.retry_index} maacore`, value: retry.maacore_log_file });
+    if (retry.generated_config_dir) details.push({ label: `retry ${retry.retry_index} config`, value: retry.generated_config_dir });
   }
 
   const selections = selectionDetails(entries);
@@ -175,6 +192,30 @@ function runDetails(run: RunState, entries: MaaLogEntry[]): RunDetailItem[] {
     details.push({ label, value: values.join(" / ") });
   }
   return details;
+}
+
+function retryMarkerEntry(retry: RunRetry): MaaLogEntry {
+  return {
+    type: "block",
+    id: `${retry.id}-marker`,
+    source: "framework:event",
+    kind: "retry",
+    title: `第 ${retry.retry_index} 次重试`,
+    status: retry.closed ? "default" : "running",
+    time: retry.started_at,
+    opened_at: retry.started_at,
+    sealed_at: retry.ended_at,
+    updated_at: retry.updated_at,
+    closed: retry.closed ?? false,
+    tone: retry.retry_index === 1 ? "info" : "warning",
+    messages: [
+      {
+        text: `第 ${retry.retry_index} 次重试`,
+        tone: retry.retry_index === 1 ? "info" : "warning"
+      }
+    ],
+    lines: []
+  };
 }
 
 function selectionDetails(entries: MaaLogEntry[]) {
@@ -211,7 +252,7 @@ function LogEntryView({ entry }: { entry: MaaLogEntry }) {
   const isCompact = !title && status === "default";
   const statusClass = BLOCK_STATUS_CLASS[status] || BLOCK_STATUS_CLASS.default;
   const panelClass = BLOCK_PANEL_CLASS[status] || BLOCK_PANEL_CLASS.default;
-  const time = entry.ended_at || entry.started_at || entry.time || undefined;
+  const time = entry.time || entry.sealed_at || entry.opened_at || entry.updated_at || undefined;
   const messages = entry.messages?.length ? entry.messages : fallbackMessages(entry);
 
   return (
@@ -230,7 +271,7 @@ function LogEntryView({ entry }: { entry: MaaLogEntry }) {
 }
 
 function TimeStamp({ time }: { time?: string | null }) {
-  return <div className="pt-1.5 text-right font-mono text-xs leading-5 text-muted-foreground tabular-nums">{time || ""}</div>;
+  return <div className="pt-1.5 text-right font-mono text-xs leading-5 text-muted-foreground tabular-nums">{formatTimeOfDay(time)}</div>;
 }
 
 function MessageContent({ message }: { message: MaaLogMessage }) {

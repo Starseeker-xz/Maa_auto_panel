@@ -20,6 +20,7 @@ from linux_maa.logs.pipeline import (
     plain_translate_line,
 )
 from linux_maa.logs.records import BlockStatus, LogMessage, LogTone
+from linux_maa.time_utils import server_datetime_from_text
 
 if TYPE_CHECKING:
     from linux_maa.logs.state import RunLogBuffer
@@ -79,17 +80,6 @@ COMMON_TERM_LABELS = {
     "furni": "家具",
     "Refreshed": "已刷新",
     "Recruited": "已招募",
-}
-
-STATUS_LABEL: dict[BlockStatus, str] = {
-    "default": "默认",
-    "running": "运行中",
-    "succeeded": "成功",
-    "failed": "失败",
-    "stopped": "已停止",
-    "unknown": "未知",
-    "unfinished": "未完成",
-    "warning": "警告",
 }
 
 LEVEL_TONE: dict[str, LogTone] = {
@@ -166,7 +156,6 @@ def maa_block_definitions(state: MaaLogState) -> list[BlockDefinition]:
             on_close=_on_task_close,
             default_status="running",
             default_tone="info",
-            projection_key="task",
             rule_id="maa-task-lifecycle",
             panel_kind="task",
         ),
@@ -226,6 +215,8 @@ def translate_maa_cli_line(source: str, raw: str, metadata: dict[str, object], c
     default_tone = context.source_spec(source).default_tone
     tone = _metadata_tone(metadata, LEVEL_TONE.get(str(level), default_tone) if level is not None else default_tone)
     translated = translate_global_message(body)
+    if not translated.translated:
+        translated = translate_task_message(body)
     message = LogMessage(
         text=translated.text,
         time=time_text,
@@ -299,15 +290,16 @@ def _on_task_start(
     entry.source_name = match.task_name
     entry.rule_id = "maa-task-lifecycle"
     entry.panel_kind = "task"
+    entry.time = match.parsed["time"] or line.time
 
     if match.status == "running":
-        entry.started_at = match.parsed["time"] or line.time
+        entry.opened_at = match.parsed["time"] or line.time
         started = time.monotonic()
         entry.metadata["started_monotonic"] = started
         active.context["started_monotonic"] = started
         return BlockStartOutcome()
 
-    entry.ended_at = match.parsed["time"] or line.time
+    entry.sealed_at = match.parsed["time"] or line.time
     return BlockStartOutcome(keep_active=False)
 
 
@@ -355,11 +347,11 @@ def _on_task_close(
 
     entry.status = status
     entry.tone = tone_for_status(status)
-    if time_text and not entry.ended_at:
-        entry.ended_at = time_text
+    if time_text:
+        entry.sealed_at = time_text
     entry.metadata.pop("started_monotonic", None)
     active.context.pop("started_monotonic", None)
-    active.locked_fields.update({"status", "tone", "ended_at"})
+    active.locked_fields.update({"status", "tone", "sealed_at"})
     return ""
 
 
@@ -734,7 +726,7 @@ def parse_log_line(raw: str) -> dict[str, str | None]:
     if match is None:
         return {"time": None, "level": None, "body": raw}
     return {
-        "time": match.group("time")[-8:],
+        "time": server_datetime_from_text(match.group("time")),
         "level": match.group("level"),
         "body": match.group("body"),
     }

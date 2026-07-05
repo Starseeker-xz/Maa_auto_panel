@@ -1,9 +1,10 @@
-import { BarChart3, CalendarClock, Play, Plus, Settings2, Square, Trash2 } from "lucide-react";
+import { BarChart3, CalendarClock, Play, Plus, Settings2, Trash2 } from "lucide-react";
 import React from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { DirtyActions } from "@/components/DirtyActions";
+import { RunStopButton } from "@/components/RunStopButton";
 import { Button } from "@/components/ui/button";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -11,7 +12,9 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   createSchedule,
   currentScheduleRunEventsUrl,
+  deleteRunHistory,
   deleteSchedule,
+  forceStopCurrentScheduleRun,
   getCurrentScheduleRun,
   getRunHistory,
   listConfigs,
@@ -24,6 +27,7 @@ import {
 } from "@/lib/api";
 import { STATUS_LABELS } from "@/lib/logs";
 import { applyRunStateEvent, runEventsUrl } from "@/lib/runStream";
+import { formatDateTime } from "@/lib/time";
 import type { ConfigFile, ConfigResponse, RunHistoryResponse, RunState, ScheduleConfig, ScheduleEntry, ScheduleResponse, SchedulesResponse, ScheduledRunSummary } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { LogPane } from "@/pages/main/LogPane";
@@ -32,6 +36,7 @@ import { ScheduleLeftPane } from "@/pages/schedule/ScheduleLeftPane";
 
 type CenterTab = "settings" | "stats";
 const SCHEDULE_RUN_EVENTS_ERROR = "定时运行日志事件流连接中断，正在重连...";
+const SCHEDULE_RETRY_COUNT_KEY = "linux-maa:schedule-retry-count";
 
 export function SchedulePage() {
   const { scheduleId } = useParams();
@@ -51,6 +56,7 @@ export function SchedulePage() {
   const [deleteOpen, setDeleteOpen] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
   const [runBusy, setRunBusy] = React.useState(false);
+  const [retryCount, setRetryCount] = React.useState(() => readStoredCount(SCHEDULE_RETRY_COUNT_KEY, 1));
   const [error, setError] = React.useState("");
   const previousGlobalRunRef = React.useRef<RunState | null>(null);
   const refreshedRunIdRef = React.useRef("");
@@ -246,7 +252,7 @@ export function SchedulePage() {
     setRunBusy(true);
     setError("");
     try {
-      const startedRun = await startScheduleRun(draft.id, entryId);
+      const startedRun = await startScheduleRun(draft.id, entryId, retryCount);
       setGlobalRun(startedRun);
     } catch (exc) {
       setError(String(exc));
@@ -268,12 +274,43 @@ export function SchedulePage() {
     }
   }
 
+  async function handleForceStop() {
+    if (runBusy) return;
+    setRunBusy(true);
+    try {
+      const stoppedRun = await forceStopCurrentScheduleRun();
+      setGlobalRun(stoppedRun);
+    } catch (exc) {
+      setError(String(exc));
+    } finally {
+      setRunBusy(false);
+    }
+  }
+
   async function handleViewHistory(run: ScheduledRunSummary) {
     setLoadingHistoryRunId(run.id);
     setError("");
     try {
       const history = await getRunHistory(run.id);
       setHistoryRun(historyToRunState(history));
+    } catch (exc) {
+      setError(String(exc));
+    } finally {
+      setLoadingHistoryRunId("");
+    }
+  }
+
+  async function handleDeleteHistory(run: ScheduledRunSummary) {
+    setLoadingHistoryRunId(run.id);
+    setError("");
+    try {
+      await deleteRunHistory(run.id);
+      if (historyRun?.id === run.id) setHistoryRun(null);
+      if (scheduleId) {
+        const latest = await readSchedule(scheduleId);
+        setDetail((current) => (current?.config.id === latest.config.id ? mergeScheduleRuntimeFields(current, latest) : current));
+      }
+      await refreshOverview();
     } catch (exc) {
       setError(String(exc));
     } finally {
@@ -314,7 +351,7 @@ export function SchedulePage() {
                 {item.last_run ? (
                   <div className="grid gap-1 text-xs">
                     <span className={`status-pill ${item.last_run.status}`}>{STATUS_LABELS[item.last_run.status] || item.last_run.status}</span>
-                    <span className="text-muted-foreground">{item.last_run.entry_name} · {item.last_run.created_at}</span>
+                    <span className="text-muted-foreground">{item.last_run.entry_name} · {formatDateTime(item.last_run.started_at)}</span>
                   </div>
                 ) : (
                   <span className="status-pill idle">暂无运行记录</span>
@@ -345,7 +382,6 @@ export function SchedulePage() {
   const selectedEntry = draft.entries.find((entry) => entry.id === selectedEntryId) || draft.entries[0];
   const taskItems = (draftTaskConfig || detail.task_config).task_items || [];
   const run = runForSchedule(globalRun, scheduleId);
-  const active = isRunActive(run);
   const startDisabledReason = scheduleStartDisabledReason(globalRun, dirty, selectedEntry?.id || "");
   const sortedEntries = sortEntriesByReset(draft.entries, detail.timeline.reset_local_time);
 
@@ -375,7 +411,7 @@ export function SchedulePage() {
               统计
             </button>
           </div>
-          <span className="min-w-0 truncate text-xs text-muted-foreground">{detail.timeline.message}</span>
+          <span className="min-w-0 whitespace-pre-line text-xs text-muted-foreground">{detail.timeline.message}</span>
         </div>
         <ScrollArea className="min-h-0">
           {centerTab === "settings" ? (
@@ -390,18 +426,32 @@ export function SchedulePage() {
               selectedHistoryRunId={historyRun?.id}
               loadingHistoryRunId={loadingHistoryRunId}
               onViewHistory={handleViewHistory}
+              onDeleteHistory={handleDeleteHistory}
             />
           )}
         </ScrollArea>
-        <div className="grid grid-cols-[1fr_1fr_auto] gap-2">
+        <div className="grid grid-cols-[1fr_1fr_auto_auto] gap-2">
           <Button onClick={handleStart} disabled={runBusy || Boolean(startDisabledReason)} title={startDisabledReason || undefined}>
             <Play className="size-4" />
             运行当前时间点
           </Button>
-          <Button variant="outline" onClick={handleStop} disabled={runBusy || !active}>
-            <Square className="size-4" />
-            停止
-          </Button>
+          <RunStopButton run={run} busy={runBusy} onStop={handleStop} onForceStop={handleForceStop} />
+          <label className="flex items-center justify-end gap-2">
+            <span className="shrink-0 text-right text-[11px] leading-3 text-muted-foreground">重试<br />次数</span>
+            <Input
+              className="w-14 px-1 text-center text-sm"
+              type="number"
+              min={1}
+              max={50}
+              aria-label="重试次数"
+              value={retryCount}
+              onChange={(event) => {
+                const next = clampRetryCount(event.target.value);
+                setRetryCount(next);
+                window.localStorage.setItem(SCHEDULE_RETRY_COUNT_KEY, String(next));
+              }}
+            />
+          </label>
           <Button variant="outline" size="icon" aria-label="删除定时配置" onClick={() => setDeleteOpen(true)}>
             <Trash2 className="size-4" />
           </Button>
@@ -455,17 +505,14 @@ function cloneConfig(config: ScheduleConfig): ScheduleConfig {
 }
 
 function idleRun(): RunState {
-  return { status: "idle", output: [] };
+  return { status: "idle", run: { status: "idle" }, retries: [] };
 }
 
 function historyToRunState(history: RunHistoryResponse): RunState {
-  const logEntries = history.attempts.flatMap((attempt) => attempt.log_entries || []);
-  const taskResults = history.attempts.flatMap((attempt) => attempt.task_results || []);
   return {
     ...history.run,
-    log_entries: logEntries,
-    task_results: taskResults,
-    output: []
+    run: history.run,
+    retries: history.retries || []
   };
 }
 
@@ -517,4 +564,14 @@ function minutes(value: string) {
 
 function tabClass(active: boolean) {
   return cn("inline-flex h-8 items-center justify-center gap-1.5 rounded-sm px-3 text-sm", active ? "bg-background shadow-xs" : "text-muted-foreground");
+}
+
+function readStoredCount(key: string, fallback: number) {
+  const value = Number(window.localStorage.getItem(key));
+  return Number.isFinite(value) ? Math.min(50, Math.max(1, value)) : fallback;
+}
+
+function clampRetryCount(value: string) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? Math.min(50, Math.max(1, parsed)) : 1;
 }

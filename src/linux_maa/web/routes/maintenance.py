@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 
 from linux_maa.state import state_or_idle
+from linux_maa.web.sse import state_event_stream
 from linux_maa.web.services import WebServices
 
 
@@ -15,6 +16,10 @@ def create_maintenance_router(services: WebServices) -> APIRouter:
     @router.get("/current")
     def current_maintenance() -> dict[str, object]:
         return state_or_idle(maintenance.current())
+
+    @router.get("/current/events")
+    def current_maintenance_events(request: Request):
+        return state_event_stream(request, maintenance.current_response, maintenance.wait_for_change)
 
     @router.get("/update-info")
     def update_info() -> dict[str, object]:

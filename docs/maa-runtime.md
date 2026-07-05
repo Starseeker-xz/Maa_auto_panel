@@ -118,23 +118,43 @@ adds a skip message to the WebUI run output.
 
 ## WebUI runner behavior
 
-The FastAPI WebUI runs one active `maa-cli` process at a time. Run state is
-currently in memory only; it is lost when the backend restarts.
+Process-backed actions are modeled as a run plus retry segments. Manual Maa
+runs, scheduled Maa runs, and tool runs can all carry a UI-provided retry count;
+maintenance actions remain single-retry runs. Scheduled automatic runs use the
+schedule's `retry.max_retries`, while manual-triggered scheduled runs can
+override that count from the page controls. Scheduled automatic runs can also
+buffer after every configured number of retry segments for a configured number
+of seconds; total retry count does not need to be a multiple of that interval.
+Live current-run state is still kept in memory by the owning service, while
+completed run records and retry-scoped visible log history are persisted as
+JSON.
 
-For visible progress, the WebUI invokes `maa-cli` with an explicit log file and
-verbosity level:
+For visible progress, Maa-backed runs invoke `maa-cli` with verbosity enabled:
 
 ```text
 maa run <generated-task> --batch --profile <profile> -v
 ```
 
-The frontend currently submits profile `default` and info-level logs. Main-page
-manual runs are single-shot: they do not apply a WebUI-level timeout or retry
-loop. Detailed retry policy is expected to come later from the workflow engine.
-Low-level MaaCore debug logs remain under `runtime/maa/state/maa/debug/` for
-diagnosis and are not streamed as normal UI output. The framework records the
-`asst.log` offset before a WebUI/scheduled run and stores the run-time delta
-under `debug/linux-maa/external/maacore/` when MaaCore writes new content.
+The frontend currently submits profile `default` and info-level logs for manual
+runs. WebUI runs do not pass `--log-file` to `maa-cli`, because that can move
+info callback logs out of stderr in the observed maa-cli runtime. Low-level
+MaaCore debug logs remain under `runtime/maa/state/maa/debug/` for diagnosis and
+are not streamed as normal UI output. For Maa-backed manual and scheduled retry
+segments, the framework records the `asst.log` offset before the retry and
+stores that retry's delta under `debug/linux-maa/external/maacore/<retry-id>.log`
+when MaaCore writes new content.
+
+Timeout handling is shared by all process-backed runs:
+
+- no-output warning/kill thresholds detect a stuck process when stdout/stderr
+  has been quiet for too long;
+- runtime warning/kill thresholds apply to total process runtime;
+- stop warning/kill thresholds apply after a graceful stop is requested.
+
+Manual, tool, and maintenance thresholds come from `framework.run_timeouts` in
+settings. Scheduled run thresholds are stored on each schedule. Manual runs also
+expose `POST /api/runs/{run_id}/force-stop`; after a normal stop request the UI
+turns the stop button into a force-stop action.
 
 The WebUI captures visible process channels through the shared
 `linux_maa.logs` module:
@@ -148,9 +168,7 @@ The WebUI captures visible process channels through the shared
   `debug/linux-maa/external/tools/<run-id>.*.log`; schedule script hook
   stdout/stderr are written to
   `debug/linux-maa/external/scripts/<run-id>.*.log`.
-- WebUI/scheduled live runs do not pass `--log-file` to `maa-cli`, because that
-  can move info callback logs out of stderr in the observed maa-cli runtime.
-  Runtime environments force `MAA_LOG_PREFIX=Always` so stderr logs keep the
+- Maa-backed live runs force `MAA_LOG_PREFIX=Always` so stderr logs keep the
   timestamp/level prefix expected by the structured log parser.
 - Framework-level events are written to high-level JSONL event files and to the
   global detailed framework log `debug/linux-maa/framework.log`. `framework.log`
@@ -158,47 +176,58 @@ The WebUI captures visible process channels through the shared
   CRITICAL levels and records API operations through middleware. Raw child
   process output is kept only in the external stdout/stderr files.
 
-The WebUI run manager does not pass raw `maa-cli` log chunks straight through.
-The `src/linux_maa/logs/` package owns the generic WebUI-visible log pipeline:
+The WebUI run managers do not pass raw process chunks straight through. The
+`src/linux_maa/logs/` package owns the generic WebUI-visible log pipeline:
 source registration, terminal control characters, block assembly, bounded
-`output`, and unified `log_entries`. Callers register source defaults
-(`default_tone` and `default_translate_line`) plus source-scoped block
-definitions. The pipeline owns one active block per source and closes blocks
-with `matched_end`, `superseded`, `passive_boundary`, or `flush`. MAA-aware
-rules and translation hooks live in `src/linux_maa/maa/log_templates.py`, while
-arbitrary script and tool output use the generic plain-line fallback. Raw
-stdout/stderr persistence remains owned by `Diagnostics`.
+`output`, and unified `log_entries`. Each retry segment owns its own
+`RunLogBuffer`; once a retry is sealed, its visible blocks are closed and no
+longer mutate. Callers register source defaults (`default_tone` and
+`default_translate_line`) plus source-scoped block definitions. The pipeline owns
+one active block per source and closes blocks with `matched_end`, `superseded`,
+`passive_boundary`, or `flush`. MAA-aware rules and translation hooks live in
+`src/linux_maa/maa/log_templates.py`, while arbitrary script and tool output use
+the generic plain-line fallback. Raw stdout/stderr persistence remains owned by
+`Diagnostics`.
 
-The visible log API uses one block shape for all rows. Plain lines, MAA child
-task blocks, run summaries, git output groups, and framework events differ by
-open-ended `kind`, generic block status, and metadata rather than by separate
-record types. MAA hooks project task blocks into `task_results` for scheduler
-policy decisions, and the pipeline exposes current active block elapsed time
-for child timeout checks.
+The visible log API uses one block shape for all rows. Plain process blocks,
+run summaries, git output groups, and framework events differ by open-ended
+`kind`, generic block status, `updated_at`, `closed`, and metadata rather than
+by separate record types. Task success/failure is intentionally outside the
+visible log pipeline: Maa-backed manual and scheduled runs attach a raw-line
+collector to `maa-cli` stderr and write retry-local `task_results` from that
+collector. Log templates only shape UI text and no longer own task-result
+logic.
 
 Framework preprocessing events also enter the same structured log stream as
 ordinary `append(..., source="framework:event", metadata={...})` input; current
 examples include the resolved Fight stage and Infrast plan before `maa-cli`
-starts. The run-state API exposes structured `log_entries` for UI rendering and
-`task_results` for per-child status. The frontend renders these entries with a
-generic block renderer, leaving room for future colored text segments and inline
-images. Already translated events do not show the original raw log line in the
-normal log UI. The final maa-cli `Summary` tail is grouped into one structured
-summary panel instead of being rendered as one global log card per line.
+starts. The run-state API exposes `run` plus `retries`; each retry exposes
+structured `log_entries` for UI rendering and, for Maa-backed runs, separate
+`task_results` for per-child status decisions. The frontend renders log entries
+with a generic block renderer and a simple retry marker when `max_retries > 1`.
+Already translated events do not show the original raw log line in the normal
+log UI. The final maa-cli `Summary` tail is grouped into one structured summary
+panel instead of being rendered as one global log card per line.
 
 The current-run UI state is delivered through Server-Sent Events:
 
 - `GET /api/runs/current/events` streams the manual run state.
 - `GET /api/schedules/current/events` streams the active scheduled run state.
+- `GET /api/tools/current/events` streams the active tool run state.
+- `GET /api/maintenance/current/events` streams the active maintenance action.
 
-Each stream sends the current state immediately, then sends another complete
-`RunState` only after the owning run service reports a state change. The backend
-does not poll current state on a fixed interval for SSE; `MaaRunManager` and
-`SchedulerService` notify waiting streams through condition variables whenever
-they append output, update task state, start a run, stop a run, or finish a run.
-Idle streams block until a real update or a 15-second keep-alive timeout. The
-legacy JSON endpoints `GET /api/runs/current` and `GET /api/schedules/current`
-remain available for one-shot reads and non-SSE clients.
+Each stream sends the current state immediately, then sends patch events after
+the owning service reports a state change. Patch state contains run-level keys
+under `run`, and list deltas are emitted for `retries`; if the client falls
+behind the active retry, it can request `retries_from` and re-fetch the unfinished
+retry segment. The backend does not poll current state on a fixed interval for
+SSE; run services notify waiting streams through condition variables whenever
+they append output, update task state, start a run, stop a run, finish a retry,
+or finish a run. Idle streams block until a real update or a 15-second
+keep-alive timeout. JSON endpoints such as `GET /api/runs/current`,
+`GET /api/schedules/current`, `GET /api/tools/current`, and
+`GET /api/maintenance/current` remain available for one-shot reads and non-SSE
+clients.
 
 ## Config reading and editing
 
@@ -289,8 +318,9 @@ The scheduler persists state as readable JSON under `state/linux-maa/`:
 - `state/linux-maa/run-history/recent-run-records.json`: recent WebUI,
   scheduled, and maintenance run records. Schedule overview "recent runs" is
   derived from this file.
-- `state/linux-maa/run-history/scheduled-run-attempts.json`: per-attempt records
-  for scheduled runs.
+- `state/linux-maa/run-history/run-retries.json`: per-retry records for manual,
+  scheduled, tool, and maintenance runs. Each row references retry-scoped
+  visible log history through `log_entries_file`.
 - `state/linux-maa/scheduler/daily-task-stats.json`: per-schedule daily
   child-task run/success counters used by retry/skip policy.
 - `state/linux-maa/scheduler/triggered-schedule-entries.json`: schedule entries
@@ -302,9 +332,9 @@ input, `history/` is durable visible run history, `debug/` is disposable
 diagnostics, and `state/` is framework runtime state.
 
 Schedule entries store their own `task_ids`; these are independent from the
-main task editor's `enable` checkbox. When a scheduled attempt is generated, the
-selected child tasks are filtered into a temporary maa-cli task file and are
-force-enabled in that generated file.
+main task editor's `enable` checkbox. When a scheduled retry segment is
+generated, the selected child tasks are filtered into a temporary maa-cli task
+file and are force-enabled in that generated file.
 
 Game-day calculations currently use maa-cli's client-timezone convention for
 Chinese servers: `Official`, `Bilibili`, and `txwy` use an effective UTC+4
@@ -325,10 +355,16 @@ Retry selection follows the framework metadata:
 - non-important: run according to unlimited/minimum-run settings but never enter
   retry.
 
-Retry attempts preserve the original task-config order. The service also tracks
-which child tasks have already succeeded within the current scheduled run, so a
-later retry attempt does not requeue an already successful important task just
-because it was absent from the immediately previous retry subset.
+Retry segments preserve the original task-config order. Manual and scheduled
+Maa runs share the same retry selection helper: after each retry, child tasks
+that already succeeded in the current run are skipped on later retries. The
+scheduler keeps its schedule-specific daily state and retry policy in
+`SchedulerService`.
+
+Schedule retry config is intentionally small: `retry.max_retries` is the number
+of retry segments allowed for automatic scheduled runs. `retry.buffer_every_retries`
+and `retry.buffer_seconds` optionally pause before the next retry after every N
+completed retry segments.
 
 The WebUI exposes:
 
@@ -337,6 +373,7 @@ The WebUI exposes:
 - `POST /api/schedules/{schedule_id}/run`
 - `GET /api/schedules/current`
 - `POST /api/schedules/current/stop`
+- `POST /api/schedules/current/force-stop`
 
 Restart-script hooks are configured by schedule. Scripts are read from
 `config/linux-maa/scripts/`; a script can declare string variables with comments

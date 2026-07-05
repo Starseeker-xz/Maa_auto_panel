@@ -3,12 +3,41 @@ from __future__ import annotations
 from linux_maa.logs.pipeline import LogSourceSpec, plain_translate_line
 from linux_maa.logs.state import RunLogBuffer
 from linux_maa.maa.log_templates import register_maa_log_sources
+from linux_maa.maa.results import MaaTaskDescriptor, MaaTaskResultCollector
 
 
 def maa_log(**kwargs: object) -> RunLogBuffer:
     log = RunLogBuffer(**kwargs)
     register_maa_log_sources(log)
     return log
+
+
+def _strip_time_prefix(value: str) -> str:
+    return value[9:] if len(value) > 9 and value[2] == ":" and value[5] == ":" and value[8] == " " else value
+
+
+def test_task_result_collector_reads_raw_stderr_task_events() -> None:
+    collector = MaaTaskResultCollector(
+        [
+            MaaTaskDescriptor(task_id="startup", source_name="StartUp", name="启动"),
+            MaaTaskDescriptor(task_id="infrast", source_name="Infrast", name="基建"),
+        ]
+    )
+    for line in [
+        "[2026-06-26 18:45:26 INFO ] StartUp Start",
+        "[2026-06-26 18:45:28 INFO ] StartUp Completed",
+        "[2026-06-26 18:46:18 INFO ] Infrast Start",
+        "[2026-06-26 18:46:19 WARN ] ProductUnknown",
+        "[2026-06-26 18:47:20 ERROR] Infrast Error",
+    ]:
+        collector.consume_raw_line("maa-cli:stderr", line)
+    collector.finish()
+
+    assert [(item["task_id"], item["name"], item["source_name"], item["status"]) for item in collector.results] == [
+        ("startup", "启动", "StartUp", "succeeded"),
+        ("infrast", "基建", "Infrast", "failed"),
+    ]
+    assert collector.status_by_task_id(["startup", "infrast"]) == {"startup": "succeeded", "infrast": "failed"}
 
 
 def test_groups_completed_and_failed_tasks_as_blocks() -> None:
@@ -28,11 +57,11 @@ def test_groups_completed_and_failed_tasks_as_blocks() -> None:
     assert entries[0]["type"] == "block"
     assert entries[0]["name"] == "StartUp"
     assert entries[0]["status"] == "succeeded"
+    assert entries[0]["closed"] is True
     assert entries[1]["name"] == "Infrast"
     assert entries[1]["status"] == "failed"
     assert entries[1]["messages"][0]["text"] == "产物识别失败"
     assert "raw" not in entries[1]["messages"][0]
-    assert [result["status"] for result in log.task_results()] == ["succeeded", "failed"]
 
 
 def test_collapses_terminal_carriage_return_updates() -> None:
@@ -62,64 +91,22 @@ def test_plain_source_does_not_trigger_maa_task_grouping() -> None:
     output = log.pipeline.append("Summary\nFight Start\nplain stderr\n", source="script:stderr")
     entries = log.entries()
 
-    assert output == "Summary\nFight Start\nplain stderr\n"
+    assert [_strip_time_prefix(line) for line in output.splitlines()] == ["Summary", "Fight Start", "plain stderr"]
     assert [entry["kind"] for entry in entries] == ["line", "line", "line"]
     assert [entry["messages"][0]["text"] for entry in entries] == ["Summary", "Fight Start", "plain stderr"]
     assert all(entry["tone"] == "warning" for entry in entries)
-    assert log.task_results() == []
 
 
-def test_flush_closes_running_block_as_unfinished() -> None:
-    log = maa_log()
+def test_task_result_collector_marks_unfinished_on_finish_and_user_interrupt() -> None:
+    collector = MaaTaskResultCollector([MaaTaskDescriptor(task_id="fight", source_name="Fight", name="刷理智")])
+    collector.consume_raw_line("maa-cli:stderr", "[2026-06-26 18:47:20 INFO ] Fight Start")
+    collector.finish()
+    assert collector.results[0]["status"] == "unfinished"
 
-    output = log.pipeline.append("[2026-06-26 18:47:56 INFO ] Recruit Start\n", source="maa-cli:stderr")
-    output += log.pipeline.flush()
-
-    assert log.task_results()[0]["status"] == "unfinished"
-
-
-def test_same_source_start_supersedes_running_task_as_unfinished() -> None:
-    log = maa_log()
-
-    log.pipeline.append(
-        "[2026-06-26 18:47:20 INFO ] Fight Start\n"
-        "[2026-06-26 18:47:56 INFO ] Mall Start\n",
-        source="maa-cli:stderr",
-    )
-    entries = log.entries()
-
-    assert [(entry["name"], entry["status"]) for entry in entries] == [("Fight", "unfinished"), ("Mall", "running")]
-
-
-def test_task_end_takes_priority_over_start_matching() -> None:
-    log = maa_log()
-
-    log.pipeline.append(
-        "[2026-06-26 18:47:20 INFO ] Fight Start\n"
-        "[2026-06-26 18:47:56 INFO ] Fight Completed\n",
-        source="maa-cli:stderr",
-    )
-    entries = log.entries()
-
-    assert len(entries) == 1
-    assert entries[0]["name"] == "Fight"
-    assert entries[0]["status"] == "succeeded"
-
-
-def test_user_interrupted_task_closes_as_unfinished() -> None:
-    log = maa_log()
-
-    log.pipeline.append(
-        "[2026-06-26 18:47:20 INFO ] Fight Start\n"
-        "[2026-06-26 18:47:56 ERROR] Error: Interrupted by user!\n",
-        source="maa-cli:stderr",
-    )
-    entry = log.entries()[0]
-
-    assert entry["status"] == "unfinished"
-    assert entry["tone"] == "warning"
-    assert entry["messages"][0]["text"] == "用户中断"
-    assert log.task_results()[0]["status"] == "unfinished"
+    collector = MaaTaskResultCollector([MaaTaskDescriptor(task_id="fight", source_name="Fight", name="刷理智")])
+    collector.consume_raw_line("maa-cli:stderr", "[2026-06-26 18:47:20 INFO ] Fight Start")
+    collector.consume_raw_line("maa-cli:stderr", "[2026-06-26 18:47:56 ERROR] Error: Interrupted by user!")
+    assert collector.results[0]["status"] == "unfinished"
 
 
 def test_translates_screencap_method_and_cost() -> None:
@@ -131,6 +118,11 @@ def test_translates_screencap_method_and_cost() -> None:
     assert "18:18:44 已选择截图方式: RawWithGzip, 最短耗时 203 ms" in output
     assert entry["type"] == "block"
     assert entry["kind"] == "line"
+    assert str(entry["time"]).startswith("2026-06-30T18:18:44")
+    assert "started_at" not in entry
+    assert "ended_at" not in entry
+    assert str(entry["opened_at"]).startswith("2026-06-30T18:18:44")
+    assert str(entry["sealed_at"]).startswith("2026-06-30T18:18:44")
     assert entry["messages"][0]["text"] == "已选择截图方式: RawWithGzip, 最短耗时 203 ms"
     assert "raw" not in entry["messages"][0]
     assert entry["messages"][0]["segments"] == [
@@ -334,7 +326,29 @@ def test_git_fast_forward_output_is_one_resource_update_block() -> None:
     ]
 
 
-def test_labels_duplicate_task_types_from_expected_sequence_and_reports_block_elapsed() -> None:
+def test_task_result_collector_labels_duplicate_task_types_from_expected_sequence() -> None:
+    collector = MaaTaskResultCollector(
+        [
+            MaaTaskDescriptor(task_id="fight-a", source_name="Fight", name="剿灭"),
+            MaaTaskDescriptor(task_id="fight-b", source_name="Fight", name="刷理智"),
+        ]
+    )
+    for line in [
+        "[2026-06-30 21:57:03 INFO ] Fight Start",
+        "[2026-06-30 21:58:00 INFO ] Fight Completed",
+        "[2026-06-30 21:58:00 INFO ] Fight Start",
+        "[2026-06-30 22:00:32 INFO ] Fight Completed",
+    ]:
+        collector.consume_raw_line("maa-cli:stderr", line)
+    collector.finish()
+
+    assert [(item["task_id"], item["name"], item["source_name"], item["status"]) for item in collector.results] == [
+        ("fight-a", "剿灭", "Fight", "succeeded"),
+        ("fight-b", "刷理智", "Fight", "succeeded"),
+    ]
+
+
+def test_visible_task_blocks_use_expected_sequence_for_duplicate_task_types() -> None:
     log = maa_log()
     log.begin_task_sequence(
         [
@@ -354,16 +368,16 @@ def test_labels_duplicate_task_types_from_expected_sequence_and_reports_block_el
         "[2026-06-30 22:00:32 INFO ] Fight Completed\n",
         source="maa-cli:stderr",
     )
-    results = log.task_results()
+    entries = log.entries()
 
-    assert [(item["task_id"], item["name"], item["source_name"], item["status"]) for item in results] == [
+    assert [(entry["task_id"], entry["name"], entry["source_name"], entry["status"]) for entry in entries] == [
         ("fight-a", "剿灭", "Fight", "succeeded"),
         ("fight-b", "刷理智", "Fight", "succeeded"),
     ]
 
 
 def test_buffer_keeps_bounded_structured_tail() -> None:
-    log = maa_log(max_task_records=1)
+    log = maa_log()
     log.pipeline.max_log_entries = 2
     log.pipeline.max_record_messages = 1
     log.pipeline.max_record_lines = 2
@@ -380,5 +394,3 @@ def test_buffer_keeps_bounded_structured_tail() -> None:
     )
 
     assert len(log.entries()) == 2
-    assert len(log.task_results()) == 1
-    assert log.task_results()[0]["name"] == "Mall"

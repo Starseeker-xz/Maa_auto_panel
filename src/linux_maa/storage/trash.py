@@ -4,9 +4,9 @@ import json
 import shutil
 import uuid
 from dataclasses import asdict, dataclass
-from datetime import datetime
 from pathlib import Path
 
+from linux_maa.time_utils import server_now, server_now_iso
 from linux_maa.utils import relative_path
 
 
@@ -41,8 +41,8 @@ class TrashManager:
         if trash_root == source or trash_root in source.parents:
             raise ValueError("Cannot move a trash entry into itself")
 
-        deleted_at = datetime.now().isoformat(timespec="seconds")
-        safe_time = datetime.now().strftime("%Y%m%d-%H%M%S")
+        deleted_at = server_now_iso()
+        safe_time = server_now().strftime("%Y%m%d-%H%M%S")
         entry_dir = trash_root / f"{safe_time}-{source.stem}-{uuid.uuid4().hex[:8]}"
         target = entry_dir / self._relative_source_path(source)
         target.parent.mkdir(parents=True, exist_ok=True)

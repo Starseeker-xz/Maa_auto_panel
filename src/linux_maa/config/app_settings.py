@@ -4,12 +4,15 @@ from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+import threading
 from typing import Any
 import tomllib
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import tomli_w
 
+from linux_maa.run_executor import RunTimeouts
+from linux_maa.utils import bounded_int
 from linux_maa.maa.runtime import MaaRuntime
 from linux_maa.utils import relative_path, write_text_atomic
 
@@ -24,6 +27,14 @@ DEFAULT_FRAMEWORK_SETTINGS: dict[str, Any] = {
         },
         "scheduler": {
             "enabled": False,
+        },
+        "run_timeouts": {
+            "no_output_warning_seconds": 1800,
+            "no_output_kill_seconds": 0,
+            "runtime_warning_seconds": 0,
+            "runtime_kill_seconds": 0,
+            "stop_warning_seconds": 60,
+            "stop_kill_seconds": 0,
         },
     },
     "theme": {
@@ -54,6 +65,8 @@ class FrameworkSettingsManager:
     """Manages framework-level settings.toml with timezone resolution and defaults."""
     def __init__(self, runtime: MaaRuntime) -> None:
         self.runtime = runtime
+        self._lock = threading.RLock()
+        self._client_timezone: str | None = None
 
     @property
     def path(self) -> Path:
@@ -75,6 +88,10 @@ class FrameworkSettingsManager:
         resolved = self.resolve_timezone(merged)
         timezone_settings = merged.setdefault("framework", {}).setdefault("timezone", {})
         if isinstance(timezone_settings, dict):
+            if timezone_settings.get("mode") == "client":
+                observed = self.observed_client_timezone()
+                if observed:
+                    timezone_settings["client_timezone"] = observed
             timezone_settings["auto_resolved_name"] = resolved.name
             timezone_settings["auto_resolved_offset_minutes"] = resolved.offset_minutes
             timezone_settings["auto_resolved_at"] = resolved.resolved_at
@@ -86,13 +103,50 @@ class FrameworkSettingsManager:
         settings = data.get("framework", {}).get("timezone", {}) if isinstance(data.get("framework"), dict) else {}
         mode = settings.get("mode") if isinstance(settings, dict) else "auto"
         if mode == "client":
-            client = str(settings.get("client_timezone") or "") if isinstance(settings, dict) else ""
+            client = self.observed_client_timezone() or (str(settings.get("client_timezone") or "") if isinstance(settings, dict) else "")
             if client.strip():
                 return _manual_timezone_info(client)
         if mode == "manual":
             manual = str(settings.get("manual_timezone") or "UTC") if isinstance(settings, dict) else "UTC"
             return _manual_timezone_info(manual)
         return _local_timezone_info()
+
+    def run_timeouts(self) -> RunTimeouts:
+        data = self._load()
+        framework = data.get("framework") if isinstance(data.get("framework"), dict) else {}
+        raw = framework.get("run_timeouts") if isinstance(framework, dict) and isinstance(framework.get("run_timeouts"), dict) else {}
+        return RunTimeouts(
+            no_output_warning_seconds=bounded_int(raw.get("no_output_warning_seconds"), default=1800, minimum=0, maximum=172800),
+            no_output_kill_seconds=bounded_int(raw.get("no_output_kill_seconds"), default=0, minimum=0, maximum=172800),
+            runtime_warning_seconds=bounded_int(raw.get("runtime_warning_seconds"), default=0, minimum=0, maximum=172800),
+            runtime_kill_seconds=bounded_int(raw.get("runtime_kill_seconds"), default=0, minimum=0, maximum=172800),
+            stop_warning_seconds=bounded_int(raw.get("stop_warning_seconds"), default=60, minimum=0, maximum=172800),
+            stop_kill_seconds=bounded_int(raw.get("stop_kill_seconds"), default=0, minimum=0, maximum=172800),
+        )
+
+    def observe_client_timezone(self, value: object, offset_minutes: object = None) -> None:
+        timezone_name = str(value or "").strip()
+        parsed_offset = _parse_offset_minutes(offset_minutes)
+        if not timezone_name and parsed_offset is not None:
+            timezone_name = _offset_label(parsed_offset)
+        if not timezone_name:
+            return
+        try:
+            _manual_timezone_info(timezone_name)
+        except ValueError:
+            if parsed_offset is None:
+                return
+            timezone_name = _offset_label(parsed_offset)
+            try:
+                _manual_timezone_info(timezone_name)
+            except ValueError:
+                return
+        with self._lock:
+            self._client_timezone = timezone_name
+
+    def observed_client_timezone(self) -> str | None:
+        with self._lock:
+            return self._client_timezone
 
     def _load(self) -> dict[str, Any]:
         if not self.path.exists():
@@ -183,3 +237,11 @@ def _offset_label(offset_minutes: int) -> str:
     sign = "+" if offset_minutes >= 0 else "-"
     absolute = abs(offset_minutes)
     return f"UTC{sign}{absolute // 60:02d}:{absolute % 60:02d}"
+
+
+def _parse_offset_minutes(value: object) -> int | None:
+    try:
+        offset = int(str(value))
+    except (TypeError, ValueError):
+        return None
+    return offset if -14 * 60 <= offset <= 14 * 60 else None

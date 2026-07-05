@@ -2,9 +2,7 @@ from __future__ import annotations
 
 import subprocess
 import threading
-import time
 import uuid
-from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
@@ -15,9 +13,11 @@ from linux_maa.logs.pipeline import LogSourceSpec, plain_translate_line
 from linux_maa.logs.pipeline import default_tone_for_source
 from linux_maa.logs.state import RunLogBuffer
 from linux_maa.maa.log_templates import register_maa_log_sources
+from linux_maa.maa.results import MaaTaskDescriptor, MaaTaskResultCollector
 from linux_maa.maa.runner import load_task_file, prepare_maa_cli_task, resolve_task_file
 from linux_maa.maa.runtime import MaaRuntime
 from linux_maa.process import run_streaming_process
+from linux_maa.run_executor import LiveRetry, LiveRun, now_text
 from linux_maa.run_state import RunStateStore
 from linux_maa.scheduler.config import ScheduleConfigManager
 from linux_maa.scheduler.models import DailyTaskStats, ScheduleConfig, ScheduleEntry, TaskPolicy
@@ -25,60 +25,14 @@ from linux_maa.scheduler.policy import initial_task_selection, remaining_enabled
 from linux_maa.scheduler.scripts import ScheduleScriptManager
 from linux_maa.scheduler.time import effective_timezone, extract_client_type, game_day_info, game_day_key, sort_entries_for_game_day
 from linux_maa.state import idle_response
+from linux_maa.time_utils import server_now_iso
 from linux_maa.utils import relative_path
 
 
 logger = get_logger(__name__)
 
 
-@dataclass
-class ScheduleRunState:
-    id: str
-    schedule_id: str
-    schedule_name: str
-    entry_id: str
-    entry_name: str
-    task_config: str
-    profile_name: str
-    status: str
-    created_at: str
-    updated_at: str
-    log_level: int
-    game_day: str
-    trigger: str
-    return_code: int | None = None
-    log_file: str | None = None
-    log_files: dict[str, str] = field(default_factory=dict)
-    maacore_log_file: str | None = None
-    maacore_log_start: int = 0
-    log: RunLogBuffer = field(default_factory=lambda: RunLogBuffer(max_output_chunks=3000))
-    process: subprocess.Popen[str] | None = field(default=None, repr=False)
-    stop_requested: bool = False
-    thread: threading.Thread | None = field(default=None, repr=False)
-
-    def to_dict(self, *, include_logs: bool = True) -> dict[str, object]:
-        data: dict[str, object] = {
-            "id": self.id,
-            "schedule_id": self.schedule_id,
-            "schedule_name": self.schedule_name,
-            "entry_id": self.entry_id,
-            "entry_name": self.entry_name,
-            "task_config": self.task_config,
-            "profile": self.profile_name,
-            "status": self.status,
-            "created_at": self.created_at,
-            "updated_at": self.updated_at,
-            "log_level": self.log_level,
-            "game_day": self.game_day,
-            "trigger": self.trigger,
-            "return_code": self.return_code,
-            "log_file": self.log_file,
-            "log_files": dict(self.log_files),
-            "maacore_log_file": self.maacore_log_file,
-        }
-        if include_logs:
-            data.update(self.log.to_dict())
-        return data
+ScheduleRunState = LiveRun
 
 
 class SchedulerService:
@@ -175,11 +129,11 @@ class SchedulerService:
         logger.warning("schedule deleted schedule_id=%s", schedule_id)
         return {"deleted": self.schedules.delete(schedule_id).to_dict()}
 
-    def start_now(self, schedule_id: str, entry_id: str | None = None) -> ScheduleRunState:
+    def start_now(self, schedule_id: str, entry_id: str | None = None, *, retry_count: int | None = None) -> ScheduleRunState:
         config = self.schedules.read(schedule_id)
         entry = next((item for item in config.entries if item.id == entry_id), None) if entry_id else None
         entry = entry or config.entries[0]
-        return self._start_run(config, entry, trigger="manual")
+        return self._start_run(config, entry, trigger="manual", retry_count=retry_count)
 
     def current(self) -> ScheduleRunState | None:
         with self._lock:
@@ -189,7 +143,7 @@ class SchedulerService:
         with self._lock:
             current = self._current
             version = self._version
-            if current is None or (schedule_id is not None and current.schedule_id != schedule_id):
+            if current is None or (schedule_id is not None and current.metadata.get("schedule_id") != schedule_id):
                 payload = idle_response()
             else:
                 payload = current.to_dict(include_logs=include_logs)
@@ -206,14 +160,25 @@ class SchedulerService:
         with self._lock:
             if self._current is None:
                 raise KeyError("no-current-schedule-run")
-            self._current.stop_requested = True
-            if self._current.process and self._current.process.poll() is None:
-                self.diagnostics.append_run_event(self._current.id, "schedule", "framework", "收到停止请求，正在终止 maa-cli...", tone="warning")
-                self._append_framework_event(self._current, "收到停止请求，正在终止 maa-cli...", tone="warning")
-                self._current.process.terminate()
-            logger.warning("scheduled run stop requested run_id=%s schedule_id=%s", self._current.id, self._current.schedule_id)
-            self._current.status = "stopping"
-            self._current.updated_at = _now()
+            if self._current.status not in {"running", "stopping"}:
+                return self._current
+            self._current.request_stop()
+            self.diagnostics.append_run_event(self._current.id, "schedule", "framework", "收到停止请求，正在终止 maa-cli...", tone="warning")
+            self._append_framework_event(self._current, "收到停止请求，正在终止 maa-cli...", tone="warning")
+            logger.warning("scheduled run stop requested run_id=%s schedule_id=%s", self._current.id, self._current.metadata.get("schedule_id"))
+            self._notify_locked()
+            return self._current
+
+    def force_stop_current(self) -> ScheduleRunState:
+        with self._lock:
+            if self._current is None:
+                raise KeyError("no-current-schedule-run")
+            if self._current.status not in {"running", "stopping"}:
+                return self._current
+            self._current.request_force_stop()
+            self.diagnostics.append_run_event(self._current.id, "schedule", "framework", "收到强制停止请求，正在强杀 maa-cli...", tone="danger")
+            self._append_framework_event(self._current, "收到强制停止请求，正在强杀 maa-cli...", tone="danger")
+            logger.warning("scheduled run force stop requested run_id=%s schedule_id=%s", self._current.id, self._current.metadata.get("schedule_id"))
             self._notify_locked()
             return self._current
 
@@ -277,7 +242,7 @@ class SchedulerService:
                 self.store.mark_triggered(schedule_id=config.id, entry_id=entry.id, game_day=current_game_day, run_id=state.id)
                 return
 
-    def _start_run(self, config: ScheduleConfig, entry: ScheduleEntry, *, trigger: str) -> ScheduleRunState:
+    def _start_run(self, config: ScheduleConfig, entry: ScheduleEntry, *, trigger: str, retry_count: int | None = None) -> ScheduleRunState:
         with self._lock:
             if self._current and self._current.status in {"running", "stopping"}:
                 raise RuntimeError(f"Scheduled run already active: {self._current.id}")
@@ -286,29 +251,36 @@ class SchedulerService:
             client = extract_client_type(task_data)
             timezone_name = str(self.framework_settings.read()["effective_timezone"]["name"])
             game_day = game_day_key(datetime.now(effective_timezone(timezone_name)), client=client)
-            now = _now()
             run_id = uuid.uuid4().hex[:12]
-            state = ScheduleRunState(
-                id=run_id,
-                schedule_id=config.id,
-                schedule_name=config.name,
-                entry_id=entry.id,
-                entry_name=entry.name,
-                task_config=config.task_config,
-                profile_name=config.profile_name,
-                status="running",
-                created_at=now,
-                updated_at=now,
-                log_level=config.log_level,
-                game_day=game_day,
-                trigger=trigger,
-            )
-            state.log_file = self.diagnostics.maa_cli_log_file(run_id)
-            state.log_files = self.diagnostics.maa_cli_log_files(run_id)
-            _register_schedule_log_sources(state.log, include_script=bool(config.restart.script))
+            started_at = now_text()
+            log_files = self.diagnostics.maa_cli_log_files(run_id)
             if config.restart.script:
-                state.log_files.update(self.diagnostics.script_log_files(run_id))
-            state.maacore_log_start = self.diagnostics.maacore_log_offset()
+                log_files.update(self.diagnostics.script_log_files(run_id))
+            max_retries = _retry_count(retry_count if retry_count is not None else config.retry.max_retries)
+            state = LiveRun(
+                id=run_id,
+                kind="schedule",
+                title=f"{config.name} / {entry.name}",
+                status="running",
+                started_at=started_at,
+                updated_at=started_at,
+                max_retries=max_retries,
+                log_files=log_files,
+                event_log_file=self.diagnostics.event_log_file(run_id),
+                metadata={
+                    "schedule_id": config.id,
+                    "schedule_name": config.name,
+                    "entry_id": entry.id,
+                    "entry_name": entry.name,
+                    "task_config": config.task_config,
+                    "profile": config.profile_name,
+                    "profile_name": config.profile_name,
+                    "log_level": config.log_level,
+                    "game_day": game_day,
+                    "trigger": trigger,
+                    "retry_count": max_retries,
+                },
+            )
             self._current = state
             self._notify_locked()
             logger.info("scheduled run started run_id=%s schedule_id=%s entry_id=%s trigger=%s", run_id, config.id, entry.id, trigger)
@@ -326,34 +298,60 @@ class SchedulerService:
         sorted_entries = sort_entries_for_game_day(config.entries, client=client, local_tz=local_tz)
         policies = task_policies_from_config(task_data)
         policy_by_id = {policy.id: policy for policy in policies}
-        stats = self.store.daily_stats(config.id, state.game_day)
+        game_day = str(state.metadata.get("game_day") or "")
+        stats = self.store.daily_stats(config.id, game_day)
         selection = initial_task_selection(policies, entry, stats)
         selected = selection.selected
         self.store.create_run(
             run_id=state.id,
-            schedule_id=config.id,
-            schedule_name=config.name,
-            entry_id=entry.id,
-            entry_name=entry.name,
-            task_config=config.task_config,
-            game_day=state.game_day,
-            trigger=state.trigger,
-            selected_task_ids=selected,
-            log_file=state.log_file,
+            kind="schedule",
+            title=f"{config.name} / {entry.name}",
+            max_retries=state.max_retries,
             log_files=state.log_files,
-            event_log_file=self.diagnostics.event_log_file(state.id),
+            event_log_file=state.event_log_file,
+            selected_task_ids=selected,
+            metadata={
+                "schedule_id": config.id,
+                "schedule_name": config.name,
+                "entry_id": entry.id,
+                "entry_name": entry.name,
+                "task_config": config.task_config,
+                "game_day": game_day,
+                "trigger": str(state.metadata.get("trigger") or ""),
+            },
         )
 
         if not selected:
             self._append_framework_event(state, "本次没有需要运行的子任务。", tone="info")
             self._append_skip_events(state, policy_by_id, selection.skipped, entry)
+            retry = state.current_retry
+            retry_count = 0
+            if retry is not None:
+                with self._lock:
+                    retry.seal(status="skipped", return_code=0)
+                    state.touch()
+                    self._notify_locked()
+                self.store.add_retry(
+                    retry_id=retry.id,
+                    run_id=state.id,
+                    retry_index=retry.retry_index,
+                    retry_group=retry.retry_group,
+                    status="skipped",
+                    started_at=retry.started_at,
+                    updated_at=retry.updated_at,
+                    ended_at=retry.ended_at or retry.updated_at,
+                    return_code=0,
+                    task_ids=[],
+                    task_results=retry.task_results,
+                    log_entries=retry.log.entries(),
+                    log_files=retry.log_files,
+                )
+                retry_count = 1
             self.store.finish_run(
                 state.id,
                 status="skipped",
-                attempt_count=0,
-                retry_group_count=0,
-                log_file=state.log_file,
-                log_files=state.log_files,
+                retry_count=retry_count,
+                retry_group_count=retry.retry_group if retry is not None else 0,
                 summary={"reason": "no-selected-tasks"},
             )
             self.store.enforce_retention()
@@ -365,29 +363,14 @@ class SchedulerService:
         self._append_skip_events(state, policy_by_id, selection.skipped, entry)
         self._run_restart_script(state, config, "before_run")
 
-        retry_group = 1
         attempt_index = 0
-        attempt_in_group = 0
         next_task_ids = selected
         final_status = "failed"
         final_return_code: int | None = None
-        final_log_file: str | None = None
         run_successful_task_ids: set[str] = set()
 
-        while next_task_ids and not state.stop_requested:
-            if attempt_in_group >= config.retry.max_attempts_per_group:
-                if retry_group >= config.retry.max_groups:
-                    self._append_framework_event(state, "重试组次数已达上限，放弃本次定时运行。", tone="danger")
-                    break
-                retry_group += 1
-                attempt_in_group = 0
-                self._append_framework_event(state, f"进入第 {retry_group} 个重试组，缓冲 {config.retry.group_buffer_seconds}s。", tone="warning")
-                self._run_restart_script(state, config, "before_retry_group")
-                if config.retry.group_buffer_seconds:
-                    time.sleep(config.retry.group_buffer_seconds)
-
+        while next_task_ids and attempt_index < state.max_retries and not state.stop_requested:
             attempt_index += 1
-            attempt_in_group += 1
             if attempt_index > 1:
                 self._run_restart_script(state, config, "before_retry")
             attempt_result = self._run_attempt(
@@ -395,11 +378,10 @@ class SchedulerService:
                 config,
                 task_ids=next_task_ids,
                 attempt_index=attempt_index,
-                retry_group=retry_group,
+                retry_group=1,
                 policy_by_id=policy_by_id,
             )
             final_return_code = attempt_result["return_code"] if isinstance(attempt_result["return_code"], int) else None
-            final_log_file = attempt_result.get("log_file") if isinstance(attempt_result.get("log_file"), str) else final_log_file
             current_game_day = game_day_key(datetime.now(local_tz), client=client)
             status_by_task_id = {
                 task_id: status
@@ -422,37 +404,37 @@ class SchedulerService:
                 attempt_result["status_by_task_id"],
                 run_successful_task_ids=run_successful_task_ids,
             )
-            if next_task_ids:
+            if next_task_ids and attempt_index < state.max_retries:
                 self._append_framework_event(state, f"准备重试: {', '.join(_task_names(policy_by_id, next_task_ids))}", tone="warning")
+                self._wait_retry_buffer(state, config, attempt_index)
             else:
                 final_status = _final_status(policies, entry, sorted_entries, stats, attempt_result["status_by_task_id"], run_successful_task_ids)
 
         if state.stop_requested:
             final_status = "stopped"
+        elif next_task_ids and final_status != "stopped":
+            self._append_framework_event(state, "重试次数已达上限，仍有未成功子任务。", tone="danger")
+            final_status = "failed"
         summary = {
             "final_status": final_status,
-            "attempts": attempt_index,
-            "retry_groups": retry_group,
+            "retries": attempt_index,
+            "retry_groups": 1 if attempt_index else 0,
         }
-        maacore_log_file = self.diagnostics.capture_maacore_log(state.id, state.maacore_log_start)
-        if maacore_log_file is not None:
-            state.maacore_log_file = maacore_log_file
+        self._seal_current_retry_for_log(state, final_status, final_return_code, task_ids=next_task_ids)
         self.store.finish_run(
             state.id,
             status=final_status,
-            attempt_count=attempt_index,
-            retry_group_count=retry_group,
-            log_file=final_log_file,
-            log_files=state.log_files,
+            retry_count=len(state.retries),
+            retry_group_count=1 if attempt_index else 0,
             summary=summary,
-            maacore_log_file=maacore_log_file,
+            maacore_log_file=state.maacore_log_file,
         )
         self.store.enforce_retention()
         self.diagnostics.enforce_retention()
         logger.info(
-            "scheduled run finished run_id=%s schedule_id=%s status=%s attempts=%s return_code=%s",
+            "scheduled run finished run_id=%s schedule_id=%s status=%s retries=%s return_code=%s",
             state.id,
-            state.schedule_id,
+            state.metadata.get("schedule_id"),
             final_status,
             attempt_index,
             final_return_code,
@@ -461,7 +443,7 @@ class SchedulerService:
 
     def _run_attempt(
         self,
-        state: ScheduleRunState,
+        state: LiveRun,
         config: ScheduleConfig,
         *,
         task_ids: list[str],
@@ -469,6 +451,16 @@ class SchedulerService:
         retry_group: int,
         policy_by_id: dict[str, TaskPolicy],
     ) -> dict[str, Any]:
+        with self._lock:
+            retry = state.current_retry
+            if retry is None:
+                retry = state.begin_retry(retry_group=retry_group, task_ids=task_ids, log=_new_schedule_log_buffer(include_script=bool(config.restart.script)), log_files=state.log_files)
+            else:
+                retry.retry_group = retry_group
+                retry.task_ids = list(task_ids)
+                retry.log_files = dict(state.log_files)
+                retry.touch()
+            self._notify_locked()
         prepare_messages: list[str] = []
         generated_profile = config.profile_name or f"{config.id}-profile"
         generated_run_id = f"schedule-{state.id}"
@@ -491,61 +483,86 @@ class SchedulerService:
             "--profile",
             generated_profile,
         ]
-        if state.log_level > 0:
-            cmd.extend(["-v"] * state.log_level)
+        log_level = int(state.metadata.get("log_level") or 0)
+        if log_level > 0:
+            cmd.extend(["-v"] * log_level)
 
         self._append_framework_event(state, f"开始第 {attempt_index} 次尝试: {', '.join(_task_names(policy_by_id, task_ids))}", tone="info")
-        state.log.begin_task_sequence(_expected_log_tasks(policy_by_id, task_ids))
         for message in prepare_messages:
             self._append_framework_event(state, message, tone="info")
-        attempt_started = _now()
-        translator_start = len(state.log.task_results())
-        log_entry_start = len(state.log.entries())
+        task_descriptors = _task_descriptors(policy_by_id, task_ids)
+        retry.log.begin_task_sequence(_task_descriptor_dicts(task_descriptors))
+        collector = MaaTaskResultCollector(task_descriptors)
+        maacore_log_start = self.diagnostics.maacore_log_offset()
         result = run_streaming_process(
             self.runtime,
             cmd,
             env=run_env,
             on_output=lambda text: None,
-            on_stream_output=lambda stream, text: self._append_maa_log(state, text, stream),
+            on_stream_output=lambda stream, text: self._append_maa_log(state, retry, text, stream),
+            on_raw_line=lambda stream, line: collector.consume_raw_line(f"maa-cli:{stream}", line),
             on_process=lambda proc: self._set_process(state, proc),
             should_stop=lambda: state.stop_requested,
-            timeout_seconds=config.timeouts.run_kill_seconds or None,
-            warning_seconds=config.timeouts.run_warning_seconds or None,
-            danger_seconds=config.timeouts.run_danger_seconds or None,
+            should_force_stop=lambda: state.force_stop_requested,
+            no_output_warning_seconds=config.timeouts.no_output_warning_seconds or None,
+            no_output_kill_seconds=config.timeouts.no_output_kill_seconds or None,
+            runtime_warning_seconds=config.timeouts.runtime_warning_seconds or None,
+            runtime_kill_seconds=config.timeouts.runtime_kill_seconds or None,
+            stop_warning_seconds=config.timeouts.stop_warning_seconds or None,
+            stop_kill_seconds=config.timeouts.stop_kill_seconds or None,
             on_timeout=lambda level, elapsed: self._append_timeout_event(state, level, elapsed),
-            on_tick=self._child_timeout_checker(state, config),
         )
-        self._flush_maa_log(state)
-        task_results = state.log.task_results()[translator_start:]
-        log_entries = state.log.entries()[log_entry_start:]
-        status_by_task_id = _status_by_task_id(task_ids, policy_by_id, task_results)
+        self._flush_maa_log(state, retry)
+        collector.finish()
+        task_results = list(collector.results)
+        status_by_task_id = collector.status_by_task_id(task_ids)
         attempt_status = "succeeded" if result.return_code == 0 and all(status == "succeeded" for status in status_by_task_id.values()) else "failed"
         if result.stopped or state.stop_requested:
             attempt_status = "stopped"
         if result.timed_out:
             attempt_status = "failed"
+        maacore_log_file = self.diagnostics.capture_maacore_log(retry.id, maacore_log_start)
+        with self._lock:
+            retry.task_results = task_results
+            retry.maacore_log_file = maacore_log_file
+            retry.generated_config_dir = relative_path(self.runtime.generated_config_dir / generated_run_id, self.runtime.repo_root)
+            retry.seal(status=attempt_status, return_code=result.return_code)
+            if maacore_log_file is not None:
+                state.maacore_log_file = maacore_log_file
+            state.process = None
+            state.touch()
+            self._notify_locked()
 
-        self.store.add_attempt(
-            attempt_id=f"{state.id}-{attempt_index}",
+        self.store.add_retry(
+            retry_id=retry.id,
             run_id=state.id,
-            attempt_index=attempt_index,
+            retry_index=attempt_index,
             retry_group=retry_group,
             status=attempt_status,
-            started_at=attempt_started,
-            ended_at=_now(),
+            started_at=retry.started_at,
+            updated_at=retry.updated_at,
+            ended_at=retry.ended_at or retry.updated_at,
             return_code=result.return_code,
             task_ids=task_ids,
             task_results=task_results,
-            log_entries=log_entries,
-            log_file=state.log_file,
-            log_files=state.log_files,
-            generated_config_dir=relative_path(self.runtime.generated_config_dir / generated_run_id, self.runtime.repo_root),
+            log_entries=retry.log.entries(),
+            log_files=retry.log_files,
+            generated_config_dir=retry.generated_config_dir,
+            maacore_log_file=maacore_log_file,
         )
         return {
             "return_code": result.return_code,
-            "log_file": state.log_file,
             "status_by_task_id": status_by_task_id,
         }
+
+    def _wait_retry_buffer(self, state: ScheduleRunState, config: ScheduleConfig, attempt_index: int) -> None:
+        every = config.retry.buffer_every_retries
+        seconds = config.retry.buffer_seconds
+        if every <= 0 or seconds <= 0 or attempt_index % every != 0:
+            return
+        self._append_framework_event(state, f"已连续重试 {attempt_index} 次，缓冲等待 {seconds}s。", tone="warning")
+        with self._condition:
+            self._condition.wait_for(lambda: state.stop_requested, timeout=seconds)
 
     def _run_restart_script(self, state: ScheduleRunState, config: ScheduleConfig, mode: str) -> None:
         if config.restart.mode != mode or not config.restart.script:
@@ -560,18 +577,19 @@ class SchedulerService:
             return
 
         self._append_framework_event(state, f"运行重启脚本({mode}): {config.restart.script}", tone="info")
+        retry = self._ensure_retry_for_log(state)
         try:
             result = run_streaming_process(
                 self.runtime,
                 command.cmd,
                 env=command.env,
                 on_output=lambda text: None,
-                on_stream_output=lambda stream, text: self._append_script_log(state, text, stream),
+                on_stream_output=lambda stream, text: self._append_script_log(state, retry, text, stream),
                 should_stop=lambda: state.stop_requested,
-                timeout_seconds=120,
+                runtime_kill_seconds=120,
                 on_timeout=lambda level, elapsed: self._append_script_timeout_event(state, level, elapsed),
             )
-            self._flush_run_log(state)
+            self._flush_run_log(state, retry)
         except Exception as exc:
             self._append_framework_event(state, f"重启脚本启动失败: {exc}", tone="danger")
             logger.exception("schedule restart script failed run_id=%s script=%s", state.id, config.restart.script)
@@ -598,7 +616,7 @@ class SchedulerService:
 
     def _mark_log_updated(self, state: ScheduleRunState) -> None:
         with self._lock:
-            state.updated_at = _now()
+            state.touch()
             self._notify_locked()
 
     def _append_framework_event(self, state: ScheduleRunState, text: str, *, tone: str = "info") -> None:
@@ -609,61 +627,55 @@ class SchedulerService:
             logger.warning("scheduled run event run_id=%s text=%s", state.id, text)
         else:
             logger.info("scheduled run event run_id=%s text=%s", state.id, text)
-        if state.log.append(f"{text.rstrip()}\n", source="framework:event", metadata={"time": datetime.now().strftime("%H:%M:%S"), "tone": tone}):
-            self._mark_log_updated(state)
+        retry = self._ensure_retry_for_log(state)
+        if retry.log.append(f"{text.rstrip()}\n", source="framework:event", metadata={"time": server_now_iso(), "tone": tone}):
+            with self._lock:
+                retry.touch()
+                state.touch()
+                self._notify_locked()
 
-    def _append_maa_log(self, state: ScheduleRunState, text: str, stream: str = "output") -> None:
+    def _append_maa_log(self, state: ScheduleRunState, retry: LiveRetry, text: str, stream: str = "output") -> None:
         self.diagnostics.append_maa_cli_output(state.id, stream, text)
-        if state.log.append(text, source=f"maa-cli:{stream}"):
-            self._mark_log_updated(state)
+        if retry.log.append(text, source=f"maa-cli:{stream}"):
+            with self._lock:
+                retry.touch()
+                state.touch()
+                self._notify_locked()
 
-    def _flush_maa_log(self, state: ScheduleRunState) -> None:
-        self._flush_run_log(state)
+    def _flush_maa_log(self, state: ScheduleRunState, retry: LiveRetry) -> None:
+        self._flush_run_log(state, retry)
 
-    def _append_script_log(self, state: ScheduleRunState, text: str, stream: str = "output") -> None:
+    def _append_script_log(self, state: ScheduleRunState, retry: LiveRetry, text: str, stream: str = "output") -> None:
         self.diagnostics.append_script_output(state.id, stream, text)
-        if state.log.append(text, source=f"script:{stream}"):
-            self._mark_log_updated(state)
+        if retry.log.append(text, source=f"script:{stream}"):
+            with self._lock:
+                retry.touch()
+                state.touch()
+                self._notify_locked()
 
-    def _flush_run_log(self, state: ScheduleRunState) -> None:
-        if state.log.flush():
-            self._mark_log_updated(state)
+    def _flush_run_log(self, state: ScheduleRunState, retry: LiveRetry) -> None:
+        if retry.log.flush():
+            with self._lock:
+                retry.touch()
+                state.touch()
+                self._notify_locked()
 
     def _append_timeout_event(self, state: ScheduleRunState, level: str, elapsed: float) -> None:
-        if level == "warning":
-            self._append_framework_event(state, f"运行时间已超过 {elapsed:.0f}s。", tone="warning")
-        elif level == "danger":
-            self._append_framework_event(state, f"运行时间已超过 {elapsed:.0f}s，即将触发硬停止。", tone="danger")
-        else:
-            self._append_framework_event(state, "运行时间已超过上限，正在终止 maa-cli。", tone="danger")
+        messages = {
+            "no_output_warning": f"已 {elapsed:.0f}s 没有收到新输出，运行可能卡住。",
+            "no_output_kill": f"已 {elapsed:.0f}s 没有收到新输出，正在强制终止 maa-cli。",
+            "runtime_warning": f"运行时间已超过 {elapsed:.0f}s。",
+            "runtime_kill": "运行时间已超过上限，正在强制终止 maa-cli。",
+            "stop_warning": f"停止请求已等待 {elapsed:.0f}s，maa-cli 可能没有响应停止命令。",
+            "stop_kill": "停止等待超过上限，正在强制终止 maa-cli。",
+            "force_kill": "正在强制终止 maa-cli。",
+        }
+        tone = "warning" if level.endswith("warning") else "danger"
+        self._append_framework_event(state, messages.get(level, f"运行超时事件: {level}"), tone=tone)
 
     def _append_script_timeout_event(self, state: ScheduleRunState, level: str, elapsed: float) -> None:
-        if level == "kill":
+        if level == "runtime_kill":
             self._append_framework_event(state, f"重启脚本运行超过 {elapsed:.0f}s，正在终止。", tone="danger")
-
-    def _child_timeout_checker(self, state: ScheduleRunState, config: ScheduleConfig):
-        warned_task = ""
-        dangered_task = ""
-        killed_task = ""
-
-        def check() -> None:
-            nonlocal warned_task, dangered_task, killed_task
-            current = state.log.current_block_elapsed_seconds(kind="task")
-            if current is None:
-                return
-            task_name, elapsed = current
-            if config.timeouts.child_warning_seconds and warned_task != task_name and elapsed >= config.timeouts.child_warning_seconds:
-                warned_task = task_name
-                self._append_framework_event(state, f"子任务 {task_name} 已运行 {elapsed:.0f}s。", tone="warning")
-            if config.timeouts.child_danger_seconds and dangered_task != task_name and elapsed >= config.timeouts.child_danger_seconds:
-                dangered_task = task_name
-                self._append_framework_event(state, f"子任务 {task_name} 已运行 {elapsed:.0f}s，即将触发硬停止。", tone="danger")
-            if config.timeouts.child_kill_seconds and killed_task != task_name and elapsed >= config.timeouts.child_kill_seconds:
-                killed_task = task_name
-                state.stop_requested = True
-                self._append_framework_event(state, f"子任务 {task_name} 超过上限，正在终止 maa-cli。", tone="danger")
-
-        return check
 
     def _set_process(self, state: ScheduleRunState, proc: subprocess.Popen[str]) -> None:
         with self._lock:
@@ -671,10 +683,48 @@ class SchedulerService:
 
     def _set_done(self, state: ScheduleRunState, status: str, return_code: int | None) -> None:
         with self._lock:
-            state.status = status
-            state.return_code = return_code
-            state.updated_at = _now()
-            state.process = None
+            state.finish(status=status, return_code=return_code)
+            self._notify_locked()
+
+    def _seal_current_retry_for_log(self, state: ScheduleRunState, status: str, return_code: int | None, *, task_ids: list[str] | None = None) -> None:
+        with self._lock:
+            retry = state.current_retry
+            if retry is None:
+                return
+            if task_ids is not None:
+                retry.task_ids = list(task_ids)
+            retry.seal(status=status, return_code=return_code)
+            state.touch()
+            self._notify_locked()
+        self.store.add_retry(
+            retry_id=retry.id,
+            run_id=state.id,
+            retry_index=retry.retry_index,
+            retry_group=retry.retry_group,
+            status=status,
+            started_at=retry.started_at,
+            updated_at=retry.updated_at,
+            ended_at=retry.ended_at or retry.updated_at,
+            return_code=return_code,
+            task_ids=retry.task_ids,
+            task_results=retry.task_results,
+            log_entries=retry.log.entries(),
+            log_files=retry.log_files,
+            generated_config_dir=retry.generated_config_dir,
+            maacore_log_file=retry.maacore_log_file,
+        )
+
+    def _ensure_retry_for_log(self, state: ScheduleRunState) -> LiveRetry:
+        with self._lock:
+            retry = state.current_retry
+            if retry is not None:
+                return retry
+            retry = state.begin_retry(log=_new_schedule_log_buffer(include_script=True), log_files=state.log_files)
+            self._notify_locked()
+        return retry
+
+    def _notify_from_thread(self) -> None:
+        with self._lock:
             self._notify_locked()
 
     def _notify_locked(self) -> None:
@@ -697,42 +747,20 @@ def _nested(data: object, path: list[str]) -> dict[str, Any]:
     return current if isinstance(current, dict) else {}
 
 
-def _status_by_task_id(task_ids: list[str], policy_by_id: dict[str, TaskPolicy], task_results: list[dict[str, Any]]) -> dict[str, str]:
-    unused = list(task_results)
-    output: dict[str, str] = {}
-    for task_id in task_ids:
-        policy = policy_by_id.get(task_id)
-        if policy is None:
-            output[task_id] = "missing"
-            continue
-        match_index = next(
-            (
-                index
-                for index, result in enumerate(unused)
-                if result.get("task_id") == task_id
-                or result.get("source_name") == policy.type
-                or result.get("name") == policy.type
-            ),
-            -1,
-        )
-        if match_index < 0:
-            output[task_id] = "missing"
-            continue
-        matched = unused.pop(match_index)
-        output[task_id] = str(matched.get("status") or "unknown")
-    return output
-
-
 def _task_names(policy_by_id: dict[str, TaskPolicy], task_ids: list[str]) -> list[str]:
     return [policy_by_id[task_id].name if task_id in policy_by_id else task_id for task_id in task_ids]
 
 
-def _expected_log_tasks(policy_by_id: dict[str, TaskPolicy], task_ids: list[str]) -> list[dict[str, str]]:
+def _task_descriptors(policy_by_id: dict[str, TaskPolicy], task_ids: list[str]) -> list[MaaTaskDescriptor]:
     return [
-        {"task_id": task_id, "source_name": policy_by_id[task_id].type, "name": policy_by_id[task_id].name}
+        MaaTaskDescriptor(task_id=task_id, source_name=policy_by_id[task_id].type, name=policy_by_id[task_id].name)
         for task_id in task_ids
         if task_id in policy_by_id
     ]
+
+
+def _task_descriptor_dicts(descriptors: list[MaaTaskDescriptor]) -> list[dict[str, str]]:
+    return [{"task_id": item.task_id, "source_name": item.source_name, "name": item.name} for item in descriptors]
 
 
 def _register_schedule_log_sources(log: RunLogBuffer, *, include_script: bool) -> None:
@@ -740,6 +768,12 @@ def _register_schedule_log_sources(log: RunLogBuffer, *, include_script: bool) -
     if include_script:
         for source in ("script:stdout", "script:stderr"):
             log.register_source(LogSourceSpec(source, default_tone_for_source(source), plain_translate_line))
+
+
+def _new_schedule_log_buffer(*, include_script: bool) -> RunLogBuffer:
+    log = RunLogBuffer(max_output_chunks=3000)
+    _register_schedule_log_sources(log, include_script=include_script)
+    return log
 
 
 def _final_status(
@@ -772,4 +806,11 @@ def _final_status(
 
 
 def _now() -> str:
-    return datetime.now().isoformat(timespec="seconds")
+    return server_now_iso()
+
+
+def _retry_count(value: object) -> int:
+    try:
+        return min(50, max(1, int(value)))  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return 1

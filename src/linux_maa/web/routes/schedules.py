@@ -22,6 +22,7 @@ class SaveSchedulePayload(BaseModel):
 
 class StartSchedulePayload(BaseModel):
     entry_id: str | None = None
+    retry_count: int = Field(default=1, ge=1, le=50)
 
 
 def create_schedule_router(services: WebServices) -> APIRouter:
@@ -59,6 +60,13 @@ def create_schedule_router(services: WebServices) -> APIRouter:
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="No scheduled run active") from exc
 
+    @router.post("/current/force-stop")
+    def force_stop_scheduled_run() -> dict[str, object]:
+        try:
+            return scheduler.force_stop_current().to_dict()
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="No scheduled run active") from exc
+
     @router.get("/{schedule_id}")
     def read_schedule(schedule_id: str) -> dict[str, object]:
         try:
@@ -91,7 +99,7 @@ def create_schedule_router(services: WebServices) -> APIRouter:
     @router.post("/{schedule_id}/run")
     def start_schedule_now(schedule_id: str, payload: StartSchedulePayload) -> dict[str, object]:
         try:
-            return scheduler.start_now(schedule_id, entry_id=payload.entry_id).to_dict()
+            return scheduler.start_now(schedule_id, entry_id=payload.entry_id, retry_count=payload.retry_count).to_dict()
         except FileNotFoundError as exc:
             raise HTTPException(status_code=404, detail="Schedule not found") from exc
         except RuntimeError as exc:

@@ -1,8 +1,9 @@
-import { GripVertical, PencilLine, Play, Plus, Square, Trash2 } from "lucide-react";
+import { GripVertical, PencilLine, Play, Plus, Trash2 } from "lucide-react";
 import React from "react";
 import { useNavigate } from "react-router-dom";
 
 import { InsertionLine } from "@/components/InsertionLine";
+import { RunStopButton } from "@/components/RunStopButton";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -29,6 +30,8 @@ type TaskListPaneProps = {
   onTaskItemsReorder: (sourceId: string, targetIndex: number) => void;
   onStartRun: () => void;
   onStopRun: () => void;
+  retryCount: number;
+  onRetryCountChange: (value: number) => void;
 };
 
 export function TaskListPane({
@@ -47,7 +50,9 @@ export function TaskListPane({
   onAllTaskItemsEnabledChange,
   onTaskItemsReorder,
   onStartRun,
-  onStopRun
+  onStopRun,
+  retryCount,
+  onRetryCountChange
 }: TaskListPaneProps) {
   const navigate = useNavigate();
   const active = run.status === "running" || run.status === "stopping";
@@ -307,11 +312,19 @@ export function TaskListPane({
           <Play className="size-4" />
           Link Start!
         </Button>
-        <Button variant="outline" onClick={onStopRun} disabled={!active || !run.id}>
-          <Square className="size-4" />
-          停止
-        </Button>
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
+          <RunStopButton run={run} onStop={onStopRun} onForceStop={onStopRun} />
+          <label className="flex items-center justify-end gap-2">
+            <span className="shrink-0 text-right text-[11px] leading-3 text-muted-foreground">重试<br />次数</span>
+            <Input className="w-14 px-1 text-center text-sm" type="number" min={1} max={50} value={retryCount} onChange={(event) => onRetryCountChange(clampRetryCount(event.target.value))} />
+          </label>
+        </div>
       </div>
     </Card>
   );
+}
+
+function clampRetryCount(value: string) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? Math.min(50, Math.max(1, parsed)) : 1;
 }

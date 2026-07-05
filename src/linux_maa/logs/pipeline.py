@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from typing import Callable, Literal
 
 from linux_maa.logs.records import BlockStatus, LogEntry, LogMessage, LogTone
+from linux_maa.time_utils import server_now_iso, server_time_text
 
 
 ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
@@ -44,8 +45,8 @@ class LogLineTranslation:
     title: str = ""
     status: BlockStatus | None = "default"
     time: str | None = None
-    started_at: str | None = None
-    ended_at: str | None = None
+    opened_at: str | None = None
+    sealed_at: str | None = None
     tone: LogTone = "default"
     messages: list[LogMessage] = field(default_factory=list)
     lines: list[str] = field(default_factory=list)
@@ -85,6 +86,7 @@ class ActiveBlock:
             setattr(self.entry, key, value)
             if lock:
                 self.locked_fields.add(key)
+        self.entry.touch()
 
 
 @dataclass(frozen=True)
@@ -120,7 +122,6 @@ class BlockDefinition:
     default_title: str = ""
     default_status: BlockStatus | None = "default"
     default_tone: LogTone = "default"
-    projection_key: str | None = None
     rule_id: str | None = None
     panel_kind: str | None = None
 
@@ -141,7 +142,6 @@ class LogPipelineSession:
     max_log_entries: int = 1000
     max_record_messages: int = 300
     max_record_lines: int = 300
-    max_projection_records: int = 1000
     terminal_update_interval_seconds: float = 2.0
     entries_list: list[LogEntry] = field(default_factory=list)
     sources: dict[str, LogSourceSpec] = field(default_factory=dict)
@@ -150,7 +150,6 @@ class LogPipelineSession:
     context: dict[str, object] = field(default_factory=dict)
     state_generation: int = 0
     _source_states: dict[str, _SourceState] = field(default_factory=dict)
-    _projection_entries: dict[str, list[LogEntry]] = field(default_factory=dict)
     _task_sequence_handlers: list[Callable[[list[dict[str, str]]], None]] = field(default_factory=list)
     _next_entry_id: int = 1
 
@@ -224,8 +223,8 @@ class LogPipelineSession:
         title: str = "",
         status: BlockStatus | None = None,
         time: str | None = None,
-        started_at: str | None = None,
-        ended_at: str | None = None,
+        opened_at: str | None = None,
+        sealed_at: str | None = None,
         tone: LogTone = "default",
         messages: list[LogMessage] | None = None,
         lines: list[str] | None = None,
@@ -236,6 +235,7 @@ class LogPipelineSession:
         source_name: str | None = None,
         rule_id: str | None = None,
         panel_kind: str | None = None,
+        closed: bool = True,
     ) -> LogEntry:
         entry = LogEntry(
             id=self._new_entry_id(),
@@ -244,8 +244,8 @@ class LogPipelineSession:
             title=title,
             status=status,
             time=time,
-            started_at=started_at,
-            ended_at=ended_at,
+            opened_at=opened_at,
+            sealed_at=sealed_at,
             tone=tone,
             messages=messages or [],
             lines=lines or [],
@@ -256,6 +256,8 @@ class LogPipelineSession:
             source_name=source_name,
             rule_id=rule_id,
             panel_kind=panel_kind,
+            updated_at=current_datetime_text(),
+            closed=closed,
         )
         self.entries_list.append(entry)
         self.state_generation += 1
@@ -264,9 +266,6 @@ class LogPipelineSession:
 
     def entries(self) -> list[dict[str, object]]:
         return [entry.to_dict() for entry in self.entries_list]
-
-    def projected_entries(self, key: str) -> list[LogEntry]:
-        return list(self._projection_entries.get(key, []))
 
     def current_block_elapsed_seconds(self, *, kind: str | None = None) -> tuple[str, float] | None:
         candidates: list[tuple[str, float]] = []
@@ -350,7 +349,10 @@ class LogPipelineSession:
 
         active = self.active_blocks.get(source_key) if active is None else active
         if active is not None:
-            return output + active.definition.translate_line(active, line, self)
+            rendered = active.definition.translate_line(active, line, self)
+            active.entry.touch()
+            self.state_generation += 1
+            return output + rendered
         return output + self._append_fallback_line(line)
 
     def _match_start(self, line: LogLineInput) -> tuple[BlockDefinition | None, object | None]:
@@ -369,21 +371,23 @@ class LogPipelineSession:
             title=definition.default_title,
             status=definition.default_status,
             time=line.time,
+            opened_at=line.time or current_datetime_text(),
             tone=_tone_from_metadata(line.metadata, definition.default_tone),
             lines=[],
             rule_id=definition.rule_id,
             panel_kind=definition.panel_kind,
+            closed=False,
         )
         active = ActiveBlock(source=source, definition=definition, entry=entry)
-        if definition.projection_key:
-            self._project_entry(definition.projection_key, entry)
         return active
 
     def _run_start_hook(self, active: ActiveBlock, line: LogLineInput, match: object | None, previous: ActiveBlock | None) -> BlockStartOutcome:
         if active.definition.on_start is None:
             active.entry.lines.append(line.raw)
+            active.entry.touch()
             return BlockStartOutcome()
         result = active.definition.on_start(active, line, match, BlockStartContext(session=self, previous_block=previous))
+        active.entry.touch()
         if result is None:
             return BlockStartOutcome()
         if isinstance(result, BlockStartOutcome):
@@ -401,10 +405,17 @@ class LogPipelineSession:
         active = self.active_blocks.pop(normalize_source(source), None)
         if active is None:
             return ""
+        active.entry.closed = True
+        if active.entry.sealed_at is None:
+            active.entry.sealed_at = line.time if line and line.time else current_datetime_text()
+        active.entry.touch()
         self.state_generation += 1
         if active.definition.on_close is None:
             return ""
-        return active.definition.on_close(active, reason, line, match, self) or ""
+        output = active.definition.on_close(active, reason, line, match, self) or ""
+        active.entry.closed = True
+        active.entry.touch()
+        return output
 
     def _append_fallback_line(self, line: LogLineInput) -> str:
         translator = self.source_spec(line.source).default_translate_line or plain_translate_line
@@ -427,8 +438,8 @@ class LogPipelineSession:
             title=translation.title,
             status=translation.status,
             time=translation.time,
-            started_at=translation.started_at,
-            ended_at=translation.ended_at,
+            opened_at=translation.opened_at or translation.time,
+            sealed_at=translation.sealed_at or translation.time,
             tone=translation.tone,
             messages=messages,
             lines=lines,
@@ -450,22 +461,28 @@ class LogPipelineSession:
         state = self._state(source)
         tone = _tone_from_metadata(metadata, "info")
         message = LogMessage(text=text, tone=tone, raw=text)
+        timestamp = _metadata_str(metadata, "time") or current_datetime_text()
         first_update = state.terminal_entry is None
         if state.terminal_entry is None:
             state.terminal_entry = self.append_block(
                 source,
                 kind="line",
                 status="default",
+                time=timestamp,
+                opened_at=timestamp,
                 tone=tone,
                 messages=[message],
                 lines=[text],
                 raw=text,
+                closed=False,
             )
         else:
             state.terminal_entry.messages = [message]
             state.terminal_entry.lines = [text]
             state.terminal_entry.raw = text
             state.terminal_entry.tone = tone
+            state.terminal_entry.touch()
+            self.state_generation += 1
 
         now = time.monotonic()
         should_emit = first_update or final or now - state.terminal_last_emit >= self.terminal_update_interval_seconds
@@ -484,18 +501,19 @@ class LogPipelineSession:
         state.terminal_last_output = ""
         if entry is None:
             return ""
+        entry.closed = True
+        entry.sealed_at = current_datetime_text()
+        entry.touch()
         text = entry.messages[0].text if entry.messages else ""
         return f"{text}\n" if text and text != last_output else ""
 
     def _ensure_block_start_time(self, entry: LogEntry) -> None:
-        if entry.time or entry.started_at or entry.ended_at:
+        if entry.time or entry.opened_at or entry.sealed_at:
             return
-        entry.started_at = current_time_text()
-
-    def _project_entry(self, key: str, entry: LogEntry) -> None:
-        records = self._projection_entries.setdefault(key, [])
-        records.append(entry)
-        _trim_list(records, self.max_projection_records)
+        now = current_datetime_text()
+        entry.time = now
+        entry.opened_at = now
+        entry.touch()
 
     def _state(self, source: str) -> _SourceState:
         return self._source_states.setdefault(normalize_source(source), _SourceState())
@@ -526,6 +544,8 @@ def plain_translate_line(source: str, raw: str, metadata: dict[str, object], con
     tone = _tone_from_metadata(metadata, spec.default_tone)
     kind = _metadata_str(metadata, "kind_override") or "line"
     time_text = _metadata_str(metadata, "time")
+    if time_text is None:
+        time_text = current_datetime_text()
     status = _status_from_metadata(metadata) or "default"
     title = _metadata_str(metadata, "title_override") or (text if kind != "line" else "")
     raw_value = raw if raw != text else None
@@ -542,6 +562,8 @@ def plain_translate_line(source: str, raw: str, metadata: dict[str, object], con
         title=title,
         status=status,
         time=time_text,
+        opened_at=time_text,
+        sealed_at=time_text,
         tone=tone,
         messages=[message],
         lines=[raw],
@@ -577,11 +599,26 @@ def default_tone_for_source(source: str) -> LogTone:
 
 
 def format_time_prefix(time_text: str | None) -> str:
-    return f"{time_text} " if time_text else ""
+    return f"{display_time_text(time_text)} " if time_text else ""
+
+
+def display_time_text(time_text: str | None) -> str:
+    if not time_text:
+        return ""
+    text = time_text.strip()
+    if "T" in text:
+        return text.split("T", 1)[1][:8]
+    if re.match(r"^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}", text):
+        return text[11:19]
+    return text
 
 
 def current_time_text() -> str:
-    return time.strftime("%H:%M:%S")
+    return server_time_text()
+
+
+def current_datetime_text() -> str:
+    return server_now_iso()
 
 
 def terminal_display_text(raw: str) -> str:

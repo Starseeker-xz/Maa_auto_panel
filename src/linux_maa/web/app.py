@@ -35,6 +35,10 @@ def create_app(repo_root: Path | None = None) -> FastAPI:
     async def api_request_logging(request: Request, call_next):
         if not request.url.path.startswith("/api/"):
             return await call_next(request)
+        services.framework_settings.observe_client_timezone(
+            request.headers.get("x-linux-maa-client-timezone") or request.query_params.get("client_timezone"),
+            request.headers.get("x-linux-maa-client-offset-minutes") or request.query_params.get("client_offset_minutes"),
+        )
         started = time.monotonic()
         client = request.client.host if request.client else "-"
         logger.info("api request started method=%s path=%s client=%s", request.method, request.url.path, client)

@@ -3,8 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Iterable
 
-from linux_maa.maa.runner import task_item_id
 from linux_maa.scheduler.models import DailyTaskStats, ScheduleEntry, TaskPolicy
+from linux_maa.utils import slugify
 
 
 SUCCESS_STATUS = "succeeded"
@@ -30,7 +30,7 @@ def task_policies_from_config(data: dict[str, object]) -> list[TaskPolicy]:
         assert isinstance(metadata, dict)
         policies.append(
             TaskPolicy(
-                id=task_item_id(task, index),
+                id=_task_item_id(task, index),
                 name=str(task.get("name") or task.get("type") or f"Task {index}"),
                 type=str(task.get("type") or "Unknown"),
                 important=metadata.get("important") is not False,
@@ -40,6 +40,35 @@ def task_policies_from_config(data: dict[str, object]) -> list[TaskPolicy]:
             )
         )
     return policies
+
+
+def enabled_task_ids_from_config(data: dict[str, object]) -> list[str]:
+    tasks = data.get("tasks")
+    if not isinstance(tasks, list):
+        return []
+
+    task_ids: list[str] = []
+    for index, task in enumerate(tasks, start=1):
+        if not isinstance(task, dict):
+            continue
+        params = task.get("params") if isinstance(task.get("params"), dict) else {}
+        assert isinstance(params, dict)
+        if params.get("enable") is False:
+            continue
+        task_ids.append(_task_item_id(task, index))
+    return task_ids
+
+
+def retry_unfinished_task_ids(task_ids: list[str], attempt_status_by_task_id: dict[str, str], *, run_successful_task_ids: set[str] | None = None) -> list[str]:
+    run_successful_task_ids = run_successful_task_ids or set()
+    output: list[str] = []
+    for task_id in task_ids:
+        if task_id in run_successful_task_ids:
+            continue
+        if attempt_status_by_task_id.get(task_id) == SUCCESS_STATUS:
+            continue
+        output.append(task_id)
+    return output
 
 
 def initial_task_ids(
@@ -144,6 +173,17 @@ def _non_negative_int(value: object, *, default: int) -> int:
         return max(0, int(value))  # type: ignore[arg-type]
     except (TypeError, ValueError):
         return default
+
+
+def _task_item_id(task: dict[str, object], index: int) -> str:
+    metadata = task.get("linux_maa")
+    explicit = metadata.get("id") if isinstance(metadata, dict) else None
+    if isinstance(explicit, str) and explicit.strip():
+        return slugify(explicit) or f"task-{index}"
+    task_type = str(task.get("type") or "Task")
+    name = task.get("name")
+    base = f"{task_type}-{name}" if isinstance(name, str) and name.strip() else task_type
+    return slugify(base) or f"task-{index}"
 
 
 def _dedupe(values: list[str]) -> list[str]:

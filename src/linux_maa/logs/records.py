@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Literal
 
+from linux_maa.time_utils import server_now_iso
+
 
 BlockStatus = Literal["default", "running", "succeeded", "failed", "stopped", "unknown", "unfinished", "warning"]
 LogTone = Literal["default", "success", "warning", "danger", "info", "theme"]
@@ -48,8 +50,10 @@ class LogEntry:
     title: str = ""
     status: BlockStatus | None = None
     time: str | None = None
-    started_at: str | None = None
-    ended_at: str | None = None
+    opened_at: str | None = None
+    sealed_at: str | None = None
+    updated_at: str | None = None
+    closed: bool = True
     tone: LogTone = "default"
     messages: list[LogMessage] = field(default_factory=list)
     lines: list[str] = field(default_factory=list)
@@ -61,12 +65,17 @@ class LogEntry:
     rule_id: str | None = None
     panel_kind: str | None = None
 
+    def touch(self) -> None:
+        self.updated_at = server_now_iso()
+
     def to_dict(self) -> dict[str, object]:
         data: dict[str, object] = {
             "type": "block",
             "id": self.id,
             "source": self.source,
             "kind": self.kind,
+            "updated_at": self.updated_at or server_now_iso(),
+            "closed": self.closed,
             "tone": self.tone,
             "messages": [message.to_dict() for message in self.messages],
             "lines": list(self.lines),
@@ -77,10 +86,10 @@ class LogEntry:
             data["status"] = self.status
         if self.time:
             data["time"] = self.time
-        if self.started_at:
-            data["started_at"] = self.started_at
-        if self.ended_at:
-            data["ended_at"] = self.ended_at
+        if self.opened_at:
+            data["opened_at"] = self.opened_at
+        if self.sealed_at:
+            data["sealed_at"] = self.sealed_at
         if self.raw:
             data["raw"] = self.raw
         if self.metadata:

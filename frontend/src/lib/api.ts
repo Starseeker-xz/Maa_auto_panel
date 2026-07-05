@@ -16,13 +16,15 @@ import type {
   ToolsResponse,
   UpdateInfoResponse
 } from "@/lib/types";
+import { normalizeRunState } from "@/lib/runStream";
 
 export const currentRunEventsUrl = "/api/runs/current/events";
 export const currentScheduleRunEventsUrl = "/api/schedules/current/events";
 export const currentToolRunEventsUrl = "/api/tools/current/events";
+export const currentMaintenanceEventsUrl = "/api/maintenance/current/events";
 
 async function readJson<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, init);
+  const response = await fetch(url, withClientTimezone(init));
   const text = await response.text();
   const data = text ? safeJsonParse(text) : null;
   if (!response.ok) {
@@ -30,6 +32,14 @@ async function readJson<T>(url: string, init?: RequestInit): Promise<T> {
     throw new Error(detail || `HTTP ${response.status}`);
   }
   return data as T;
+}
+
+function withClientTimezone(init?: RequestInit): RequestInit {
+  const headers = new Headers(init?.headers);
+  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  if (timezone) headers.set("x-linux-maa-client-timezone", timezone);
+  headers.set("x-linux-maa-client-offset-minutes", String(-new Date().getTimezoneOffset()));
+  return { ...init, headers };
 }
 
 function safeJsonParse(text: string): unknown {
@@ -91,7 +101,7 @@ export function deleteConfig(kind: string, name: string) {
 }
 
 export function getCurrentRun() {
-  return readJson<RunState>("/api/runs/current");
+  return readJson<RunState>("/api/runs/current").then(normalizeRunState);
 }
 
 export function getRunHistory(runId: string) {
@@ -102,16 +112,21 @@ export function startRun(payload: {
   task: string;
   profile: string;
   log_level: number;
+  retry_count: number;
 }) {
   return readJson<RunState>("/api/runs", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(payload)
-  });
+  }).then(normalizeRunState);
 }
 
 export function stopRun(runId: string) {
-  return readJson<RunState>(`/api/runs/${runId}/stop`, { method: "POST" });
+  return readJson<RunState>(`/api/runs/${runId}/stop`, { method: "POST" }).then(normalizeRunState);
+}
+
+export function forceStopRun(runId: string) {
+  return readJson<RunState>(`/api/runs/${runId}/force-stop`, { method: "POST" }).then(normalizeRunState);
 }
 
 export function listSchedules() {
@@ -142,20 +157,24 @@ export function deleteSchedule(scheduleId: string) {
   return readJson<DeleteConfigResponse>(`/api/schedules/${encodeURIComponent(scheduleId)}`, { method: "DELETE" });
 }
 
-export function startScheduleRun(scheduleId: string, entryId?: string) {
+export function startScheduleRun(scheduleId: string, entryId?: string, retryCount = 1) {
   return readJson<RunState>(`/api/schedules/${encodeURIComponent(scheduleId)}/run`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ entry_id: entryId || null })
-  });
+    body: JSON.stringify({ entry_id: entryId || null, retry_count: retryCount })
+  }).then(normalizeRunState);
 }
 
 export function getCurrentScheduleRun() {
-  return readJson<RunState>("/api/schedules/current");
+  return readJson<RunState>("/api/schedules/current").then(normalizeRunState);
 }
 
 export function stopCurrentScheduleRun() {
-  return readJson<RunState>("/api/schedules/current/stop", { method: "POST" });
+  return readJson<RunState>("/api/schedules/current/stop", { method: "POST" }).then(normalizeRunState);
+}
+
+export function forceStopCurrentScheduleRun() {
+  return readJson<RunState>("/api/schedules/current/force-stop", { method: "POST" }).then(normalizeRunState);
 }
 
 export function getSettings() {
@@ -171,7 +190,7 @@ export function saveSettings(payload: SaveSettingsPayload) {
 }
 
 export function getCurrentMaintenanceAction() {
-  return readJson<MaintenanceActionState>("/api/maintenance/current");
+  return readJson<MaintenanceActionState>("/api/maintenance/current").then(normalizeRunState);
 }
 
 export function getUpdateInfo() {
@@ -179,7 +198,7 @@ export function getUpdateInfo() {
 }
 
 export function startMaintenanceAction(kind: string) {
-  return readJson<MaintenanceActionState>(`/api/maintenance/${encodeURIComponent(kind)}`, { method: "POST" });
+  return readJson<MaintenanceActionState>(`/api/maintenance/${encodeURIComponent(kind)}`, { method: "POST" }).then(normalizeRunState);
 }
 
 export function listTools() {
@@ -187,19 +206,27 @@ export function listTools() {
 }
 
 export function getCurrentToolRun() {
-  return readJson<RunState>("/api/tools/current");
+  return readJson<RunState>("/api/tools/current").then(normalizeRunState);
 }
 
-export function startToolRun(toolId: string, config: Record<string, unknown>) {
+export function startToolRun(toolId: string, config: Record<string, unknown>, retryCount = 1) {
   return readJson<RunState>(`/api/tools/${encodeURIComponent(toolId)}/run`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ config })
-  });
+    body: JSON.stringify({ config, retry_count: retryCount })
+  }).then(normalizeRunState);
 }
 
 export function stopCurrentToolRun() {
-  return readJson<RunState>("/api/tools/current/stop", { method: "POST" });
+  return readJson<RunState>("/api/tools/current/stop", { method: "POST" }).then(normalizeRunState);
+}
+
+export function forceStopCurrentToolRun() {
+  return readJson<RunState>("/api/tools/current/force-stop", { method: "POST" }).then(normalizeRunState);
+}
+
+export function deleteRunHistory(runId: string) {
+  return readJson<{ deleted: Record<string, unknown> }>(`/api/history/runs/${encodeURIComponent(runId)}`, { method: "DELETE" });
 }
 
 export function getMaaStages(client = "Bilibili") {

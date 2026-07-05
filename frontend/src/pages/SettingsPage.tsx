@@ -6,13 +6,15 @@ import { DirtyActions } from "@/components/DirtyActions";
 import { CheckboxField, NumberField, PathLine, ReadOnlyLine, SectionTitle, SelectField, TextField } from "@/components/FormFields";
 import { Button } from "@/components/ui/button";
 import { Card, CardTitle } from "@/components/ui/card";
-import { getCurrentMaintenanceAction, getSettings, getUpdateInfo, saveSettings, startMaintenanceAction } from "@/lib/api";
+import { currentMaintenanceEventsUrl, getCurrentMaintenanceAction, getSettings, getUpdateInfo, saveSettings, startMaintenanceAction } from "@/lib/api";
 import { CONNECTION_CONFIGS, CONNECTION_TYPES, TOUCH_MODES } from "@/lib/constants";
 import { DELETE_VALUE, booleanAt, isRecord, optionalNumberAt, setNestedValue, stringAt, valueAt, type DeleteValue } from "@/lib/objectPath";
+import { applyRunStateEvent, normalizeRunState, runEventsUrl } from "@/lib/runStream";
 import { loadStoredTheme, saveActiveTheme, setActiveTheme, themeColors, themeFromFrameworkSettings, themeModes, type ThemeColor, type ThemeMode } from "@/lib/theme";
+import { formatDateTime } from "@/lib/time";
 import type { ConfigValidation, MaintenanceActionState, SaveSettingsPayload, SettingsResponse, UpdateInfoResponse } from "@/lib/types";
-import { usePolling } from "@/lib/usePolling";
 import { cn } from "@/lib/utils";
+import { LogPane } from "@/pages/main/LogPane";
 
 type SettingsDraft = SaveSettingsPayload;
 type DraftSection = keyof SettingsDraft;
@@ -24,12 +26,13 @@ const TIMEZONE_MODES = [
   ["manual", "手动指定时区"]
 ];
 const COMMON_TIMEZONES = ["UTC", "Asia/Shanghai", "Asia/Tokyo", "Europe/London", "Europe/Berlin", "America/Los_Angeles", "America/New_York"];
+const MAINTENANCE_EVENTS_ERROR = "维护日志事件流连接中断，正在重连...";
 
 export function SettingsPage() {
   const [settings, setSettings] = React.useState<SettingsResponse | null>(null);
   const [savedDraft, setSavedDraft] = React.useState<SettingsDraft | null>(null);
   const [draft, setDraft] = React.useState<SettingsDraft | null>(null);
-  const [maintenance, setMaintenance] = React.useState<MaintenanceActionState>({ status: "idle", output: [] });
+  const [maintenance, setMaintenance] = React.useState<MaintenanceActionState>({ status: "idle", run: { status: "idle" }, retries: [] });
   const [updateInfo, setUpdateInfo] = React.useState<UpdateInfoResponse | null>(null);
   const [updateInfoBusy, setUpdateInfoBusy] = React.useState(false);
   const [maintenanceConfirmKind, setMaintenanceConfirmKind] = React.useState<string>("");
@@ -52,7 +55,7 @@ export function SettingsPage() {
         setSettings(data);
         setSavedDraft(diskDraft);
         setDraft(cloneDraft(nextDraft));
-        setMaintenance(data.maintenance);
+        setMaintenance(normalizeRunState(data.maintenance));
         setError("");
         void handleRefreshUpdateInfo();
       })
@@ -70,16 +73,38 @@ export function SettingsPage() {
     setActiveTheme(themeFromFrameworkSettings(draft.framework));
   }, [draft]);
 
-  usePolling(
-    async () => {
+  React.useEffect(() => {
+    let cancelled = false;
+    let events: EventSource | null = null;
+
+    async function connectMaintenanceStream() {
+      let snapshot: MaintenanceActionState | null = null;
       try {
-        setMaintenance(await getCurrentMaintenanceAction());
+        snapshot = await getCurrentMaintenanceAction();
+        if (cancelled) return;
+        setMaintenance(snapshot);
+        setError((current) => (current === MAINTENANCE_EVENTS_ERROR ? "" : current));
       } catch (exc) {
-        setError(String(exc));
+        if (!cancelled) setError((current) => current || String(exc));
       }
-    },
-    { enabled: maintenance.status === "running" }
-  );
+
+      if (cancelled) return;
+      events = new EventSource(runEventsUrl(currentMaintenanceEventsUrl, snapshot));
+      events.onmessage = (event) => {
+        setMaintenance((current) => applyRunStateEvent(current, JSON.parse(event.data)));
+        setError((current) => (current === MAINTENANCE_EVENTS_ERROR ? "" : current));
+      };
+      events.onerror = () => {
+        setError((current) => current || MAINTENANCE_EVENTS_ERROR);
+      };
+    }
+
+    void connectMaintenanceStream();
+    return () => {
+      cancelled = true;
+      events?.close();
+    };
+  }, []);
 
   const dirty = Boolean(draft && savedDraft && JSON.stringify(draftForDirty(draft)) !== JSON.stringify(draftForDirty(savedDraft)));
 
@@ -104,7 +129,7 @@ export function SettingsPage() {
       setSettings(saved);
       setSavedDraft(diskDraft);
       setDraft(cloneDraft(nextDraft));
-      setMaintenance(saved.maintenance);
+      setMaintenance(normalizeRunState(saved.maintenance));
       setActiveTheme(themeFromFrameworkSettings(nextDraft.framework));
     } catch (exc) {
       setError(String(exc));
@@ -181,7 +206,8 @@ export function SettingsPage() {
   const profileValidation = settings?.profile.validation;
   const cliValidation = settings?.maa_cli.validation;
   const effectiveTimezone = settings?.framework.effective_timezone;
-  const actionRunning = maintenance.status === "running";
+  const actionRunning = maintenance.status === "running" || maintenance.status === "stopping";
+  const hasMaintenanceLog = actionRunning || Boolean(maintenance.retries?.some((retry) => retry.log_entries?.length)) || error === MAINTENANCE_EVENTS_ERROR;
   const currentTimezoneMode = stringAt(framework, ["framework", "timezone", "mode"], "auto");
   const serverClientTimezoneMismatch =
     browserTimezone.offsetLabel !== effectiveTimezone?.label || (browserTimezone.name && effectiveTimezone?.name && browserTimezone.name !== effectiveTimezone.name);
@@ -244,12 +270,45 @@ export function SettingsPage() {
             help="保存时会重新解析。这里如果和浏览器时区冲突，后续定时任务可能和你的直觉不一致。"
             value={effectiveTimezone ? `${effectiveTimezone.label} · ${effectiveTimezone.name}` : "未保存"}
           />
-          <CheckboxField
-            label="定时执行"
-            help="启用后，后端会按定时配置扫描并触发到期任务。"
-            checked={booleanAt(framework, ["framework", "scheduler", "enabled"], false)}
-            onChange={(value) => updateDraft("framework", ["framework", "scheduler", "enabled"], value)}
-          />
+          <SectionTitle label="手动运行时限" help="用于手动任务、小工具和维护动作。0 表示不启用对应自动强停或警告。" />
+          <div className="grid grid-cols-2 gap-2 max-sm:grid-cols-1">
+            <NumberField
+              label="无输出警告"
+              value={runTimeoutValue(framework, "no_output_warning_seconds", 1800)}
+              min={0}
+              onChange={(value) => updateDraft("framework", ["framework", "run_timeouts", "no_output_warning_seconds"], value === "" ? 0 : value)}
+            />
+            <NumberField
+              label="无输出强停"
+              value={runTimeoutValue(framework, "no_output_kill_seconds", 0)}
+              min={0}
+              onChange={(value) => updateDraft("framework", ["framework", "run_timeouts", "no_output_kill_seconds"], value === "" ? 0 : value)}
+            />
+            <NumberField
+              label="运行时长警告"
+              value={runTimeoutValue(framework, "runtime_warning_seconds", 0)}
+              min={0}
+              onChange={(value) => updateDraft("framework", ["framework", "run_timeouts", "runtime_warning_seconds"], value === "" ? 0 : value)}
+            />
+            <NumberField
+              label="运行时长强停"
+              value={runTimeoutValue(framework, "runtime_kill_seconds", 0)}
+              min={0}
+              onChange={(value) => updateDraft("framework", ["framework", "run_timeouts", "runtime_kill_seconds"], value === "" ? 0 : value)}
+            />
+            <NumberField
+              label="停止等待警告"
+              value={runTimeoutValue(framework, "stop_warning_seconds", 60)}
+              min={0}
+              onChange={(value) => updateDraft("framework", ["framework", "run_timeouts", "stop_warning_seconds"], value === "" ? 0 : value)}
+            />
+            <NumberField
+              label="停止等待强停"
+              value={runTimeoutValue(framework, "stop_kill_seconds", 0)}
+              min={0}
+              onChange={(value) => updateDraft("framework", ["framework", "run_timeouts", "stop_kill_seconds"], value === "" ? 0 : value)}
+            />
+          </div>
           <SectionTitle label="主题" help="主题会立即应用并保存在浏览器本地，不需要点右下角保存。" />
           <div className="grid grid-cols-3 gap-1">
             {themeModes.map((mode) => {
@@ -413,11 +472,11 @@ export function SettingsPage() {
           <UpdateInfoPanel info={updateInfo} busy={updateInfoBusy} onRefresh={() => void handleRefreshUpdateInfo()} />
           <div className="grid grid-cols-[repeat(auto-fit,minmax(11rem,1fr))] gap-2">
             <Button className="min-w-0 whitespace-normal px-3" variant="outline" onClick={() => setMaintenanceConfirmKind("core-update")} disabled={actionRunning}>
-              <RefreshCw className={cn("size-4", actionRunning && maintenance.kind === "core-update" && "animate-spin")} />
+              <RefreshCw className={cn("size-4", actionRunning && maintenance.maintenance_kind === "core-update" && "animate-spin")} />
               更新 Core/基础包
             </Button>
             <Button className="min-w-0 whitespace-normal px-3" variant="outline" onClick={() => setMaintenanceConfirmKind("resource-update")} disabled={actionRunning}>
-              <RefreshCw className={cn("size-4", actionRunning && maintenance.kind === "resource-update" && "animate-spin")} />
+              <RefreshCw className={cn("size-4", actionRunning && maintenance.maintenance_kind === "resource-update" && "animate-spin")} />
               热更资源
             </Button>
             <Button className="min-w-0 whitespace-normal px-3" variant="outline" onClick={() => setMaintenanceConfirmKind("cli-update")} disabled={actionRunning}>
@@ -425,9 +484,17 @@ export function SettingsPage() {
               更新 maa-cli
             </Button>
           </div>
-          <MaintenanceOutput state={maintenance} />
           <ValidationList validation={cliValidation} />
           <PathLine label="maa-cli 配置文件" value={settings?.maa_cli.file.path || "config/maa/cli.toml"} />
+          {hasMaintenanceLog ? (
+            <LogPane
+              run={maintenance}
+              error={error === MAINTENANCE_EVENTS_ERROR ? error : ""}
+              emptyText="等待维护日志..."
+              hideHeader
+              className="max-h-64 min-h-32 border-dashed"
+            />
+          ) : null}
         </SettingsCard>
       </div>
       {error ? <div className="mt-4 rounded-md border border-destructive/30 bg-destructive/10 p-2 text-sm text-destructive">{error}</div> : null}
@@ -461,19 +528,6 @@ function SettingsCard({ title, children }: { title: string; children: React.Reac
       <CardTitle className="text-sm">{title}</CardTitle>
       <div className="grid min-w-0 gap-3">{children}</div>
     </Card>
-  );
-}
-
-function MaintenanceOutput({ state }: { state: MaintenanceActionState }) {
-  const output = (state.output || []).join("");
-  return (
-    <div className="grid gap-2">
-      <div className="flex items-center justify-between gap-2">
-        <span className={`status-pill ${state.status}`}>{maintenanceStatusText(state)}</span>
-        {state.return_code !== undefined && state.return_code !== null ? <span className="text-xs text-muted-foreground">exit {state.return_code}</span> : null}
-      </div>
-      {output ? <pre className="max-h-48 overflow-auto rounded-md border bg-background p-2 text-xs leading-5 whitespace-pre-wrap">{output}</pre> : null}
-    </div>
   );
 }
 
@@ -568,13 +622,6 @@ function maintenanceDialogContent(kind: string, info: UpdateInfoResponse | null)
   return { title: "执行更新", description: "将启动维护动作。" };
 }
 
-function maintenanceStatusText(state: MaintenanceActionState) {
-  if (state.status === "running") return state.title ? `${state.title}中` : "运行中";
-  if (state.status === "succeeded") return "已完成";
-  if (state.status === "failed") return "失败";
-  return "空闲";
-}
-
 function browserTimezoneInfo() {
   const date = new Date();
   const name = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
@@ -590,6 +637,10 @@ function timezoneOptions(browserTimezone: string) {
   const intlWithSupportedValues = Intl as typeof Intl & { supportedValuesOf?: (key: string) => string[] };
   const supported = typeof intlWithSupportedValues.supportedValuesOf === "function" ? intlWithSupportedValues.supportedValuesOf("timeZone") : [];
   return Array.from(new Set([browserTimezone, ...COMMON_TIMEZONES, ...supported])).filter(Boolean).sort();
+}
+
+function runTimeoutValue(framework: Record<string, unknown>, key: string, fallback: number) {
+  return optionalNumberAt(framework, ["framework", "run_timeouts", key]) ?? fallback;
 }
 
 function offsetLabel(offsetMinutes: number) {
@@ -611,7 +662,7 @@ function draftForDirty(value: SettingsDraft): SettingsDraft {
 function resourceLabel(value: unknown) {
   if (!isRecord(value)) return "";
   const name = typeof value.name === "string" ? value.name : "";
-  const updated = typeof value.last_updated === "string" ? value.last_updated : "";
+  const updated = typeof value.last_updated === "string" ? formatDateTime(value.last_updated) : "";
   return [name, updated].filter(Boolean).join(" · ");
 }
 

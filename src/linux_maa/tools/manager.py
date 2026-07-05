@@ -4,19 +4,21 @@ import subprocess
 import sys
 import threading
 import uuid
-from dataclasses import dataclass, field
-from datetime import datetime
+from dataclasses import dataclass
 from typing import Any, Callable
 
+from linux_maa.config.app_settings import FrameworkSettingsManager
 from linux_maa.config.manager import ConfigManager
 from linux_maa.diagnostics import Diagnostics, get_logger
 from linux_maa.logs.pipeline import LogSourceSpec, default_tone_for_source, plain_translate_line
 from linux_maa.logs.state import RunLogBuffer
 from linux_maa.maa.runtime import MaaRuntime
 from linux_maa.process import run_streaming_process
+from linux_maa.run_executor import LiveRetry, LiveRun, now_text
 from linux_maa.run_state import RunStateStore
 from linux_maa.settings import DEFAULT_DEVICE_SERIAL
 from linux_maa.state import idle_response
+from linux_maa.time_utils import server_now_iso
 from linux_maa.utils import dict_value
 
 
@@ -77,41 +79,6 @@ class ToolSpec:
     build_command: ToolCommandBuilder
 
 
-@dataclass
-class ToolRunState:
-    """Mutable runtime state for a single tool execution: status, config, return code, logs."""
-    id: str
-    tool_id: str
-    tool_title: str
-    status: str
-    created_at: str
-    updated_at: str
-    config: dict[str, object] = field(default_factory=dict)
-    return_code: int | None = None
-    log_file: str | None = None
-    log_files: dict[str, str] = field(default_factory=dict)
-    log: RunLogBuffer = field(default_factory=lambda: RunLogBuffer(max_output_chunks=2000))
-    process: subprocess.Popen[str] | None = field(default=None, repr=False)
-    stop_requested: bool = False
-
-    def to_dict(self, *, include_logs: bool = True) -> dict[str, object]:
-        data: dict[str, object] = {
-            "id": self.id,
-            "tool_id": self.tool_id,
-            "tool_title": self.tool_title,
-            "status": self.status,
-            "created_at": self.created_at,
-            "updated_at": self.updated_at,
-            "config": dict(self.config),
-            "return_code": self.return_code,
-            "log_file": self.log_file,
-            "log_files": dict(self.log_files),
-        }
-        if include_logs:
-            data.update(self.log.to_dict())
-        return data
-
-
 class ToolRunManager:
     """Manages lifecycle of external tool processes: register, start, stop, status, SSE."""
     def __init__(
@@ -120,15 +87,17 @@ class ToolRunManager:
         configs: ConfigManager,
         run_state: RunStateStore | None = None,
         diagnostics: Diagnostics | None = None,
+        framework_settings: FrameworkSettingsManager | None = None,
     ) -> None:
         self.runtime = runtime
         self.configs = configs
         self.run_state = run_state or RunStateStore(runtime)
         self.diagnostics = diagnostics or Diagnostics(runtime)
+        self.framework_settings = framework_settings or FrameworkSettingsManager(runtime)
         self._lock = threading.Lock()
         self._condition = threading.Condition(self._lock)
         self._version = 0
-        self._runs: dict[str, ToolRunState] = {}
+        self._runs: dict[str, LiveRun] = {}
         self._current_run_id: str | None = None
         self._specs = {
             "game-update": ToolSpec(
@@ -162,7 +131,7 @@ class ToolRunManager:
             return {"address": self._default_connection_address()}
         return {}
 
-    def start(self, tool_id: str, config: dict[str, object]) -> ToolRunState:
+    def start(self, tool_id: str, config: dict[str, object], *, retry_count: int = 1) -> LiveRun:
         spec = self._specs.get(tool_id)
         if spec is None:
             raise ValueError(f"Unsupported tool: {tool_id}")
@@ -171,29 +140,32 @@ class ToolRunManager:
         with self._lock:
             current = self._runs.get(self._current_run_id or "")
             if current and current.status in {"running", "stopping"}:
-                raise RuntimeError(f"Tool already running: {current.tool_title}")
+                raise RuntimeError(f"Tool already running: {current.title}")
 
-            now = datetime.now().isoformat(timespec="seconds")
             run_id = uuid.uuid4().hex[:12]
-            state = ToolRunState(
+            started_at = now_text()
+            log_files = self.diagnostics.tool_log_files(run_id)
+            max_retries = _retry_count(retry_count)
+            state = LiveRun(
                 id=run_id,
-                tool_id=tool_id,
-                tool_title=spec.definition.title,
-                status="running",
-                created_at=now,
-                updated_at=now,
-                config=sanitized_config,
-            )
-            state.log_file = self.diagnostics.tool_log_file(run_id)
-            state.log_files = self.diagnostics.tool_log_files(run_id)
-            _register_tool_log_sources(state.log)
-            self.run_state.create_tool_run(
-                run_id=run_id,
-                tool_id=tool_id,
+                kind="tool",
                 title=spec.definition.title,
-                log_file=state.log_file,
-                log_files=state.log_files,
+                status="running",
+                started_at=started_at,
+                updated_at=started_at,
+                max_retries=max_retries,
+                log_files=log_files,
                 event_log_file=self.diagnostics.event_log_file(run_id),
+                metadata={"tool_id": tool_id, "tool_title": spec.definition.title, "config": sanitized_config, "retry_count": max_retries},
+            )
+            self.run_state.create_run(
+                run_id=run_id,
+                kind="tool",
+                title=spec.definition.title,
+                max_retries=max_retries,
+                log_files=log_files,
+                event_log_file=state.event_log_file,
+                metadata={"tool_id": tool_id, "tool_title": spec.definition.title, "retry_count": max_retries},
             )
             self._runs[run_id] = state
             self._current_run_id = run_id
@@ -201,6 +173,7 @@ class ToolRunManager:
             self._notify_locked()
 
         thread = threading.Thread(target=self._run, args=(state, spec), daemon=True)
+        state.thread = thread
         thread.start()
         return state
 
@@ -218,112 +191,174 @@ class ToolRunManager:
                 self._condition.wait(timeout)
             return self._version
 
-    def stop_current(self) -> ToolRunState:
+    def stop_current(self) -> LiveRun:
         with self._lock:
             state = self._runs.get(self._current_run_id or "")
             if state is None or state.status not in {"running", "stopping"}:
                 raise KeyError("No tool run active")
             if state.status == "running":
-                state.stop_requested = True
-                state.status = "stopping"
-                state.updated_at = datetime.now().isoformat(timespec="seconds")
                 self.diagnostics.append_run_event(state.id, "tool", "framework", "收到停止请求，正在终止工具进程...\n", tone="warning")
                 self._append_framework_event_locked(state, "收到停止请求，正在终止工具进程...", tone="warning")
-                logger.warning("tool stop requested run_id=%s tool_id=%s", state.id, state.tool_id)
+                state.request_stop()
+                logger.warning("tool stop requested run_id=%s tool_id=%s", state.id, state.metadata.get("tool_id"))
                 self._notify_locked()
             return state
 
-    def _run(self, state: ToolRunState, spec: ToolSpec) -> None:
+    def force_stop_current(self) -> LiveRun:
+        with self._lock:
+            state = self._runs.get(self._current_run_id or "")
+            if state is None or state.status not in {"running", "stopping"}:
+                raise KeyError("No tool run active")
+            self.diagnostics.append_run_event(state.id, "tool", "framework", "收到强制停止请求，正在强杀工具进程...\n", tone="danger")
+            self._append_framework_event_locked(state, "收到强制停止请求，正在强杀工具进程...", tone="danger")
+            state.request_force_stop()
+            logger.warning("tool force stop requested run_id=%s tool_id=%s", state.id, state.metadata.get("tool_id"))
+            self._notify_locked()
+            return state
+
+    def _run(self, state: LiveRun, spec: ToolSpec) -> None:
         try:
-            command = spec.build_command(self, state.config)
+            command = spec.build_command(self, dict(state.metadata.get("config")) if isinstance(state.metadata.get("config"), dict) else {})
         except Exception as exc:
             self._append_framework_event(state, f"工具配置无效: {exc}", tone="danger")
-            logger.exception("tool command build failed run_id=%s tool_id=%s", state.id, state.tool_id)
-            self._set_done(state, "failed", None)
+            logger.exception("tool command build failed run_id=%s tool_id=%s", state.id, state.metadata.get("tool_id"))
+            if state.current_retry is not None:
+                self._finish_retry(state, state.current_retry, "failed", None)
+            self._finish_run(state, "failed", None)
             return
 
-        self._append_framework_event(state, f"运行: {state.tool_title}")
-        try:
-            result = run_streaming_process(
-                self.runtime,
-                command.cmd,
-                env=command.env,
-                on_output=lambda text: None,
-                on_stream_output=lambda stream, text: self._append_stream_output(state, stream, text),
-                on_process=lambda proc: self._set_process(state, proc),
-                should_stop=lambda: self._should_stop(state),
-            )
-            self._flush_tool_log(state)
-        except Exception as exc:
-            self._append_framework_event(state, f"工具启动失败: {exc}", tone="danger")
-            logger.exception("tool process failed run_id=%s tool_id=%s", state.id, state.tool_id)
-            self._set_done(state, "failed", None)
-            return
+        final_status = "failed"
+        final_return_code: int | None = None
+        while len(state.retries) < state.max_retries and not state.stop_requested:
+            retry = state.begin_retry(log=_new_tool_log_buffer(), log_files=state.log_files)
+            if retry.retry_index == 1:
+                self._append_framework_event(state, f"运行: {state.title}")
+            else:
+                self._append_framework_event(state, f"开始第 {retry.retry_index} 次重试", tone="warning")
+            try:
+                timeouts = self.framework_settings.run_timeouts()
+                result = run_streaming_process(
+                    self.runtime,
+                    command.cmd,
+                    env=command.env,
+                    on_output=lambda text: None,
+                    on_stream_output=lambda stream, text: self._append_stream_output(state, retry, stream, text),
+                    on_process=lambda proc: self._set_process(state, proc),
+                    should_stop=lambda: self._should_stop(state),
+                    should_force_stop=lambda: state.force_stop_requested,
+                    no_output_warning_seconds=timeouts.no_output_warning_seconds or None,
+                    no_output_kill_seconds=timeouts.no_output_kill_seconds or None,
+                    runtime_warning_seconds=timeouts.runtime_warning_seconds or None,
+                    runtime_kill_seconds=timeouts.runtime_kill_seconds or None,
+                    stop_warning_seconds=timeouts.stop_warning_seconds or None,
+                    stop_kill_seconds=timeouts.stop_kill_seconds or None,
+                    on_timeout=lambda level, elapsed: self._append_timeout_event(state, level, elapsed),
+                )
+                self._flush_tool_log(state, retry)
+            except Exception as exc:
+                self._append_framework_event(state, f"工具启动失败: {exc}", tone="danger")
+                logger.exception("tool process failed run_id=%s tool_id=%s", state.id, state.metadata.get("tool_id"))
+                self._finish_retry(state, retry, "failed", None)
+                final_status = "failed"
+                break
 
-        return_code = result.return_code
-        if result.stopped or state.status == "stopping":
-            self._append_framework_event(state, f"工具退出码: {return_code}", tone="warning")
-            self._set_done(state, "stopped", return_code)
-        elif return_code == 0:
-            self._append_framework_event(state, "工具执行完成", tone="success")
-            self._set_done(state, "succeeded", 0)
-        else:
-            self._append_framework_event(state, f"工具退出码: {return_code}", tone="danger")
-            self._set_done(state, "failed", return_code)
+            final_return_code = result.return_code
+            if result.stopped or state.status == "stopping":
+                self._append_framework_event(state, f"工具退出码: {result.return_code}", tone="warning")
+                self._finish_retry(state, retry, "stopped", result.return_code)
+                final_status = "stopped"
+                break
+            if result.return_code == 0:
+                self._append_framework_event(state, "工具执行完成", tone="success")
+                self._finish_retry(state, retry, "succeeded", 0)
+                final_status = "succeeded"
+                break
+            self._append_framework_event(state, f"工具退出码: {result.return_code}", tone="danger")
+            self._finish_retry(state, retry, "failed", result.return_code)
+            if len(state.retries) < state.max_retries:
+                self._append_framework_event(state, "准备重试工具运行。", tone="warning")
+        if state.stop_requested and final_status == "failed":
+            final_status = "stopped"
+        self._finish_run(state, final_status, final_return_code)
 
-    def _append_stream_output(self, state: ToolRunState, stream: str, text: str) -> None:
+    def _append_stream_output(self, state: LiveRun, retry: LiveRetry, stream: str, text: str) -> None:
         self.diagnostics.append_tool_output(state.id, stream, text)
-        if state.log.append(text, source=f"tool:{stream}"):
-            self._mark_log_updated(state)
+        if retry.log.append(text, source=f"tool:{stream}"):
+            self._mark_log_updated(state, retry)
 
-    def _flush_tool_log(self, state: ToolRunState) -> None:
-        if state.log.flush():
-            self._mark_log_updated(state)
+    def _flush_tool_log(self, state: LiveRun, retry: LiveRetry) -> None:
+        if retry.log.flush():
+            self._mark_log_updated(state, retry)
 
-    def _mark_log_updated(self, state: ToolRunState) -> None:
+    def _mark_log_updated(self, state: LiveRun, retry: LiveRetry | None = None) -> None:
         with self._lock:
-            state.updated_at = datetime.now().isoformat(timespec="seconds")
+            if retry is not None:
+                retry.touch()
+            state.touch()
             self._notify_locked()
 
-    def _append_framework_event(self, state: ToolRunState, text: str, *, tone: str = "info") -> None:
+    def _append_framework_event(self, state: LiveRun, text: str, *, tone: str = "info") -> None:
         self.diagnostics.append_run_event(state.id, "tool", "framework", _ensure_newline(text), tone=tone)
         logger.info("tool event run_id=%s text=%s", state.id, text)
         with self._lock:
             self._append_framework_event_locked(state, text, tone=tone)
             self._notify_locked()
 
-    def _append_framework_event_locked(self, state: ToolRunState, text: str, *, tone: str = "info") -> None:
-        state.log.append(_ensure_newline(text), source="framework:event", metadata={"time": datetime.now().strftime("%H:%M:%S"), "tone": tone})
-        state.updated_at = datetime.now().isoformat(timespec="seconds")
+    def _append_framework_event_locked(self, state: LiveRun, text: str, *, tone: str = "info") -> None:
+        retry = state.current_retry
+        if retry is None:
+            retry = state.begin_retry(log=_new_tool_log_buffer())
+        if retry.log.append(_ensure_newline(text), source="framework:event", metadata={"time": server_now_iso(), "tone": tone}):
+            retry.touch()
+        state.touch()
 
-    def _set_done(self, state: ToolRunState, status: str, return_code: int | None) -> None:
+    def _finish_retry(self, state: LiveRun, retry: LiveRetry, status: str, return_code: int | None) -> None:
         with self._lock:
-            state.status = status
-            state.return_code = return_code
-            state.process = None
-            state.updated_at = datetime.now().isoformat(timespec="seconds")
+            retry.seal(status=status, return_code=return_code)
             self._notify_locked()
-        self.run_state.add_single_attempt(
+        self.run_state.add_retry(
+            retry_id=retry.id,
             run_id=state.id,
+            retry_index=retry.retry_index,
+            retry_group=retry.retry_group,
             status=status,
-            started_at=state.created_at,
-            ended_at=state.updated_at,
+            started_at=retry.started_at,
+            updated_at=retry.updated_at,
+            ended_at=retry.ended_at or retry.updated_at,
             return_code=return_code,
-            task_results=state.log.task_results(),
-            log_entries=state.log.entries(),
-            log_file=state.log_file,
-            log_files=state.log_files,
+            task_ids=retry.task_ids,
+            task_results=retry.task_results,
+            log_entries=retry.log.entries(),
+            log_files=retry.log_files,
         )
-        self.run_state.finish_generic_run(state.id, status=status, return_code=return_code)
+
+    def _finish_run(self, state: LiveRun, status: str, return_code: int | None) -> None:
+        with self._lock:
+            state.finish(status=status, return_code=return_code)
+            self._notify_locked()
+        self.run_state.finish_run(state.id, status=status, return_code=return_code, retry_count=len(state.retries), retry_group_count=1)
         self.run_state.enforce_retention()
         self.diagnostics.enforce_retention()
         logger.info("tool run finished run_id=%s status=%s return_code=%s", state.id, status, return_code)
 
-    def _set_process(self, state: ToolRunState, proc: subprocess.Popen[str]) -> None:
+    def _append_timeout_event(self, state: LiveRun, level: str, elapsed: float) -> None:
+        messages = {
+            "no_output_warning": f"已 {elapsed:.0f}s 没有收到工具输出，工具可能卡住。",
+            "no_output_kill": f"已 {elapsed:.0f}s 没有收到工具输出，正在强制终止。",
+            "runtime_warning": f"工具运行时间已超过 {elapsed:.0f}s。",
+            "runtime_kill": "工具运行时间已超过上限，正在强制终止。",
+            "stop_warning": f"停止请求已等待 {elapsed:.0f}s，工具可能没有响应停止命令。",
+            "stop_kill": "停止等待超过上限，正在强制终止工具。",
+            "force_kill": "正在强制终止工具。",
+        }
+        tone = "warning" if level.endswith("warning") else "danger"
+        self._append_framework_event(state, messages.get(level, f"工具超时事件: {level}"), tone=tone)
+
+    def _set_process(self, state: LiveRun, proc: subprocess.Popen[str]) -> None:
         with self._lock:
             state.process = proc
 
-    def _should_stop(self, state: ToolRunState) -> bool:
+    def _should_stop(self, state: LiveRun) -> bool:
         with self._lock:
             return state.stop_requested
 
@@ -377,6 +412,19 @@ def _ensure_newline(text: str) -> str:
     return text if text.endswith("\n") else f"{text}\n"
 
 
+def _retry_count(value: object) -> int:
+    try:
+        return min(50, max(1, int(value)))  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return 1
+
+
 def _register_tool_log_sources(log: RunLogBuffer) -> None:
     for source in ("tool:stdout", "tool:stderr"):
         log.register_source(LogSourceSpec(source, default_tone_for_source(source), plain_translate_line))
+
+
+def _new_tool_log_buffer() -> RunLogBuffer:
+    log = RunLogBuffer(max_output_chunks=2000)
+    _register_tool_log_sources(log)
+    return log

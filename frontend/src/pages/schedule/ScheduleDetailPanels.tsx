@@ -1,10 +1,12 @@
-import { Eye } from "lucide-react";
+import { Eye, Trash2 } from "lucide-react";
+import type { ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
 import { CardContent, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { STATUS_LABELS } from "@/lib/logs";
+import { formatDateTime } from "@/lib/time";
 import type { ScheduleConfig, ScheduleResponse, ScheduledRunSummary } from "@/lib/types";
 import { ProfileEditor } from "@/components/ProfileEditor";
 
@@ -20,17 +22,21 @@ export function ScheduleSettings({ schedule, detail, onChange }: { schedule: Sch
 
       <section className="grid gap-3 rounded-md border bg-background p-3">
         <CardTitle className="text-sm">超时与重试</CardTitle>
-        <div className="grid grid-cols-3 gap-2 max-lg:grid-cols-2 max-sm:grid-cols-1">
-          <NumberInput label="子任务警报" value={schedule.timeouts.child_warning_seconds} onChange={(value) => updateTimeout(schedule, onChange, "child_warning_seconds", value)} />
-          <NumberInput label="子任务危险警报" value={schedule.timeouts.child_danger_seconds} onChange={(value) => updateTimeout(schedule, onChange, "child_danger_seconds", value)} />
-          <NumberInput label="子任务硬停止" value={schedule.timeouts.child_kill_seconds} onChange={(value) => updateTimeout(schedule, onChange, "child_kill_seconds", value)} />
-          <NumberInput label="整组警报" value={schedule.timeouts.run_warning_seconds} onChange={(value) => updateTimeout(schedule, onChange, "run_warning_seconds", value)} />
-          <NumberInput label="整组危险警报" value={schedule.timeouts.run_danger_seconds} onChange={(value) => updateTimeout(schedule, onChange, "run_danger_seconds", value)} />
-          <NumberInput label="整组硬停止" value={schedule.timeouts.run_kill_seconds} onChange={(value) => updateTimeout(schedule, onChange, "run_kill_seconds", value)} />
-          <NumberInput label="单组重试上限" value={schedule.retry.max_attempts_per_group} onChange={(value) => onChange({ ...schedule, retry: { ...schedule.retry, max_attempts_per_group: value } })} />
-          <NumberInput label="重试组缓冲" value={schedule.retry.group_buffer_seconds} onChange={(value) => onChange({ ...schedule, retry: { ...schedule.retry, group_buffer_seconds: value } })} />
-          <NumberInput label="重试组上限" value={schedule.retry.max_groups} onChange={(value) => onChange({ ...schedule, retry: { ...schedule.retry, max_groups: value } })} />
-        </div>
+        <ConfigGroup title="重试配置">
+          <NumberInput label="最大重试次数" value={schedule.retry.max_retries} onChange={(value) => onChange({ ...schedule, retry: { ...schedule.retry, max_retries: value } })} />
+          <NumberInput label="间隔重试次数" value={schedule.retry.buffer_every_retries} onChange={(value) => onChange({ ...schedule, retry: { ...schedule.retry, buffer_every_retries: value } })} />
+          <NumberInput label="缓冲时间" value={schedule.retry.buffer_seconds} onChange={(value) => onChange({ ...schedule, retry: { ...schedule.retry, buffer_seconds: value } })} />
+        </ConfigGroup>
+        <ConfigGroup title="警告时限">
+          <NumberInput label="无输出警告" value={schedule.timeouts.no_output_warning_seconds} onChange={(value) => updateTimeout(schedule, onChange, "no_output_warning_seconds", value)} />
+          <NumberInput label="运行时长警告" value={schedule.timeouts.runtime_warning_seconds} onChange={(value) => updateTimeout(schedule, onChange, "runtime_warning_seconds", value)} />
+          <NumberInput label="停止等待警告" value={schedule.timeouts.stop_warning_seconds} onChange={(value) => updateTimeout(schedule, onChange, "stop_warning_seconds", value)} />
+        </ConfigGroup>
+        <ConfigGroup title="强制停止时限">
+          <NumberInput label="无输出强停" value={schedule.timeouts.no_output_kill_seconds} onChange={(value) => updateTimeout(schedule, onChange, "no_output_kill_seconds", value)} />
+          <NumberInput label="运行时长强停" value={schedule.timeouts.runtime_kill_seconds} onChange={(value) => updateTimeout(schedule, onChange, "runtime_kill_seconds", value)} />
+          <NumberInput label="停止等待强停" value={schedule.timeouts.stop_kill_seconds} onChange={(value) => updateTimeout(schedule, onChange, "stop_kill_seconds", value)} />
+        </ConfigGroup>
       </section>
 
       <section className="grid gap-3 rounded-md border bg-background p-3">
@@ -43,7 +49,6 @@ export function ScheduleSettings({ schedule, detail, onChange }: { schedule: Sch
             <SelectContent>
               <SelectItem value="none">不重启</SelectItem>
               <SelectItem value="before_run">运行前重启</SelectItem>
-              <SelectItem value="before_retry_group">重试组前重启</SelectItem>
               <SelectItem value="before_retry">每次重试前重启</SelectItem>
             </SelectContent>
           </Select>
@@ -91,12 +96,14 @@ export function ScheduleStats({
   detail,
   selectedHistoryRunId,
   loadingHistoryRunId,
-  onViewHistory
+  onViewHistory,
+  onDeleteHistory
 }: {
   detail: ScheduleResponse;
   selectedHistoryRunId?: string;
   loadingHistoryRunId?: string;
   onViewHistory?: (run: ScheduledRunSummary) => void;
+  onDeleteHistory?: (run: ScheduledRunSummary) => void;
 }) {
   return (
     <div className="grid gap-3 pr-3">
@@ -119,35 +126,63 @@ export function ScheduleStats({
         <div className="grid gap-2">
           {detail.recent_runs.map((item) => (
             <div key={item.id} data-active={item.id === selectedHistoryRunId ? "true" : undefined} className="group grid gap-1 rounded-md border bg-card p-2 text-xs transition-all hover:-translate-y-px hover:border-border/80 hover:shadow-md data-[active=true]:border-primary data-[active=true]:bg-accent/70">
-              <div className="grid grid-cols-[auto_minmax(0,1fr)_28px] items-center gap-2">
-                <span className={`status-pill ${item.status}`}>{STATUS_LABELS[item.status] || item.status}</span>
-                <span className="min-w-0 truncate text-right text-muted-foreground">{item.created_at}</span>
-                {onViewHistory ? (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="size-6 text-muted-foreground/70 opacity-0 transition-opacity hover:text-foreground hover:opacity-100 focus-visible:opacity-100 group-hover:opacity-70"
-                    aria-label={`查看 ${item.entry_name} 历史日志`}
-                    disabled={loadingHistoryRunId === item.id}
-                    onClick={(event) => {
-                      event.preventDefault();
-                      event.stopPropagation();
-                      onViewHistory(item);
-                    }}
-                  >
-                    <Eye className="size-3.5" />
-                  </Button>
-                ) : (
-                  <span aria-hidden="true" />
-                )}
+              <div className="flex min-w-0 items-center justify-between gap-2">
+                <div className="flex min-w-0 items-center gap-2">
+                  <span className={`status-pill ${item.status}`}>{STATUS_LABELS[item.status] || item.status}</span>
+                  <span className="rounded-sm border bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">{item.trigger === "manual" ? "手动" : "定时"}</span>
+                </div>
+                <div className="ml-auto flex h-6 shrink-0 items-center gap-1">
+                  {onViewHistory ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="size-6 text-muted-foreground/70 opacity-0 transition-opacity hover:text-foreground hover:opacity-100 focus-visible:opacity-100 group-hover:opacity-70"
+                      aria-label={`查看 ${item.entry_name} 历史日志`}
+                      disabled={loadingHistoryRunId === item.id}
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        onViewHistory(item);
+                      }}
+                    >
+                      <Eye className="size-3.5" />
+                    </Button>
+                  ) : null}
+                  {onDeleteHistory ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="size-6 text-muted-foreground/70 opacity-0 transition-opacity hover:text-destructive hover:opacity-100 focus-visible:opacity-100 group-hover:opacity-70"
+                      aria-label={`删除 ${item.entry_name} 运行记录`}
+                      disabled={loadingHistoryRunId === item.id}
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        onDeleteHistory(item);
+                      }}
+                    >
+                      <Trash2 className="size-3.5" />
+                    </Button>
+                  ) : null}
+                </div>
               </div>
-              <div className="text-muted-foreground">{item.entry_name} · 尝试 {item.attempt_count} · 重试组 {item.retry_group_count}</div>
+              <div className="truncate text-muted-foreground">{formatDateTime(item.started_at)} · {item.entry_name} · 重试 {item.retry_count}</div>
             </div>
           ))}
           {detail.recent_runs.length === 0 ? <CardContent className="p-0 text-xs text-muted-foreground">暂无运行记录</CardContent> : null}
         </div>
       </section>
+    </div>
+  );
+}
+
+function ConfigGroup({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <div className="grid gap-2">
+      <div className="text-[11px] font-medium text-muted-foreground">{title}</div>
+      <div className="grid grid-cols-3 gap-2 max-lg:grid-cols-2 max-sm:grid-cols-1">{children}</div>
     </div>
   );
 }

@@ -3,7 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { DirtyActions } from "@/components/DirtyActions";
-import { currentRunEventsUrl, deleteConfig, getCurrentRun, listConfigs, readTaskConfig, saveTaskConfig, startRun, stopRun } from "@/lib/api";
+import { currentRunEventsUrl, deleteConfig, forceStopRun, getCurrentRun, listConfigs, readTaskConfig, saveTaskConfig, startRun, stopRun } from "@/lib/api";
 import { applyRunStateEvent, runEventsUrl } from "@/lib/runStream";
 import { createTaskItem } from "@/lib/taskItemDefaults";
 import {
@@ -36,6 +36,7 @@ const DEFAULT_TASK_CONFIG_DATA = {
   "$schema": "../../../docs/maa-cli/schemas/task.schema.json"
 };
 const LAST_MAIN_PATH_KEY = "linux-maa:last-main-path";
+const MAIN_RETRY_COUNT_KEY = "linux-maa:main-retry-count";
 const RUN_EVENTS_ERROR = "运行日志事件流连接中断，正在重连...";
 
 export function MainPage() {
@@ -48,10 +49,11 @@ export function MainPage() {
   const [currentConfig, setCurrentConfig] = React.useState<ConfigResponse | null>(null);
   const [taskItems, setTaskItems] = React.useState<TaskItem[]>([]);
   const [draftsByConfig, setDraftsByConfig] = React.useState<Record<string, TaskConfigDraft>>({});
-  const [run, setRun] = React.useState<RunState>({ status: "idle", output: [] });
+  const [run, setRun] = React.useState<RunState>({ status: "idle", run: { status: "idle" }, retries: [] });
   const [error, setError] = React.useState("");
   const [confirmAction, setConfirmAction] = React.useState<ConfirmAction>(null);
   const [actionBusy, setActionBusy] = React.useState(false);
+  const [retryCount, setRetryCount] = React.useState(() => readStoredCount(MAIN_RETRY_COUNT_KEY, 1));
 
   const profile = "default";
   const taskConfig = routedTaskConfig;
@@ -254,7 +256,8 @@ export function MainPage() {
       const data = await startRun({
         task: taskConfig,
         profile,
-        log_level: 1
+        log_level: 1,
+        retry_count: retryCount
       });
       setRun(data);
     } catch (exc) {
@@ -264,7 +267,8 @@ export function MainPage() {
 
   async function handleStopRun() {
     if (!run.id) return;
-    await stopRun(run.id);
+    const next = run.status === "stopping" ? await forceStopRun(run.id) : await stopRun(run.id);
+    setRun(next);
   }
 
   function handleTaskItemsReorder(sourceId: string, targetIndex: number) {
@@ -380,6 +384,11 @@ export function MainPage() {
         onTaskItemsReorder={handleTaskItemsReorder}
         onStartRun={handleStartRun}
         onStopRun={handleStopRun}
+        retryCount={retryCount}
+        onRetryCountChange={(value) => {
+          setRetryCount(value);
+          window.localStorage.setItem(MAIN_RETRY_COUNT_KEY, String(value));
+        }}
       />
       <ConfigEditorPane
         taskConfig={taskConfig}
@@ -412,6 +421,11 @@ export function MainPage() {
       />
     </section>
   );
+}
+
+function readStoredCount(key: string, fallback: number) {
+  const value = Number(window.localStorage.getItem(key));
+  return Number.isFinite(value) ? Math.min(50, Math.max(1, value)) : fallback;
 }
 
 function omitDraft(drafts: Record<string, TaskConfigDraft>, name: string) {

@@ -1,13 +1,14 @@
 import React from "react";
 
-import { currentToolRunEventsUrl, getCurrentToolRun, listTools, startToolRun, stopCurrentToolRun } from "@/lib/api";
-import { applyRunStateEvent, runEventsUrl } from "@/lib/runStream";
+import { currentToolRunEventsUrl, forceStopCurrentToolRun, getCurrentToolRun, listTools, startToolRun, stopCurrentToolRun } from "@/lib/api";
+import { applyRunStateEvent, normalizeRunState, runEventsUrl } from "@/lib/runStream";
 import type { RunState, ToolDefinition } from "@/lib/types";
 import { LogPane } from "@/pages/main/LogPane";
 import { ToolConfigPane } from "@/pages/tools/ToolConfigPane";
 import { ToolListPane } from "@/pages/tools/ToolListPane";
 
 const TOOL_EVENTS_ERROR = "小工具日志事件流连接中断，正在重连...";
+const TOOL_RETRY_COUNT_KEY = "linux-maa:tool-retry-count";
 
 export function ToolsPage() {
   const [tools, setTools] = React.useState<ToolDefinition[]>([]);
@@ -16,6 +17,7 @@ export function ToolsPage() {
   const [run, setRun] = React.useState<RunState>(() => idleRun());
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState("");
+  const [retryCount, setRetryCount] = React.useState(() => readStoredCount(TOOL_RETRY_COUNT_KEY, 1));
 
   React.useEffect(() => {
     let cancelled = false;
@@ -26,7 +28,7 @@ export function ToolsPage() {
       setTools(data.tools);
       setSelectedToolId((current) => current || data.tools[0]?.id || "");
       setConfigByTool((current) => mergeDefaultConfigs(current, data.tools));
-      setRun(data.current_run || idleRun());
+      setRun(data.current_run ? normalizeRunState(data.current_run) : idleRun());
       setError("");
     }
 
@@ -92,7 +94,7 @@ export function ToolsPage() {
     setBusy(true);
     setError("");
     try {
-      const started = await startToolRun(selectedTool.id, selectedConfig);
+      const started = await startToolRun(selectedTool.id, selectedConfig, retryCount);
       setRun(started);
     } catch (exc) {
       setError(String(exc));
@@ -115,6 +117,20 @@ export function ToolsPage() {
     }
   }
 
+  async function handleForceStop() {
+    if (busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      const stopped = await forceStopCurrentToolRun();
+      setRun(stopped);
+    } catch (exc) {
+      setError(String(exc));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <section className="grid h-screen min-h-0 grid-cols-[270px_minmax(360px,1fr)_380px] gap-4 overflow-hidden p-4 max-xl:grid-cols-[270px_minmax(320px,1fr)] max-md:h-auto max-md:grid-cols-1 max-md:overflow-auto max-md:p-2">
       <ToolListPane tools={tools} selectedToolId={selectedToolId} activeToolId={activeToolId} onSelect={setSelectedToolId} />
@@ -126,6 +142,12 @@ export function ToolsPage() {
         onConfigChange={handleConfigChange}
         onRun={handleRun}
         onStop={handleStop}
+        onForceStop={handleForceStop}
+        retryCount={retryCount}
+        onRetryCountChange={(value) => {
+          setRetryCount(value);
+          window.localStorage.setItem(TOOL_RETRY_COUNT_KEY, String(value));
+        }}
       />
       <LogPane run={visibleRun} error={error} title="小工具日志" emptyText="等待小工具日志..." />
     </section>
@@ -155,5 +177,10 @@ function isActiveRun(run: RunState) {
 }
 
 function idleRun(streamVersion?: number): RunState {
-  return { status: "idle", stream_version: streamVersion, output: [], task_results: [], log_entries: [] };
+  return { status: "idle", run: { status: "idle" }, stream_version: streamVersion, retries: [] };
+}
+
+function readStoredCount(key: string, fallback: number) {
+  const value = Number(window.localStorage.getItem(key));
+  return Number.isFinite(value) ? Math.min(50, Math.max(1, value)) : fallback;
 }

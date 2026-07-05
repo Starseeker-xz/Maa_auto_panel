@@ -10,10 +10,11 @@ from linux_maa.config.manager import ConfigManager
 from linux_maa.diagnostics import Diagnostics
 from linux_maa.maa.runtime import MaaRuntime
 from linux_maa.process import run_streaming_process
+from linux_maa.run_executor import LiveRun
 from linux_maa.scheduler.models import RestartScriptPolicy, ScheduleConfig, ScheduleEntry
 from linux_maa.scheduler.scripts import ScheduleScriptManager
-from linux_maa.scheduler.service import SchedulerService, ScheduleRunState
-from linux_maa.tools.manager import ToolRunManager, ToolRunState, _build_game_update_command
+from linux_maa.scheduler.service import SchedulerService
+from linux_maa.tools.manager import ToolRunManager, _build_game_update_command
 from linux_maa.utils import is_newer_version, write_text_atomic
 from linux_maa.web.app import create_app
 
@@ -79,13 +80,14 @@ def test_game_update_tool_runs_python_unbuffered(tmp_path: Path) -> None:
 def test_tool_start_rejects_stopping_current_run(tmp_path: Path) -> None:
     runtime = MaaRuntime(tmp_path)
     manager = ToolRunManager(runtime, ConfigManager(runtime))
-    state = ToolRunState(
+    state = LiveRun(
         id="run-1",
-        tool_id="game-update",
-        tool_title="更新游戏",
+        kind="tool",
+        title="更新游戏",
         status="stopping",
-        created_at="2026-07-03T00:00:00",
+        started_at="2026-07-03T00:00:00",
         updated_at="2026-07-03T00:00:00",
+        metadata={"tool_id": "game-update", "tool_title": "更新游戏"},
     )
     with manager._lock:
         manager._runs[state.id] = state
@@ -93,6 +95,47 @@ def test_tool_start_rejects_stopping_current_run(tmp_path: Path) -> None:
 
     with pytest.raises(RuntimeError):
         manager.start("game-update", {})
+
+
+def test_live_run_retry_count_and_terminal_force_stop_are_stable() -> None:
+    state = LiveRun(
+        id="run-1",
+        kind="schedule",
+        title="Daily / 19:00",
+        status="stopped",
+        started_at="2026-07-05T18:00:00",
+        updated_at="2026-07-05T18:24:02",
+        metadata={"retry_count": 12},
+    )
+    state.begin_retry()
+
+    state.request_force_stop()
+    data = state.run_dict()
+
+    assert data["status"] == "stopped"
+    assert data["retry_count"] == 1
+    assert data["force_stop_requested"] is False
+
+
+def test_scheduler_force_stop_terminal_current_run_is_idempotent() -> None:
+    service = SchedulerService.__new__(SchedulerService)
+    state = LiveRun(
+        id="run-1",
+        kind="schedule",
+        title="Daily / 19:00",
+        status="stopped",
+        started_at="2026-07-05T18:00:00",
+        updated_at="2026-07-05T18:24:02",
+        metadata={"schedule_id": "daily"},
+    )
+    service._lock = threading.RLock()
+    service._current = state
+
+    returned = service.force_stop_current()
+
+    assert returned is state
+    assert state.status == "stopped"
+    assert state.force_stop_requested is False
 
 
 def test_create_schedule_keeps_explicit_task_config_when_listing_is_empty() -> None:
@@ -144,24 +187,29 @@ def test_create_schedule_keeps_explicit_task_config_when_listing_is_empty() -> N
 
 def test_schedule_response_uses_single_current_snapshot_for_matching_run() -> None:
     service = SchedulerService.__new__(SchedulerService)
-    run = ScheduleRunState(
+    run = LiveRun(
         id="run-1",
-        schedule_id="target-schedule",
-        schedule_name="Target schedule",
-        entry_id="t0400",
-        entry_name="04:00",
-        task_config="daily",
-        profile_name="default",
+        kind="schedule",
+        title="Target schedule / 04:00",
         status="running",
-        created_at="2026-07-01T04:00:00",
+        started_at="2026-07-01T04:00:00",
         updated_at="2026-07-01T04:00:00",
-        log_level=1,
-        game_day="2026-07-01",
-        trigger="manual",
+        metadata={
+            "schedule_id": "target-schedule",
+            "schedule_name": "Target schedule",
+            "entry_id": "t0400",
+            "entry_name": "04:00",
+            "task_config": "daily",
+            "profile": "default",
+            "profile_name": "default",
+            "log_level": 1,
+            "game_day": "2026-07-01",
+            "trigger": "manual",
+        },
     )
     calls = 0
 
-    def current() -> ScheduleRunState | None:
+    def current() -> LiveRun | None:
         nonlocal calls
         calls += 1
         return run if calls == 1 else None
@@ -225,7 +273,7 @@ def test_schedule_response_uses_single_current_snapshot_for_matching_run() -> No
     response = service._schedule_response(config)
 
     assert calls == 1
-    assert response["current_run"]["id"] == "run-1"
+    assert response["current_run"]["run"]["id"] == "run-1"
 
 
 def test_schedule_restart_script_streams_to_visible_logs_and_diagnostics(tmp_path: Path) -> None:
@@ -247,20 +295,25 @@ def test_schedule_restart_script_streams_to_visible_logs_and_diagnostics(tmp_pat
     service._lock = threading.Lock()
     service._condition = threading.Condition(service._lock)
     service._version = 0
-    state = ScheduleRunState(
+    state = LiveRun(
         id="run-script",
-        schedule_id="daily",
-        schedule_name="Daily",
-        entry_id="t0400",
-        entry_name="04:00",
-        task_config="daily",
-        profile_name="default",
+        kind="schedule",
+        title="Daily / 04:00",
         status="running",
-        created_at="2026-07-03T00:00:00",
+        started_at="2026-07-03T00:00:00",
         updated_at="2026-07-03T00:00:00",
-        log_level=1,
-        game_day="2026-07-03",
-        trigger="manual",
+        metadata={
+            "schedule_id": "daily",
+            "schedule_name": "Daily",
+            "entry_id": "t0400",
+            "entry_name": "04:00",
+            "task_config": "daily",
+            "profile": "default",
+            "profile_name": "default",
+            "log_level": 1,
+            "game_day": "2026-07-03",
+            "trigger": "manual",
+        },
     )
     config = ScheduleConfig(
         id="daily",
@@ -274,11 +327,11 @@ def test_schedule_restart_script_streams_to_visible_logs_and_diagnostics(tmp_pat
 
     service._run_restart_script(state, config, "before_run")
 
-    entries = state.to_dict()["log_entries"]
+    entries = state.to_dict()["retries"][0]["log_entries"]
     lines = [entry["messages"][0]["text"] for entry in entries if entry["kind"] in {"event", "line"}]
     assert lines[0] == "运行重启脚本(before_run): hook.sh"
     assert set(lines[1:]) == {"Summary", "target=ark", f"warn={runtime.config_dir}"}
-    assert state.log.task_results() == []
+    assert state.retries[0].task_results == []
     assert (tmp_path / "debug/linux-maa/external/scripts/run-script.stdout.log").read_text(encoding="utf-8") == "Summary\ntarget=ark\n"
     assert (tmp_path / "debug/linux-maa/external/scripts/run-script.stderr.log").read_text(encoding="utf-8") == f"warn={runtime.config_dir}\n"
 

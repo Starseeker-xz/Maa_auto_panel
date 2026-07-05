@@ -11,6 +11,7 @@ from linux_maa.web.services import WebServices
 
 class StartToolPayload(BaseModel):
     config: dict[str, Any] = Field(default_factory=dict)
+    retry_count: int = Field(default=1, ge=1, le=50)
 
 
 def create_tools_router(services: WebServices) -> APIRouter:
@@ -37,10 +38,17 @@ def create_tools_router(services: WebServices) -> APIRouter:
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="No tool run active") from exc
 
+    @router.post("/current/force-stop")
+    def force_stop_current_tool_run() -> dict[str, object]:
+        try:
+            return tools.force_stop_current().to_dict()
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="No tool run active") from exc
+
     @router.post("/{tool_id}/run")
     def start_tool_run(tool_id: str, payload: StartToolPayload) -> dict[str, object]:
         try:
-            return tools.start(tool_id, payload.config).to_dict()
+            return tools.start(tool_id, payload.config, retry_count=payload.retry_count).to_dict()
         except RuntimeError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
         except ValueError as exc:

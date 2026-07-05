@@ -168,17 +168,17 @@ def schedule_from_data(data: dict[str, Any], *, fallback_id: str) -> ScheduleCon
             log_level=bounded_int(data.get("log_level"), default=1, minimum=0, maximum=3),
         entries=entries,
         retry=ScheduleRetryPolicy(
-            max_attempts_per_group=bounded_int(raw_retry.get("max_attempts_per_group"), default=5, minimum=1, maximum=50),
-            group_buffer_seconds=bounded_int(raw_retry.get("group_buffer_seconds"), default=300, minimum=0, maximum=86400),
-            max_groups=bounded_int(raw_retry.get("max_groups"), default=3, minimum=1, maximum=50),
+            max_retries=bounded_int(raw_retry.get("max_retries"), default=5, minimum=1, maximum=50),
+            buffer_every_retries=bounded_int(raw_retry.get("buffer_every_retries"), default=0, minimum=0, maximum=50),
+            buffer_seconds=bounded_int(raw_retry.get("buffer_seconds"), default=0, minimum=0, maximum=172800),
         ),
         timeouts=ScheduleTimeouts(
-            child_warning_seconds=bounded_int(raw_timeouts.get("child_warning_seconds"), default=900, minimum=0, maximum=86400),
-            child_danger_seconds=bounded_int(raw_timeouts.get("child_danger_seconds"), default=1200, minimum=0, maximum=86400),
-            child_kill_seconds=bounded_int(raw_timeouts.get("child_kill_seconds"), default=1800, minimum=0, maximum=86400),
-            run_warning_seconds=bounded_int(raw_timeouts.get("run_warning_seconds"), default=1800, minimum=0, maximum=172800),
-            run_danger_seconds=bounded_int(raw_timeouts.get("run_danger_seconds"), default=2400, minimum=0, maximum=172800),
-            run_kill_seconds=bounded_int(raw_timeouts.get("run_kill_seconds"), default=3600, minimum=0, maximum=172800),
+            no_output_warning_seconds=bounded_int(raw_timeouts.get("no_output_warning_seconds"), default=900, minimum=0, maximum=172800),
+            no_output_kill_seconds=bounded_int(raw_timeouts.get("no_output_kill_seconds"), default=1800, minimum=0, maximum=172800),
+            runtime_warning_seconds=bounded_int(raw_timeouts.get("runtime_warning_seconds"), default=1800, minimum=0, maximum=172800),
+            runtime_kill_seconds=bounded_int(raw_timeouts.get("runtime_kill_seconds"), default=3600, minimum=0, maximum=172800),
+            stop_warning_seconds=bounded_int(raw_timeouts.get("stop_warning_seconds"), default=60, minimum=0, maximum=172800),
+            stop_kill_seconds=bounded_int(raw_timeouts.get("stop_kill_seconds"), default=300, minimum=0, maximum=172800),
         ),
         restart=RestartScriptPolicy(
             mode=_restart_mode(raw_restart.get("mode")),
@@ -239,4 +239,4 @@ def unique_schedule_id(directory: Path, base: str) -> str:
 
 def _restart_mode(value: object) -> str:
     text = str(value or "none")
-    return text if text in {"none", "before_run", "before_retry_group", "before_retry"} else "none"
+    return text if text in {"none", "before_run", "before_retry"} else "none"

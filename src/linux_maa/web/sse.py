@@ -11,13 +11,8 @@ from fastapi.responses import StreamingResponse
 StateProvider = Callable[[], dict[str, object]]
 StateChangeWaiter = Callable[[int, float | None], int]
 
-LOG_LIST_FIELDS = ("output", "task_results", "log_entries")
-MUTABLE_TAIL_FIELDS = {"task_results", "log_entries"}
-CURSOR_QUERY_PARAMS = {
-    "output": "output_from",
-    "task_results": "task_results_from",
-    "log_entries": "log_entries_from",
-}
+LIST_FIELDS = ("retries",)
+CURSOR_QUERY_PARAMS = {"retries": "retries_from"}
 
 
 def state_event_stream(request: Request, provider: StateProvider, wait_for_change: StateChangeWaiter) -> StreamingResponse:
@@ -72,22 +67,19 @@ def build_state_reset(current: dict[str, object], version: int) -> dict[str, obj
 
 
 def build_cursor_patch(current: dict[str, object], cursors: dict[str, int], version: int) -> dict[str, object]:
-    """Build cursor-based incremental patch SSE payload, sending only new items since cursors."""
+    """Build cursor-based incremental patch SSE payload, resending the mutable current retry when needed."""
     payload: dict[str, object] = {
         "type": "patch",
         "stream_version": version,
         "state": _state_fields(current),
     }
-    for field in LOG_LIST_FIELDS:
+    for field in LIST_FIELDS:
         current_items = _list_field(current, field)
-        if field == "log_entries":
+        replace_from = cursors.get(field, 0)
+        if replace_from > len(current_items):
             replace_from = 0
-        else:
-            replace_from = cursors.get(field, 0)
-            if replace_from > len(current_items):
-                replace_from = 0
-            elif field in MUTABLE_TAIL_FIELDS and replace_from > 0:
-                replace_from -= 1
+        elif replace_from == len(current_items) and current_items and not _item_closed(current_items[-1]):
+            replace_from -= 1
         if replace_from < len(current_items):
             payload[field] = {
                 "replace_from": replace_from,
@@ -107,7 +99,7 @@ def build_state_patch(previous: dict[str, object], current: dict[str, object], v
     if current_state != previous_state:
         payload["state"] = current_state
 
-    for field in LOG_LIST_FIELDS:
+    for field in LIST_FIELDS:
         patch = _list_patch(_list_field(previous, field), _list_field(current, field))
         if patch is not None:
             payload[field] = patch
@@ -122,7 +114,7 @@ def _snapshot(provider: StateProvider, default_version: int) -> tuple[dict[str, 
 
 
 def _state_fields(payload: dict[str, object]) -> dict[str, object]:
-    return {key: value for key, value in payload.items() if key not in LOG_LIST_FIELDS and key != "stream_version"}
+    return {key: value for key, value in payload.items() if key not in LIST_FIELDS and key != "stream_version"}
 
 
 def _list_field(payload: dict[str, object], field: str) -> list[object]:
@@ -141,6 +133,10 @@ def _list_patch(previous: list[object], current: list[object]) -> dict[str, obje
         "replace_from": replace_from,
         "items": current[replace_from:],
     }
+
+
+def _item_closed(value: object) -> bool:
+    return isinstance(value, dict) and value.get("closed") is True
 
 
 def _requested_version(request: Request) -> int | None:

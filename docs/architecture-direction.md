@@ -24,6 +24,16 @@ Future but important UI goal:
 
 Treat the framework as a task orchestration platform. `maa-cli` is one runner/action type, not the whole architecture.
 
+Current implementation note (`2026-07-04_1305-unify-run-log-sse`): manual
+runs, scheduled runs, tools, and maintenance actions now share a `LiveRun` plus
+`LiveRetry` state shape. Live SSE payloads and durable history both use
+`{run, retries}`; visible log buffers are retry-scoped. Manual Maa runs,
+scheduled Maa runs, and tool runs can use configurable retry counts; scheduled
+automatic runs can additionally buffer after every configured number of retry
+segments. Maintenance actions remain single-retry runs. Maa task results are
+collected from raw `maa-cli` stderr by the Maa run callers instead of being
+projected from visible log entries.
+
 Core model:
 
 ```text

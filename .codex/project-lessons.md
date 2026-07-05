@@ -22,6 +22,9 @@ Mistake notebook for recurring project-specific issues. Source session id on eac
 
 ## Backend
 
+- `2026-07-05_1823-check-history-chunking`: 将 task success/failure 从可见日志剥离时，不要删除 `maa-task-lifecycle` 可见 block rule。策略结果可以只来自 `MaaTaskResultCollector`，但 UI 仍需要 lifecycle block rule 把 `StartUp`/`Infrast` 详情聚合成 task cards；测试必须断言 `kind == "task"`，不能只测 collector。
+- `2026-07-05_1823-check-history-chunking`: schedule stop/force-stop 必须对终态 run 幂等，不能让 `request_force_stop()` 把已结束状态改回 `stopping`。缓冲等待/重试上限阶段创建的 log-only retry 也要在 run finish 前 seal 并写入 history，否则 UI 会显示已结束 run 里仍有 running retry 段。
+- `2026-07-05_1823-check-history-chunking`: `LiveRun.run_dict()` 的 metadata 不能覆盖核心字段（例如 `retry_count`）。新增 metadata key 前检查是否与 run schema 顶层字段同名，避免把配置值误显示为运行事实。
 - `2026-07-04_1047-audit-log-pipeline-audit`: 不要把有界、会从头裁剪的日志列表长度当作 attempt/history 的持久 cursor。裁剪后 `entries[start:]` 可能为空或错位；需要独立 attempt buffer、单调序号 cursor，或 run-level history collector。
 - `2026-07-04_1003-audit-log-pipeline`: Do not call log/update helpers that may re-enter scheduler state notifications while holding a non-reentrant scheduler lock. `SchedulerService` uses `RLock` after `stop_current()` deadlocked through `_append_framework_event()` -> `_mark_log_updated()`.
 - `2026-07-04_1003-audit-log-pipeline`: 改完后端代码后，顺手重启 WebUI 服务 `linux-maa-webui.service`，避免运行中的服务继续使用旧代码。

@@ -67,8 +67,10 @@ export type ConfigResponse = {
   metadata_schema?: Record<string, unknown>;
 };
 
-export type RunState = {
+export type RunRecord = {
   id?: string;
+  kind?: string;
+  title?: string;
   tool_id?: string;
   tool_title?: string;
   schedule_id?: string;
@@ -77,20 +79,51 @@ export type RunState = {
   entry_name?: string;
   task?: string;
   profile?: string;
+  maintenance_kind?: string;
   status: string;
-  created_at?: string;
+  started_at?: string;
   updated_at?: string;
+  ended_at?: string | null;
   game_day?: string;
   trigger?: string;
   log_level?: number;
   return_code?: number | null;
-  log_file?: string | null;
   log_files?: Record<string, string>;
-  stream_version?: number;
+  event_log_file?: string | null;
+  maacore_log_file?: string | null;
+  max_retries?: number;
+  retry_count?: number;
+  retry_group_count?: number;
+  stop_requested?: boolean;
+  force_stop_requested?: boolean;
   config?: Record<string, unknown>;
-  output?: string[];
+  summary?: Record<string, unknown>;
+};
+
+export type RunRetry = {
+  id: string;
+  run_id: string;
+  retry_index: number;
+  retry_group: number;
+  status: string;
+  started_at: string;
+  updated_at: string;
+  ended_at?: string | null;
+  return_code?: number | null;
+  task_ids: string[];
   task_results?: MaaTaskResult[];
   log_entries?: MaaLogEntry[];
+  log_entries_file?: string;
+  log_files?: Record<string, string>;
+  generated_config_dir?: string | null;
+  maacore_log_file?: string | null;
+  closed?: boolean;
+};
+
+export type RunState = RunRecord & {
+  run?: RunRecord;
+  retries?: RunRetry[];
+  stream_version?: number;
 };
 
 export type RunArrayPatch<T> = {
@@ -101,10 +134,11 @@ export type RunArrayPatch<T> = {
 export type RunStatePatchEvent = {
   type: "patch";
   stream_version?: number;
-  state?: Partial<RunState>;
-  output?: RunArrayPatch<string>;
-  task_results?: RunArrayPatch<MaaTaskResult>;
-  log_entries?: RunArrayPatch<MaaLogEntry>;
+  state?: {
+    run?: RunRecord;
+    [key: string]: unknown;
+  };
+  retries?: RunArrayPatch<RunRetry>;
 };
 
 type SchedulerStatus = {
@@ -133,22 +167,22 @@ export type ScheduleEntry = {
 };
 
 type ScheduleRetryPolicy = {
-  max_attempts_per_group: number;
-  group_buffer_seconds: number;
-  max_groups: number;
+  max_retries: number;
+  buffer_every_retries: number;
+  buffer_seconds: number;
 };
 
 type ScheduleTimeouts = {
-  child_warning_seconds: number;
-  child_danger_seconds: number;
-  child_kill_seconds: number;
-  run_warning_seconds: number;
-  run_danger_seconds: number;
-  run_kill_seconds: number;
+  no_output_warning_seconds: number;
+  no_output_kill_seconds: number;
+  runtime_warning_seconds: number;
+  runtime_kill_seconds: number;
+  stop_warning_seconds: number;
+  stop_kill_seconds: number;
 };
 
 type RestartScriptPolicy = {
-  mode: "none" | "before_run" | "before_retry_group" | "before_retry";
+  mode: "none" | "before_run" | "before_retry";
   script: string;
   variables: Record<string, string>;
 };
@@ -194,38 +228,20 @@ export type ScheduledRunSummary = {
   game_day: string;
   trigger: string;
   status: string;
-  created_at: string;
   started_at?: string | null;
+  updated_at?: string | null;
   ended_at?: string | null;
-  attempt_count: number;
+  retry_count: number;
   retry_group_count: number;
-  log_file?: string | null;
+  max_retries?: number;
   log_files?: Record<string, string>;
   selected_task_ids: string[];
   summary: Record<string, unknown>;
 };
 
-type RunHistoryAttempt = {
-  id: string;
-  run_id: string;
-  attempt_index: number;
-  retry_group: number;
-  status: string;
-  started_at: string;
-  ended_at: string;
-  return_code?: number | null;
-  task_ids: string[];
-  task_results?: MaaTaskResult[];
-  log_entries?: MaaLogEntry[];
-  log_entries_file?: string;
-  log_file?: string | null;
-  log_files?: Record<string, string>;
-  generated_config_dir?: string | null;
-};
-
 export type RunHistoryResponse = {
   run: RunState;
-  attempts: RunHistoryAttempt[];
+  retries: RunRetry[];
   events: Array<Record<string, unknown>>;
 };
 
@@ -317,8 +333,10 @@ export type MaaLogEntry = {
   title?: string;
   status?: MaaBlockStatus;
   time?: string | null;
-  started_at?: string | null;
-  ended_at?: string | null;
+  opened_at?: string | null;
+  sealed_at?: string | null;
+  updated_at?: string | null;
+  closed?: boolean;
   tone?: MaaLogTone;
   messages?: MaaLogMessage[];
   lines: string[];
@@ -364,20 +382,7 @@ type FrameworkSettingsResponse = {
   effective_timezone: TimezoneInfo;
 };
 
-export type MaintenanceActionState = {
-  id?: string;
-  kind?: string;
-  title?: string;
-  status: string;
-  created_at?: string;
-  updated_at?: string;
-  return_code?: number | null;
-  log_file?: string | null;
-  log_files?: Record<string, string>;
-  output?: string[];
-  task_results?: MaaTaskResult[];
-  log_entries?: MaaLogEntry[];
-};
+export type MaintenanceActionState = RunState;
 
 type UpdateComponentInfo = {
   channel?: string;

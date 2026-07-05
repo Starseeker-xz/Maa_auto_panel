@@ -3,7 +3,7 @@ from __future__ import annotations
 
 def idle_response() -> dict[str, object]:
     """Return the standard idle-state dict for API responses."""
-    return {"status": "idle", "output": []}
+    return {"run": {"status": "idle"}, "retries": []}
 
 
 def state_or_idle(state: object | None) -> dict[str, object]:

@@ -14,6 +14,7 @@ class StartRunPayload(BaseModel):
     task: str = Field(min_length=1)
     profile: str = Field(default="default", min_length=1)
     log_level: Annotated[int, Field(ge=0, le=3)] = 1
+    retry_count: Annotated[int, Field(ge=1, le=50)] = 1
 
 
 def create_run_router(services: WebServices) -> APIRouter:
@@ -31,6 +32,7 @@ def create_run_router(services: WebServices) -> APIRouter:
                     task=payload.task,
                     profile=payload.profile,
                     log_level=payload.log_level,
+                    retry_count=payload.retry_count,
                 )
             )
         except FileNotFoundError as exc:
@@ -60,6 +62,13 @@ def create_run_router(services: WebServices) -> APIRouter:
     def stop_run(run_id: str) -> dict[str, object]:
         try:
             return runs.stop(run_id).to_dict()
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="Run not found") from exc
+
+    @router.post("/{run_id}/force-stop")
+    def force_stop_run(run_id: str) -> dict[str, object]:
+        try:
+            return runs.force_stop(run_id).to_dict()
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="Run not found") from exc
 

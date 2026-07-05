@@ -2,6 +2,8 @@
 
 ## Active Sessions（活跃引用 — 含架构决策或已知未解决问题）
 
+- `2026-07-05_1823-check-history-chunking`: 修复运行/SSE/history 重构后的回归：恢复 display-only `maa-task-lifecycle` 可见日志分块，保持 `MaaTaskResultCollector` 作为 task_results 权威来源；修复 schedule stop/force-stop 终态幂等、缓冲等待 log-only retry seal、metadata 覆盖 `retry_count`。WebUI 服务已重启并验证 `/api/schedules/current` idle。
+- `2026-07-04_1305-unify-run-log-sse`: 大规模运行/SSE/history 重构；四类运行统一为 `LiveRun` + `LiveRetry`，history/SSE payload 改为 `{run, retries}`，task_results 从可见日志剥离到 Maa raw stderr collector，手动/定时/工具支持重试次数，维护 panel 接入 SSE，通用 timeout 与 force-stop 已接入。
 - `2026-07-04_1115-review-cleanup`: 前后端死代码/兼容导入清理；移除内部包级 re-export 依赖，保留 `linux_maa.tools.game` 的 `python -m` 入口；前端收窄未使用导出和类型面；测试/构建通过。
 - `2026-07-04_1047-audit-log-pipeline-audit`: 审计自 `7820a5b 模块化日志管线尝试` 以来的改动；发现 stop 退化为仅 SIGTERM、bounded log cursor 切片丢 attempt history、历史日志忽略 events/no-attempt schedule logs、`history/` 未忽略、`warning` 状态契约不一致等问题。
 - `2026-07-04_1003-audit-log-pipeline`: 审计最近日志管线共通块逻辑并调整定时执行日志翻译/主题色高亮。

@@ -6,7 +6,8 @@ Current packaged features:
 
 - `linux-maa webui`: start the local FastAPI + React WebUI.
 - WebUI tools: game update (download and install Bilibili Arknights APK) is available as an integrated third-party tool via `python -m linux_maa.tools.game update-game`.
-- WebUI scheduled execution: define per-schedule task/profile bindings, game-day-aware time entries, child-task enable sets, retry limits, timeout settings, restart-script hooks, and recent run statistics.
+- WebUI scheduled execution: define per-schedule task/profile bindings, game-day-aware time entries, child-task enable sets, retry limits, generic timeout settings, restart-script hooks, and recent run statistics.
+- WebUI run controls: manual Maa runs, manual-triggered schedules, and tool runs support page-local retry counts, graceful stop, and force-stop controls.
 ## Development
 
 ```bash
@@ -76,11 +77,13 @@ schema-driven visual editor for supported MaaCore task params, save task
 config changes back through the backend, move deleted task config files to a
 local recycle folder, edit default Profile/framework/maa-cli settings, trigger
 manual resource or maa-cli updates, start `maa run <task> --batch --profile
-default`, define scheduled execution configs under `/schedule`, show the
-info-level maa-cli log/status in the right pane, and stop the active process.
+default`, define scheduled execution configs under `/schedule`, show
+retry-scoped structured logs/status in the right pane, and stop or force-stop
+active manual, scheduled, or tool processes.
 Framework state, durable run-history JSON, and diagnostics are separated.
 Recent runs and scheduler bookkeeping live as readable JSON under
-`state/linux-maa/`; visible per-run history is under `history/linux-maa/runs/`.
+`state/linux-maa/`; visible per-run, per-retry history is under
+`history/linux-maa/runs/`.
 Both are local runtime state and ignored by git. Deletable diagnostic
 logs live under `debug/linux-maa/`: `framework.log` is the standard Python
 logging output for framework/API internals, human-level run events are JSONL

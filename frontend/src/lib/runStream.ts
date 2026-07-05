@@ -1,11 +1,12 @@
-import type { MaaLogEntry, MaaTaskResult, RunArrayPatch, RunState, RunStatePatchEvent } from "@/lib/types";
+import type { RunArrayPatch, RunRecord, RunRetry, RunState, RunStatePatchEvent } from "@/lib/types";
 
 export function runEventsUrl(path: string, snapshot?: RunState | null) {
   const params = new URLSearchParams();
   if (typeof snapshot?.stream_version === "number") params.set("after", String(snapshot.stream_version));
-  params.set("output_from", String(snapshot?.output?.length || 0));
-  params.set("task_results_from", String(snapshot?.task_results?.length || 0));
-  params.set("log_entries_from", String(snapshot?.log_entries?.length || 0));
+  params.set("retries_from", String(snapshot?.retries?.length || 0));
+  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  if (timezone) params.set("client_timezone", timezone);
+  params.set("client_offset_minutes", String(-new Date().getTimezoneOffset()));
   return `${path}?${params.toString()}`;
 }
 
@@ -19,25 +20,37 @@ export function applyRunStateEvent(current: RunState, event: unknown): RunState 
   return normalizeRunState(event as RunState);
 }
 
+export function normalizeRunState(state: RunState): RunState {
+  const nestedRun = isRecord(state.run) ? (state.run as RunRecord) : undefined;
+  const run = nestedRun || state;
+  if (run.status === "idle") return idleRunState(state.stream_version);
+  const retries = asArray<RunRetry>(state.retries);
+  return {
+    ...run,
+    run,
+    retries,
+    stream_version: state.stream_version
+  };
+}
+
 function applyPatchEvent(current: RunState, event: RunStatePatchEvent): RunState {
   const state = event.state || {};
-  const resetBase = shouldResetBase(current, state);
+  const incomingRun = isRecord(state.run) ? (state.run as RunRecord) : undefined;
+  const resetBase = shouldResetBase(current, incomingRun);
   const base = resetBase ? idleRunState() : current;
   const next: RunState = {
     ...base,
-    ...state,
-    stream_version: event.stream_version
+    ...(incomingRun || {}),
+    run: incomingRun || base.run,
+    stream_version: event.stream_version,
+    retries: applyArrayPatch(base.retries || [], event.retries)
   };
-
-  next.output = applyArrayPatch(base.output || [], event.output);
-  next.task_results = applyArrayPatch(base.task_results || [], event.task_results);
-  next.log_entries = applyArrayPatch(base.log_entries || [], event.log_entries);
   return normalizeRunState(next);
 }
 
-function shouldResetBase(current: RunState, state: Partial<RunState>) {
-  if (state.status === "idle") return true;
-  if ("id" in state) return state.id !== current.id;
+function shouldResetBase(current: RunState, incomingRun?: RunRecord) {
+  if (incomingRun?.status === "idle") return true;
+  if (incomingRun && "id" in incomingRun) return incomingRun.id !== current.id;
   return false;
 }
 
@@ -47,18 +60,8 @@ function applyArrayPatch<T>(current: T[], patch?: RunArrayPatch<T>) {
   return [...current.slice(0, replaceFrom), ...patch.items];
 }
 
-function normalizeRunState(state: RunState): RunState {
-  if (state.status === "idle") return idleRunState(state.stream_version);
-  return {
-    ...state,
-    output: asArray<string>(state.output),
-    task_results: asArray<MaaTaskResult>(state.task_results),
-    log_entries: asArray<MaaLogEntry>(state.log_entries)
-  };
-}
-
 function idleRunState(streamVersion?: number): RunState {
-  return { status: "idle", stream_version: streamVersion, output: [], task_results: [], log_entries: [] };
+  return { status: "idle", run: { status: "idle" }, retries: [], stream_version: streamVersion };
 }
 
 function asArray<T>(value: T[] | undefined): T[] {
