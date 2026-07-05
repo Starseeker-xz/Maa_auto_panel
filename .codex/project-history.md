@@ -55,6 +55,7 @@ Confidence: Confirmed / Likely / Hypothesis / Unknown.
 - Confirmed (`2026-07-01_2153-manage-service-history`): WebUI 生命周期临时由 systemd unit `/etc/systemd/system/linux-maa-webui.service` 管理。命令 `uv run linux-maa webui --host 0.0.0.0 --port 8000`，工作目录 `/root/Linux_maa`。已注册、已验证、`disabled`、`inactive`。
 - Confirmed (`2026-07-04_1305-unify-run-log-sse`): 本轮运行/SSE/history 重构后已重启 `linux-maa-webui.service`。unit 仍为 `disabled` 但当前 `active (running)`，监听 `0.0.0.0:8000`，`/api/settings` 本机 curl 正常；最近确认时间为 2026-07-04 21:21 UTC 后。
 - Confirmed (`2026-07-05_1823-check-history-chunking`): 修复定时 run `f7ecfac6dafc` 暴露的 task 分块和停止状态问题后，已在 2026-07-05 18:37 UTC 重启 `linux-maa-webui.service`。服务当前 active，`/api/schedules/current` 返回 idle，`/api/schedules/daily-test` 中 `f7ecfac6dafc` 持久状态为 `stopped`。
+- Confirmed (`2026-07-05_1926-inspect-concurrency`): 新增全局 ADB 设备运行仲裁后已重启 `linux-maa-webui.service`。服务当前 active，`/api/settings` 本机 curl 正常。
 
 ---
 
@@ -77,6 +78,7 @@ Confidence: Confirmed / Likely / Hypothesis / Unknown.
   - **诊断**（`debug/linux-maa/`）：可丢弃（`framework.log`、事件 JSONL、外部日志按源分组）
   - 旧 `runtime/linux-maa/scheduler.sqlite3` 已删除，无迁移
 - Confirmed (`2026-07-04_1305-unify-run-log-sse`): 手动、定时、工具、维护运行已统一为 `LiveRun` + `LiveRetry` 运行结构（`src/linux_maa/run_executor.py`）。Run 顶层使用 `started_at`/`updated_at`/`ended_at`、`max_retries`、`retry_count`、`log_files`，不再使用旧 `created_at`、顶层 `log_file` 或旧 attempt API。
+- Confirmed (`2026-07-05_1926-inspect-concurrency`): 新增共享运行仲裁器 `src/linux_maa/run_coordinator.py`。手动 Maa、定时 Maa、工具运行通过同一个 `RunCoordinator` 声明 ADB 设备占用；冲突检测目前只按提交的连接地址判断 `adb-device` 资源。优先级：自动定时最高、手动触发定时其次、普通手动/工具相同。低优先级遇到高优先级占用返回 409；同优先级等待释放；高优先级会请求低优先级运行停止，并通过该运行自己的 stop/force-stop 回调和 stop-kill 阈值完成抢占。维护动作当前不声明 ADB 资源。
 - Confirmed (`2026-07-04_1305-unify-run-log-sse`): `RunStateStore` 历史索引改为 `state/linux-maa/run-history/run-retries.json`；历史文件为 `{"run": ..., "retries": [...]}`。每个 retry 持有 `log_entries`、`task_results`、`closed`、`updated_at`、`log_entries_file`，实际可见日志仍写到 `history/linux-maa/runs/**/<run-id>.json`。
 - Confirmed (`2026-07-04_1305-unify-run-log-sse`): 可见日志块 `LogEntry` 增加 `updated_at` 和 `closed`；当前 retry 的 `RunLogBuffer` 会在 retry seal 时 flush/close，结束后的 retry 不再更新。SSE patch 只对 `retries` 做列表补丁，run 顶层状态通过嵌套 `run` patch 更新。
 - Confirmed (`2026-07-04_1305-unify-run-log-sse`): task success/failure 已从可见日志系统剥离。`process.run_streaming_process()` 支持 raw line callback；manual/scheduled Maa callers 用 `MaaTaskResultCollector` 只消费 `maa-cli:stderr` 原始行来生成 retry-local `task_results`。`LogPipelineSession` 不再有 task projection API；task sequence hook 在 `2026-07-05_1823-check-history-chunking` 作为 display-only task block 命名能力恢复。
@@ -198,6 +200,7 @@ Confidence: Confirmed / Likely / Hypothesis / Unknown.
 
 ## Latest Verification
 
+- Confirmed (`2026-07-05_1926-inspect-concurrency`): 新增全局 ADB 设备运行仲裁后，`uvx ruff check src tests`、`uv run python -m compileall -q src tests`、`uv run pytest -q`（57 passed）、`git diff --check` 均通过；`linux-maa-webui.service` 已重启且 `/api/settings` 本机检查通过。
 - Confirmed (`2026-07-05_1823-check-history-chunking`): `uv run pytest -q tests/test_maa_logs.py tests/test_backend_utilities.py`（31 passed）、`uv run python -m compileall -q src tests`、`uv run pytest -q`（51 passed）、`uvx ruff check src tests`、真实 `f7ecfac6dafc.stderr.log` 管线回放、`cd frontend && npx tsc --noEmit --noUnusedLocals --noUnusedParameters --pretty false`、`git diff --check`、`cd frontend && npm run build` 均通过。Vite 仍有既有 500 kB chunk warning。
 - Confirmed (`2026-07-04_1305-unify-run-log-sse`): 最新确认 `uvx ruff check src tests`、`uv run python -m compileall -q src tests`、`uv run pytest -q`（48 tests）、`cd frontend && npx tsc --noEmit --noUnusedLocals --noUnusedParameters --pretty false`、`cd frontend && npm run build`、`git diff --check` 均通过。Vite 仍有既有 500 kB chunk warning。`linux-maa-webui.service` 已重启并在 2026-07-05 02:38 UTC 后健康检查通过。
 - Confirmed (`2026-07-04_1115-review-cleanup`): `uvx ruff check src tests`、`uvx vulture src tests --min-confidence 80`、`uv run python -m compileall -q src tests`、`npx tsc --noEmit --noUnusedLocals --noUnusedParameters --pretty false`、`uv run pytest -q`（50 tests）、`cd frontend && npm run build`、`uv run python -m linux_maa.tools.game --help` 均通过。Knip 仅误报 `@tailwindcss/vite` 未使用；该依赖由 `frontend/vite.config.ts` 使用，已保留。

@@ -129,6 +129,17 @@ Live current-run state is still kept in memory by the owning service, while
 completed run records and retry-scoped visible log history are persisted as
 JSON.
 
+Live runs that use an ADB device also claim a process-local run resource keyed
+by the submitted connection address. The conflict detector is generic, but the
+only active rule today is `adb-device` address equality; it intentionally does
+not try to discover physical devices or aliases outside the framework. Automatic
+scheduled runs have the highest priority, manual-triggered scheduled runs are
+next, and ordinary manual/tool runs share the lowest priority. A lower-priority
+new run is rejected when it conflicts with a higher-priority active run; an
+equal-priority new run waits for the resource to be released; a higher-priority
+new run requests stop on the lower-priority owner and waits for that owner to
+finish through its normal stop/force-stop thresholds.
+
 For visible progress, Maa-backed runs invoke `maa-cli` with verbosity enabled:
 
 ```text

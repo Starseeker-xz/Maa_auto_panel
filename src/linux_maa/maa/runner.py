@@ -9,6 +9,7 @@ from pathlib import Path
 import tomllib
 
 from linux_maa.config.app_settings import FrameworkSettingsManager
+from linux_maa.config.manager import ConfigManager
 from linux_maa.config.tasks import TASK_SUFFIXES, prepare_framework_task_config
 from linux_maa.diagnostics import Diagnostics, get_logger
 from linux_maa.logs.state import RunLogBuffer
@@ -16,13 +17,14 @@ from linux_maa.maa.log_templates import register_maa_log_sources
 from linux_maa.maa.results import MaaTaskDescriptor, MaaTaskResultCollector
 from linux_maa.maa.runtime import MaaRuntime
 from linux_maa.process import run_streaming_process
+from linux_maa.run_coordinator import RUN_PRIORITY_NORMAL, RunCoordinator, RunLease, adb_device_resources_from_profile
 from linux_maa.run_executor import LiveRetry, LiveRun, now_text
 from linux_maa.run_state import RunStateStore
 from linux_maa.scheduler.models import TaskPolicy
 from linux_maa.scheduler.policy import enabled_task_ids_from_config, retry_unfinished_task_ids, task_policies_from_config
 from linux_maa.state import idle_response
 from linux_maa.time_utils import server_now_iso
-from linux_maa.utils import relative_path, resolve_existing_named_file, slugify, write_text_atomic
+from linux_maa.utils import dict_value, relative_path, resolve_existing_named_file, slugify, write_text_atomic
 
 
 logger = get_logger(__name__)
@@ -153,11 +155,15 @@ class MaaRunManager:
         run_state: RunStateStore | None = None,
         diagnostics: Diagnostics | None = None,
         framework_settings: FrameworkSettingsManager | None = None,
+        configs: ConfigManager | None = None,
+        run_coordinator: RunCoordinator | None = None,
     ) -> None:
         self.runtime = runtime
         self.run_state = run_state or RunStateStore(runtime)
         self.diagnostics = diagnostics or Diagnostics(runtime)
         self.framework_settings = framework_settings or FrameworkSettingsManager(runtime)
+        self.configs = configs or ConfigManager(runtime)
+        self.run_coordinator = run_coordinator or RunCoordinator()
         self._lock = threading.Lock()
         self._condition = threading.Condition(self._lock)
         self._version = 0
@@ -165,44 +171,74 @@ class MaaRunManager:
         self._current_run_id: str | None = None
 
     def start(self, request: MaaRunRequest) -> LiveRun:
-        with self._lock:
-            current = self._runs.get(self._current_run_id or "")
-            if current and current.status == "running":
-                raise RuntimeError(f"Run already active: {current.id}")
+        profile_data = self._profile_data(request.profile)
+        resources = adb_device_resources_from_profile(profile_data)
+        run_id = uuid.uuid4().hex[:12]
+        started_at = now_text()
+        log_files = self.diagnostics.maa_cli_log_files(run_id)
+        max_retries = _retry_count(request.retry_count)
+        state = LiveRun(
+            id=run_id,
+            kind="manual",
+            title=request.task,
+            status="running",
+            started_at=started_at,
+            updated_at=started_at,
+            max_retries=max_retries,
+            log_files=log_files,
+            event_log_file=self.diagnostics.event_log_file(run_id),
+            metadata={
+                "task": request.task,
+                "profile": request.profile,
+                "log_level": request.log_level,
+                "retry_count": max_retries,
+                "resource_locks": [resource.to_dict() for resource in resources],
+                "run_priority": RUN_PRIORITY_NORMAL,
+            },
+        )
+        lease = RunLease(
+            run_id=run_id,
+            kind="manual",
+            title=request.task,
+            priority=RUN_PRIORITY_NORMAL,
+            resources=resources,
+            request_stop=lambda: self._request_stop_for_run(state),
+            request_force_stop=lambda: self._request_force_stop_for_run(state),
+            force_after_seconds=self._preemption_force_after_seconds(),
+        )
+        try:
+            self.run_coordinator.acquire(lease)
+            with self._lock:
+                current = self._runs.get(self._current_run_id or "")
+                if current and current.status in {"running", "stopping"}:
+                    raise RuntimeError(f"Run already active: {current.id}")
+                if state.stop_requested:
+                    raise RuntimeError("Run was preempted before it started")
 
-            run_id = uuid.uuid4().hex[:12]
-            started_at = now_text()
-            log_files = self.diagnostics.maa_cli_log_files(run_id)
-            max_retries = _retry_count(request.retry_count)
-            state = LiveRun(
-                id=run_id,
-                kind="manual",
-                title=request.task,
-                status="running",
-                started_at=started_at,
-                updated_at=started_at,
-                max_retries=max_retries,
-                log_files=log_files,
-                event_log_file=self.diagnostics.event_log_file(run_id),
-                metadata={"task": request.task, "profile": request.profile, "log_level": request.log_level, "retry_count": max_retries},
-            )
-            self.run_state.create_run(
-                run_id=run_id,
-                kind="manual",
-                title=request.task,
-                max_retries=max_retries,
-                log_files=log_files,
-                event_log_file=state.event_log_file,
-                metadata={"task": request.task, "profile": request.profile, "retry_count": max_retries},
-            )
-            logger.info("manual run started run_id=%s task=%s profile=%s log_level=%s", run_id, request.task, request.profile, request.log_level)
-            self._runs[run_id] = state
-            self._current_run_id = run_id
-            self._notify_locked()
+                self.run_state.create_run(
+                    run_id=run_id,
+                    kind="manual",
+                    title=request.task,
+                    max_retries=max_retries,
+                    log_files=log_files,
+                    event_log_file=state.event_log_file,
+                    metadata={"task": request.task, "profile": request.profile, "retry_count": max_retries},
+                )
+                logger.info("manual run started run_id=%s task=%s profile=%s log_level=%s", run_id, request.task, request.profile, request.log_level)
+                self._runs[run_id] = state
+                self._current_run_id = run_id
+                self._notify_locked()
+        except Exception:
+            self.run_coordinator.release(run_id)
+            raise
 
         thread = threading.Thread(target=self._run, args=(state,), daemon=True)
         state.thread = thread
-        thread.start()
+        try:
+            thread.start()
+        except Exception:
+            self.run_coordinator.release(run_id)
+            raise
         return state
 
     def wait_for_change(self, last_version: int, timeout: float | None = None) -> int:
@@ -250,6 +286,29 @@ class MaaRunManager:
                 state.request_force_stop()
                 self._notify_locked()
         return state
+
+    def _request_stop_for_run(self, state: LiveRun) -> None:
+        if self.get(state.id) is None:
+            state.request_stop()
+            return
+        self.stop(state.id)
+
+    def _request_force_stop_for_run(self, state: LiveRun) -> None:
+        if self.get(state.id) is None:
+            state.request_force_stop()
+            return
+        self.force_stop(state.id)
+
+    def _preemption_force_after_seconds(self) -> float | None:
+        seconds = self.framework_settings.run_timeouts().stop_kill_seconds
+        return float(seconds) if seconds > 0 else None
+
+    def _profile_data(self, profile: str) -> dict[str, object]:
+        try:
+            data = self.configs.read_profile_config(profile).get("data")
+        except (FileNotFoundError, ValueError):
+            return {}
+        return dict_value(data)
 
     def _mark_log_updated(self, state: LiveRun, retry: LiveRetry | None = None) -> None:
         with self._lock:
@@ -311,26 +370,29 @@ class MaaRunManager:
         )
 
     def _finish_run(self, state: LiveRun, status: str, return_code: int | None) -> None:
-        with self._lock:
-            state.finish(status=status, return_code=return_code)
-            self._notify_locked()
-        generated_config_dir = relative_path(self.runtime.generated_config_dir / state.id, self.runtime.repo_root)
-        self.run_state.finish_run(
-            state.id,
-            status=status,
-            return_code=return_code,
-            maacore_log_file=state.maacore_log_file,
-            generated_config_dir=generated_config_dir,
-            retry_count=len(state.retries),
-            retry_group_count=1,
-            summary={
-                "task_results": state.retries[-1].task_results if state.retries else [],
-                "generated_config_dir": generated_config_dir,
-            },
-        )
-        self.run_state.enforce_retention()
-        self.diagnostics.enforce_retention()
-        logger.info("manual run finished run_id=%s status=%s return_code=%s maacore_log_file=%s", state.id, status, return_code, state.maacore_log_file)
+        try:
+            with self._lock:
+                state.finish(status=status, return_code=return_code)
+                self._notify_locked()
+            generated_config_dir = relative_path(self.runtime.generated_config_dir / state.id, self.runtime.repo_root)
+            self.run_state.finish_run(
+                state.id,
+                status=status,
+                return_code=return_code,
+                maacore_log_file=state.maacore_log_file,
+                generated_config_dir=generated_config_dir,
+                retry_count=len(state.retries),
+                retry_group_count=1,
+                summary={
+                    "task_results": state.retries[-1].task_results if state.retries else [],
+                    "generated_config_dir": generated_config_dir,
+                },
+            )
+            self.run_state.enforce_retention()
+            self.diagnostics.enforce_retention()
+            logger.info("manual run finished run_id=%s status=%s return_code=%s maacore_log_file=%s", state.id, status, return_code, state.maacore_log_file)
+        finally:
+            self.run_coordinator.release(state.id)
 
     def _run(self, state: LiveRun) -> None:
         task = str(state.metadata.get("task") or state.title)

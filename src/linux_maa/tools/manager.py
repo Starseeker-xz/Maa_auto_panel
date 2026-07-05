@@ -14,6 +14,7 @@ from linux_maa.logs.pipeline import LogSourceSpec, default_tone_for_source, plai
 from linux_maa.logs.state import RunLogBuffer
 from linux_maa.maa.runtime import MaaRuntime
 from linux_maa.process import run_streaming_process
+from linux_maa.run_coordinator import RUN_PRIORITY_NORMAL, RunCoordinator, RunLease, RunResource, adb_device_resource
 from linux_maa.run_executor import LiveRetry, LiveRun, now_text
 from linux_maa.run_state import RunStateStore
 from linux_maa.settings import DEFAULT_DEVICE_SERIAL
@@ -88,12 +89,14 @@ class ToolRunManager:
         run_state: RunStateStore | None = None,
         diagnostics: Diagnostics | None = None,
         framework_settings: FrameworkSettingsManager | None = None,
+        run_coordinator: RunCoordinator | None = None,
     ) -> None:
         self.runtime = runtime
         self.configs = configs
         self.run_state = run_state or RunStateStore(runtime)
         self.diagnostics = diagnostics or Diagnostics(runtime)
         self.framework_settings = framework_settings or FrameworkSettingsManager(runtime)
+        self.run_coordinator = run_coordinator or RunCoordinator()
         self._lock = threading.Lock()
         self._condition = threading.Condition(self._lock)
         self._version = 0
@@ -137,44 +140,73 @@ class ToolRunManager:
             raise ValueError(f"Unsupported tool: {tool_id}")
 
         sanitized_config = _sanitize_config(config)
-        with self._lock:
-            current = self._runs.get(self._current_run_id or "")
-            if current and current.status in {"running", "stopping"}:
-                raise RuntimeError(f"Tool already running: {current.title}")
+        resources = self._tool_resources(tool_id, sanitized_config)
+        run_id = uuid.uuid4().hex[:12]
+        started_at = now_text()
+        log_files = self.diagnostics.tool_log_files(run_id)
+        max_retries = _retry_count(retry_count)
+        state = LiveRun(
+            id=run_id,
+            kind="tool",
+            title=spec.definition.title,
+            status="running",
+            started_at=started_at,
+            updated_at=started_at,
+            max_retries=max_retries,
+            log_files=log_files,
+            event_log_file=self.diagnostics.event_log_file(run_id),
+            metadata={
+                "tool_id": tool_id,
+                "tool_title": spec.definition.title,
+                "config": sanitized_config,
+                "retry_count": max_retries,
+                "resource_locks": [resource.to_dict() for resource in resources],
+                "run_priority": RUN_PRIORITY_NORMAL,
+            },
+        )
+        lease = RunLease(
+            run_id=run_id,
+            kind="tool",
+            title=spec.definition.title,
+            priority=RUN_PRIORITY_NORMAL,
+            resources=resources,
+            request_stop=lambda: self._request_stop_for_run(state),
+            request_force_stop=lambda: self._request_force_stop_for_run(state),
+            force_after_seconds=self._preemption_force_after_seconds(),
+        )
+        try:
+            self.run_coordinator.acquire(lease)
+            with self._lock:
+                current = self._runs.get(self._current_run_id or "")
+                if current and current.status in {"running", "stopping"}:
+                    raise RuntimeError(f"Tool already running: {current.title}")
+                if state.stop_requested:
+                    raise RuntimeError("Tool run was preempted before it started")
 
-            run_id = uuid.uuid4().hex[:12]
-            started_at = now_text()
-            log_files = self.diagnostics.tool_log_files(run_id)
-            max_retries = _retry_count(retry_count)
-            state = LiveRun(
-                id=run_id,
-                kind="tool",
-                title=spec.definition.title,
-                status="running",
-                started_at=started_at,
-                updated_at=started_at,
-                max_retries=max_retries,
-                log_files=log_files,
-                event_log_file=self.diagnostics.event_log_file(run_id),
-                metadata={"tool_id": tool_id, "tool_title": spec.definition.title, "config": sanitized_config, "retry_count": max_retries},
-            )
-            self.run_state.create_run(
-                run_id=run_id,
-                kind="tool",
-                title=spec.definition.title,
-                max_retries=max_retries,
-                log_files=log_files,
-                event_log_file=state.event_log_file,
-                metadata={"tool_id": tool_id, "tool_title": spec.definition.title, "retry_count": max_retries},
-            )
-            self._runs[run_id] = state
-            self._current_run_id = run_id
-            logger.info("tool run started run_id=%s tool_id=%s title=%s", run_id, tool_id, spec.definition.title)
-            self._notify_locked()
+                self.run_state.create_run(
+                    run_id=run_id,
+                    kind="tool",
+                    title=spec.definition.title,
+                    max_retries=max_retries,
+                    log_files=log_files,
+                    event_log_file=state.event_log_file,
+                    metadata={"tool_id": tool_id, "tool_title": spec.definition.title, "retry_count": max_retries},
+                )
+                self._runs[run_id] = state
+                self._current_run_id = run_id
+                logger.info("tool run started run_id=%s tool_id=%s title=%s", run_id, tool_id, spec.definition.title)
+                self._notify_locked()
+        except Exception:
+            self.run_coordinator.release(run_id)
+            raise
 
         thread = threading.Thread(target=self._run, args=(state, spec), daemon=True)
         state.thread = thread
-        thread.start()
+        try:
+            thread.start()
+        except Exception:
+            self.run_coordinator.release(run_id)
+            raise
         return state
 
     def current_response(self, *, include_logs: bool = True) -> dict[str, object]:
@@ -194,6 +226,14 @@ class ToolRunManager:
     def stop_current(self) -> LiveRun:
         with self._lock:
             state = self._runs.get(self._current_run_id or "")
+            if state is None:
+                raise KeyError("No tool run active")
+            run_id = state.id
+        return self.stop(run_id)
+
+    def stop(self, run_id: str) -> LiveRun:
+        with self._lock:
+            state = self._runs.get(run_id)
             if state is None or state.status not in {"running", "stopping"}:
                 raise KeyError("No tool run active")
             if state.status == "running":
@@ -207,6 +247,14 @@ class ToolRunManager:
     def force_stop_current(self) -> LiveRun:
         with self._lock:
             state = self._runs.get(self._current_run_id or "")
+            if state is None:
+                raise KeyError("No tool run active")
+            run_id = state.id
+        return self.force_stop(run_id)
+
+    def force_stop(self, run_id: str) -> LiveRun:
+        with self._lock:
+            state = self._runs.get(run_id)
             if state is None or state.status not in {"running", "stopping"}:
                 raise KeyError("No tool run active")
             self.diagnostics.append_run_event(state.id, "tool", "framework", "收到强制停止请求，正在强杀工具进程...\n", tone="danger")
@@ -215,6 +263,22 @@ class ToolRunManager:
             logger.warning("tool force stop requested run_id=%s tool_id=%s", state.id, state.metadata.get("tool_id"))
             self._notify_locked()
             return state
+
+    def _request_stop_for_run(self, state: LiveRun) -> None:
+        with self._lock:
+            managed = self._runs.get(state.id)
+        if managed is None:
+            state.request_stop()
+            return
+        self.stop(state.id)
+
+    def _request_force_stop_for_run(self, state: LiveRun) -> None:
+        with self._lock:
+            managed = self._runs.get(state.id)
+        if managed is None:
+            state.request_force_stop()
+            return
+        self.force_stop(state.id)
 
     def _run(self, state: LiveRun, spec: ToolSpec) -> None:
         try:
@@ -333,13 +397,16 @@ class ToolRunManager:
         )
 
     def _finish_run(self, state: LiveRun, status: str, return_code: int | None) -> None:
-        with self._lock:
-            state.finish(status=status, return_code=return_code)
-            self._notify_locked()
-        self.run_state.finish_run(state.id, status=status, return_code=return_code, retry_count=len(state.retries), retry_group_count=1)
-        self.run_state.enforce_retention()
-        self.diagnostics.enforce_retention()
-        logger.info("tool run finished run_id=%s status=%s return_code=%s", state.id, status, return_code)
+        try:
+            with self._lock:
+                state.finish(status=status, return_code=return_code)
+                self._notify_locked()
+            self.run_state.finish_run(state.id, status=status, return_code=return_code, retry_count=len(state.retries), retry_group_count=1)
+            self.run_state.enforce_retention()
+            self.diagnostics.enforce_retention()
+            logger.info("tool run finished run_id=%s status=%s return_code=%s", state.id, status, return_code)
+        finally:
+            self.run_coordinator.release(state.id)
 
     def _append_timeout_event(self, state: LiveRun, level: str, elapsed: float) -> None:
         messages = {
@@ -365,6 +432,16 @@ class ToolRunManager:
     def _notify_locked(self) -> None:
         self._version += 1
         self._condition.notify_all()
+
+    def _tool_resources(self, tool_id: str, config: dict[str, object]) -> tuple[RunResource, ...]:
+        if tool_id != "game-update":
+            return ()
+        resource = adb_device_resource(config.get("address") or self._default_connection_address())
+        return (resource,) if resource is not None else ()
+
+    def _preemption_force_after_seconds(self) -> float | None:
+        seconds = self.framework_settings.run_timeouts().stop_kill_seconds
+        return float(seconds) if seconds > 0 else None
 
     def _default_connection_address(self) -> str:
         connection = dict_value(self._default_profile_data().get("connection"))

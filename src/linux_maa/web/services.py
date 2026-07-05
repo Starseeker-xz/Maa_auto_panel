@@ -11,6 +11,7 @@ from linux_maa.maa.maintenance import MaintenanceActionManager
 from linux_maa.maa.runner import MaaRunManager
 from linux_maa.maa.runtime import MaaRuntime, find_repo_root
 from linux_maa.maa.stages import MaaStageService
+from linux_maa.run_coordinator import RunCoordinator
 from linux_maa.run_state import RunStateStore
 from linux_maa.scheduler.config import ScheduleConfigManager
 from linux_maa.scheduler.service import SchedulerService
@@ -25,6 +26,7 @@ class WebServices:
     runtime: MaaRuntime
     run_state: RunStateStore
     diagnostics: Diagnostics
+    run_coordinator: RunCoordinator
     configs: ConfigManager
     framework_settings: FrameworkSettingsManager
     runs: MaaRunManager
@@ -50,17 +52,19 @@ def create_services(repo_root: Path | None = None) -> WebServices:
     configs = ConfigManager(runtime)
     framework_settings = FrameworkSettingsManager(runtime)
     schedule_configs = ScheduleConfigManager(runtime, configs)
+    run_coordinator = RunCoordinator()
     return WebServices(
         runtime=runtime,
         run_state=run_state,
         diagnostics=diagnostics,
+        run_coordinator=run_coordinator,
         configs=configs,
         framework_settings=framework_settings,
-        runs=MaaRunManager(runtime, run_state, diagnostics, framework_settings),
+        runs=MaaRunManager(runtime, run_state, diagnostics, framework_settings, configs, run_coordinator),
         maintenance=MaintenanceActionManager(runtime, run_state, diagnostics, framework_settings),
-        tools=ToolRunManager(runtime, configs, run_state, diagnostics, framework_settings),
+        tools=ToolRunManager(runtime, configs, run_state, diagnostics, framework_settings, run_coordinator),
         stages=MaaStageService(runtime),
         infrast=MaaInfrastService(runtime),
         schedule_configs=schedule_configs,
-        scheduler=SchedulerService(runtime, configs, framework_settings, schedule_configs, run_state, diagnostics),
+        scheduler=SchedulerService(runtime, configs, framework_settings, schedule_configs, run_state, diagnostics, run_coordinator),
     )

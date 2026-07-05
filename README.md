@@ -7,7 +7,7 @@ Current packaged features:
 - `linux-maa webui`: start the local FastAPI + React WebUI.
 - WebUI tools: game update (download and install Bilibili Arknights APK) is available as an integrated third-party tool via `python -m linux_maa.tools.game update-game`.
 - WebUI scheduled execution: define per-schedule task/profile bindings, game-day-aware time entries, child-task enable sets, retry limits, generic timeout settings, restart-script hooks, and recent run statistics.
-- WebUI run controls: manual Maa runs, manual-triggered schedules, and tool runs support page-local retry counts, graceful stop, and force-stop controls.
+- WebUI run controls: manual Maa runs, manual-triggered schedules, and tool runs support page-local retry counts, graceful stop, force-stop controls, and ADB-device conflict arbitration.
 ## Development
 
 ```bash

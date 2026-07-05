@@ -32,7 +32,9 @@ scheduled Maa runs, and tool runs can use configurable retry counts; scheduled
 automatic runs can additionally buffer after every configured number of retry
 segments. Maintenance actions remain single-retry runs. Maa task results are
 collected from raw `maa-cli` stderr by the Maa run callers instead of being
-projected from visible log entries.
+projected from visible log entries. A shared run coordinator now arbitrates
+ADB-device conflicts by submitted connection address and priority across manual,
+scheduled, and tool runs.
 
 Core model:
 

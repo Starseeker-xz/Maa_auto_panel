@@ -17,6 +17,7 @@ from linux_maa.maa.results import MaaTaskDescriptor, MaaTaskResultCollector
 from linux_maa.maa.runner import load_task_file, prepare_maa_cli_task, resolve_task_file
 from linux_maa.maa.runtime import MaaRuntime
 from linux_maa.process import run_streaming_process
+from linux_maa.run_coordinator import RunCoordinator, RunLease, adb_device_resources_from_profile, schedule_priority
 from linux_maa.run_executor import LiveRetry, LiveRun, now_text
 from linux_maa.run_state import RunStateStore
 from linux_maa.scheduler.config import ScheduleConfigManager
@@ -45,6 +46,7 @@ class SchedulerService:
         schedules: ScheduleConfigManager,
         run_state: RunStateStore | None = None,
         diagnostics: Diagnostics | None = None,
+        run_coordinator: RunCoordinator | None = None,
     ) -> None:
         self.runtime = runtime
         self.configs = configs
@@ -52,6 +54,7 @@ class SchedulerService:
         self.schedules = schedules
         self.store = run_state or RunStateStore(runtime)
         self.diagnostics = diagnostics or Diagnostics(runtime)
+        self.run_coordinator = run_coordinator or RunCoordinator()
         self.scripts = ScheduleScriptManager(runtime)
         self._lock = threading.RLock()
         self._condition = threading.Condition(self._lock)
@@ -182,6 +185,22 @@ class SchedulerService:
             self._notify_locked()
             return self._current
 
+    def _request_stop_for_run(self, state: ScheduleRunState) -> None:
+        with self._lock:
+            current = self._current
+        if current is None or current.id != state.id:
+            state.request_stop()
+            return
+        self.stop_current()
+
+    def _request_force_stop_for_run(self, state: ScheduleRunState) -> None:
+        with self._lock:
+            current = self._current
+        if current is None or current.id != state.id:
+            state.request_force_stop()
+            return
+        self.force_stop_current()
+
     def _schedule_response(self, config: ScheduleConfig) -> dict[str, object]:
         task_config_data = self.configs.read_task_config(config.task_config)
         task_data = task_config_data.get("data") if isinstance(task_config_data.get("data"), dict) else {}
@@ -212,9 +231,6 @@ class SchedulerService:
             try:
                 if not _scheduler_enabled(self.framework_settings):
                     continue
-                current = self.current()
-                if current and current.status in {"running", "stopping"}:
-                    continue
                 self._start_due_entries()
             except Exception:
                 logger.exception("scheduler loop failed")
@@ -238,56 +254,84 @@ class SchedulerService:
                     continue
                 if self.store.already_triggered(schedule_id=config.id, entry_id=entry.id, game_day=current_game_day):
                     continue
-                state = self._start_run(config, entry, trigger="schedule")
+                try:
+                    state = self._start_run(config, entry, trigger="schedule")
+                except RuntimeError as exc:
+                    logger.info("scheduled due entry deferred schedule_id=%s entry_id=%s reason=%s", config.id, entry.id, exc)
+                    return
                 self.store.mark_triggered(schedule_id=config.id, entry_id=entry.id, game_day=current_game_day, run_id=state.id)
                 return
 
     def _start_run(self, config: ScheduleConfig, entry: ScheduleEntry, *, trigger: str, retry_count: int | None = None) -> ScheduleRunState:
-        with self._lock:
-            if self._current and self._current.status in {"running", "stopping"}:
-                raise RuntimeError(f"Scheduled run already active: {self._current.id}")
-
-            task_data = load_task_file(resolve_task_file(self.runtime, config.task_config))
-            client = extract_client_type(task_data)
-            timezone_name = str(self.framework_settings.read()["effective_timezone"]["name"])
-            game_day = game_day_key(datetime.now(effective_timezone(timezone_name)), client=client)
-            run_id = uuid.uuid4().hex[:12]
-            started_at = now_text()
-            log_files = self.diagnostics.maa_cli_log_files(run_id)
-            if config.restart.script:
-                log_files.update(self.diagnostics.script_log_files(run_id))
-            max_retries = _retry_count(retry_count if retry_count is not None else config.retry.max_retries)
-            state = LiveRun(
-                id=run_id,
-                kind="schedule",
-                title=f"{config.name} / {entry.name}",
-                status="running",
-                started_at=started_at,
-                updated_at=started_at,
-                max_retries=max_retries,
-                log_files=log_files,
-                event_log_file=self.diagnostics.event_log_file(run_id),
-                metadata={
-                    "schedule_id": config.id,
-                    "schedule_name": config.name,
-                    "entry_id": entry.id,
-                    "entry_name": entry.name,
-                    "task_config": config.task_config,
-                    "profile": config.profile_name,
-                    "profile_name": config.profile_name,
-                    "log_level": config.log_level,
-                    "game_day": game_day,
-                    "trigger": trigger,
-                    "retry_count": max_retries,
-                },
-            )
-            self._current = state
-            self._notify_locked()
-            logger.info("scheduled run started run_id=%s schedule_id=%s entry_id=%s trigger=%s", run_id, config.id, entry.id, trigger)
+        task_data = load_task_file(resolve_task_file(self.runtime, config.task_config))
+        client = extract_client_type(task_data)
+        timezone_name = str(self.framework_settings.read()["effective_timezone"]["name"])
+        game_day = game_day_key(datetime.now(effective_timezone(timezone_name)), client=client)
+        run_id = uuid.uuid4().hex[:12]
+        started_at = now_text()
+        log_files = self.diagnostics.maa_cli_log_files(run_id)
+        if config.restart.script:
+            log_files.update(self.diagnostics.script_log_files(run_id))
+        max_retries = _retry_count(retry_count if retry_count is not None else config.retry.max_retries)
+        priority = schedule_priority(trigger)
+        resources = adb_device_resources_from_profile(config.profile_data)
+        state = LiveRun(
+            id=run_id,
+            kind="schedule",
+            title=f"{config.name} / {entry.name}",
+            status="running",
+            started_at=started_at,
+            updated_at=started_at,
+            max_retries=max_retries,
+            log_files=log_files,
+            event_log_file=self.diagnostics.event_log_file(run_id),
+            metadata={
+                "schedule_id": config.id,
+                "schedule_name": config.name,
+                "entry_id": entry.id,
+                "entry_name": entry.name,
+                "task_config": config.task_config,
+                "profile": config.profile_name,
+                "profile_name": config.profile_name,
+                "log_level": config.log_level,
+                "game_day": game_day,
+                "trigger": trigger,
+                "retry_count": max_retries,
+                "resource_locks": [resource.to_dict() for resource in resources],
+                "run_priority": priority,
+            },
+        )
+        lease = RunLease(
+            run_id=run_id,
+            kind="schedule",
+            title=state.title,
+            priority=priority,
+            resources=resources,
+            request_stop=lambda: self._request_stop_for_run(state),
+            request_force_stop=lambda: self._request_force_stop_for_run(state),
+            force_after_seconds=float(config.timeouts.stop_kill_seconds) if config.timeouts.stop_kill_seconds > 0 else None,
+        )
+        try:
+            self.run_coordinator.acquire(lease)
+            with self._lock:
+                if self._current and self._current.status in {"running", "stopping"}:
+                    raise RuntimeError(f"Scheduled run already active: {self._current.id}")
+                if state.stop_requested:
+                    raise RuntimeError("Scheduled run was preempted before it started")
+                self._current = state
+                self._notify_locked()
+                logger.info("scheduled run started run_id=%s schedule_id=%s entry_id=%s trigger=%s", run_id, config.id, entry.id, trigger)
+        except Exception:
+            self.run_coordinator.release(run_id)
+            raise
 
         thread = threading.Thread(target=self._execute_run, args=(state, config, entry), daemon=True)
         state.thread = thread
-        thread.start()
+        try:
+            thread.start()
+        except Exception:
+            self.run_coordinator.release(run_id)
+            raise
         return state
 
     def _execute_run(self, state: ScheduleRunState, config: ScheduleConfig, entry: ScheduleEntry) -> None:
@@ -682,9 +726,12 @@ class SchedulerService:
             state.process = proc
 
     def _set_done(self, state: ScheduleRunState, status: str, return_code: int | None) -> None:
-        with self._lock:
-            state.finish(status=status, return_code=return_code)
-            self._notify_locked()
+        try:
+            with self._lock:
+                state.finish(status=status, return_code=return_code)
+                self._notify_locked()
+        finally:
+            self.run_coordinator.release(state.id)
 
     def _seal_current_retry_for_log(self, state: ScheduleRunState, status: str, return_code: int | None, *, task_ids: list[str] | None = None) -> None:
         with self._lock:
