@@ -176,15 +176,21 @@ function normalizeEntries(run: RunState): MaaLogEntry[] {
 function runDetails(run: RunState, entries: MaaLogEntry[]): RunDetailItem[] {
   const details: RunDetailItem[] = [];
   if (run.id) details.push({ label: "Run ID", value: run.id });
-  if (run.schedule_name) details.push({ label: "Schedule", value: run.schedule_name });
-  if (run.entry_name) details.push({ label: "Entry", value: run.entry_name });
+  const scheduleName = stringMetadata(run, "schedule_name");
+  const entryName = stringMetadata(run, "entry_name");
+  if (scheduleName) details.push({ label: "Schedule", value: scheduleName });
+  if (entryName) details.push({ label: "Entry", value: entryName });
 
   for (const [label, path] of Object.entries(run.log_files || {})) {
     if (path) details.push({ label: `${label} log`, value: path });
   }
+  for (const [label, value] of artifactDetails(run.artifacts)) {
+    details.push({ label, value });
+  }
   for (const retry of run.retries || []) {
-    if (retry.maacore_log_file) details.push({ label: `retry ${retry.retry_index} maacore`, value: retry.maacore_log_file });
-    if (retry.generated_config_dir) details.push({ label: `retry ${retry.retry_index} config`, value: retry.generated_config_dir });
+    for (const [label, value] of artifactDetails(retry.artifacts)) {
+      details.push({ label: `retry ${retry.retry_index} ${label}`, value });
+    }
   }
 
   const selections = selectionDetails(entries);
@@ -192,6 +198,27 @@ function runDetails(run: RunState, entries: MaaLogEntry[]): RunDetailItem[] {
     details.push({ label, value: values.join(" / ") });
   }
   return details;
+}
+
+function stringMetadata(run: RunState, key: string): string {
+  const value = run.metadata?.[key];
+  return typeof value === "string" ? value : "";
+}
+
+function artifactDetails(artifacts: Record<string, unknown> | undefined): Array<[string, string]> {
+  return Object.entries(artifacts || {})
+    .map(([key, value]) => [artifactLabel(key), artifactValue(value)] as [string, string])
+    .filter(([, value]) => Boolean(value));
+}
+
+function artifactLabel(key: string) {
+  return key.replace(/_/g, " ");
+}
+
+function artifactValue(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (value == null) return "";
+  return JSON.stringify(value) || String(value);
 }
 
 function retryMarkerEntry(retry: RunRetry): MaaLogEntry {

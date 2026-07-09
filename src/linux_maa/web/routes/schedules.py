@@ -2,12 +2,12 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from linux_maa.config.manager import ConfigValidationFailure
+from linux_maa.run_manager.router import RunControlRoutes, register_run_control_routes
 from linux_maa.web.responses import validation_exception
-from linux_maa.web.sse import state_event_stream
 from linux_maa.web.services import WebServices
 
 
@@ -45,27 +45,13 @@ def create_schedule_router(services: WebServices) -> APIRouter:
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    @router.get("/current")
-    def current_scheduled_run() -> dict[str, object]:
-        return scheduler.current_response()
-
-    @router.get("/current/events")
-    def current_scheduled_run_events(request: Request):
-        return state_event_stream(request, scheduler.current_response, scheduler.wait_for_change)
-
-    @router.post("/current/stop")
-    def stop_scheduled_run() -> dict[str, object]:
-        try:
-            return scheduler.stop_current().to_dict()
-        except KeyError as exc:
-            raise HTTPException(status_code=404, detail="No scheduled run active") from exc
-
-    @router.post("/current/force-stop")
-    def force_stop_scheduled_run() -> dict[str, object]:
-        try:
-            return scheduler.force_stop_current().to_dict()
-        except KeyError as exc:
-            raise HTTPException(status_code=404, detail="No scheduled run active") from exc
+    register_run_control_routes(
+        router,
+        RunControlRoutes(
+            manager=scheduler,
+            current_not_found_detail="No scheduled run active",
+        ),
+    )
 
     @router.get("/{schedule_id}")
     def read_schedule(schedule_id: str) -> dict[str, object]:

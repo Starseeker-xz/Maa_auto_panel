@@ -79,6 +79,87 @@ Confidence: Confirmed / Likely / Hypothesis / Unknown.
   - 旧 `runtime/linux-maa/scheduler.sqlite3` 已删除，无迁移
 - Confirmed (`2026-07-04_1305-unify-run-log-sse`): 手动、定时、工具、维护运行已统一为 `LiveRun` + `LiveRetry` 运行结构（`src/linux_maa/run_executor.py`）。Run 顶层使用 `started_at`/`updated_at`/`ended_at`、`max_retries`、`retry_count`、`log_files`，不再使用旧 `created_at`、顶层 `log_file` 或旧 attempt API。
 - Confirmed (`2026-07-05_1926-inspect-concurrency`): 新增共享运行仲裁器 `src/linux_maa/run_coordinator.py`。手动 Maa、定时 Maa、工具运行通过同一个 `RunCoordinator` 声明 ADB 设备占用；冲突检测目前只按提交的连接地址判断 `adb-device` 资源。优先级：自动定时最高、手动触发定时其次、普通手动/工具相同。低优先级遇到高优先级占用返回 409；同优先级等待释放；高优先级会请求低优先级运行停止，并通过该运行自己的 stop/force-stop 回调和 stop-kill 阈值完成抢占。维护动作当前不声明 ADB 资源。
+- Hypothesis/Plan (`2026-07-05_1926-inspect-concurrency`): 下一步应把当前四类运行 manager 的重复生命周期逻辑抽成通用 manager。审计结论：`MaaRunManager`、`ToolRunManager`、`SchedulerService` 的 run 部分、`MaintenanceActionManager` 重复了 LiveRun 创建、current/SSE version、stop/force-stop、coordinator acquire/release、retry seal/history、日志追加、进程 timeout 和 finish/retention；差异主要是启动 plan、资源/优先级、retry 策略、命令生成、结果解释、日志模板和 scheduled daily stats。建议：
+  - 新增 `src/linux_maa/run_manager.py`，实现 `RunManagerBase`/`LiveRunManager`，负责共享生命周期、current/current_response/wait/get、start transaction、stop/force-stop、context helper、retry/history persistence、process wrapper、coordinator release。
+  - 用 hook/protocol 保留领域差异：`prepare_start(request, run_id) -> RunStartPlan`，`execute(context, request, state) -> RunCompletion`，可选 stop/force/timeout 文案。
+  - `ToolRunManager` 先迁移（最简单），再迁移 `MaintenanceActionManager`，再迁移手动 Maa，最后迁移 scheduled run。`SchedulerService` 继续保留 schedule CRUD/timeline/background loop/daily stats，只把“一次 live scheduled run”的生命周期委托给通用 manager/driver。
+  - `RunCoordinator` 应改为后端进程级 singleton：在 `run_coordinator.py` 暴露 `GLOBAL_RUN_COORDINATOR`/`global_run_coordinator()`；manager 默认使用它，仅测试显式注入 fresh coordinator；从 `WebServices` 移除 `run_coordinator` 字段和创建逻辑，除非未来新增占用状态 API。
+  - 约束：保持 `{run, retries}` payload、retry-local 日志、`MaaTaskResultCollector` 权威 task_results、scheduled final-status/daily-stats 策略、coordinator 回调不在 manager lock 内执行；不要顺手引入多 current run UI/SSE 模型。
+- Hypothesis/Plan (`2026-07-05_2146-run-manager-plan`): 用户进一步要求把运行体系模块化为 `run_manager/` 子包，并将 priority 常量与 ADB resource helper 放入凸显全局性的单文件。补充审计结论：
+  - 书面计划已落地到根目录 `RUN_MANAGER_REFACTOR_PLAN.md`；正式执行前应优先按该文档执行，除非用户修改。
+  - `run_executor.py`、`run_coordinator.py`、`run_state.py` 应收束到运行管理域内；建议 `run_executor.py -> run_manager/state.py`，`run_coordinator.py -> run_manager/coordinator.py`，`run_state.py -> run_manager/store.py`，同时新增 `run_manager/manager.py`、`run_manager/command.py`、`run_manager/logs.py`。
+  - 新增 `src/linux_maa/run_resources.py` 承载 `RunResource`、priority name/values、ADB resource helpers 和默认 conflict policy；`RunCoordinator` 只接收已解析 claim 与注入的 conflict/priority policy，不再知道 ADB 或 schedule trigger。
+  - 通用 manager 应内建：current/current_response/wait、start transaction、stop/force-stop、coordinator acquire/release、retry begin/seal/persist、`RunLogBuffer` 创建/模板注册、framework event、stream append/flush、`run_streaming_process()` 包装、raw-line callback 透传、timeout/result/retry 默认日志块、history retention。
+  - 差异通过可选 callbacks/driver 保留：`on_start`、`before_retry`/`on_retry`、`build_command`、`on_raw_line`、`evaluate_retry`、`after_retry`、`between_retries`、`on_finish`、`timeout_message`、`log_buffer_factory`。简单工具运行应只需 command、retry count、timeouts、metadata/resources/priority 即可。
+  - Web 层也应增加通用 current-run router/helper：统一 `GET /current`、`GET /current/events`、可选 `GET /{run_id}`、stop、force-stop；启动 endpoint 因各领域前置校验和请求结构不同，保留在领域 router 中。现有 `runs/tools/schedules/maintenance` route 组合这个 helper，而不是各自注册一遍 SSE/status/stop。
+  - 执行纪律：任何代码修改前先回看 `RUN_MANAGER_REFACTOR_PLAN.md` 对应阶段，并先更新当前 session 记录；上下文压缩后也先读该计划、session 记录和 project-history 最新条目。
+  - 迁移顺序仍建议工具 -> 维护 -> 手动 MAA -> 定时 MAA；`SchedulerService` 保留 schedule CRUD/background loop/timeline/daily stats，只把 live scheduled run 委托给通用 manager + schedule-specific driver。
+- Confirmed (`2026-07-05_2146-run-manager-plan`): Run manager 重构阶段 1 已完成并验证：
+  - `src/linux_maa/run_executor.py` -> `src/linux_maa/run_manager/state.py`
+  - `src/linux_maa/run_state.py` -> `src/linux_maa/run_manager/store.py`
+  - `src/linux_maa/run_coordinator.py` -> `src/linux_maa/run_manager/coordinator.py`
+  - 新增 `src/linux_maa/run_resources.py`，承载 priority 常量、`RunResource`、ADB resource helper 和默认 conflict/resource policy helper。
+  - 当前行为保持不变：现有 manager 仍使用 numeric priority `RunLease`；`RunCoordinator` 仍按已有抢占/等待语义运行，只是 ADB/resource helper 已移出。
+  - 验证通过：`uvx ruff check src tests`、`uv run python -m compileall -q src tests`、`uv run pytest -q`（57 passed）、`git diff --check`。
+- Confirmed (`2026-07-05_2146-run-manager-plan`): Run manager 重构阶段 2 已完成并验证：
+  - 新增 `src/linux_maa/run_manager/manager.py`，包含 `RunTextTemplates`、`RunStartPlan`、`RunDriver` protocol、`RunContext`、`GenericRunManager`。
+  - `GenericRunManager` 目前实现通用 current/get/current_response/wait、start transaction、stop/force-stop、retry begin/seal/persist、run finish/release、framework event、visible log append/flush、process handle setter 和 stop wait helper。
+  - 新增 `tests/test_run_manager.py` 覆盖成功运行持久化/资源释放和 stop-current 诊断事件/停止收尾。
+  - 测试时发现并修复：通用 stop/force-stop 初版只写 visible framework event，没有写 diagnostic JSONL；已补 `_record_framework_event()`。
+  - 验证通过：`uvx ruff check src tests`、`uv run python -m compileall -q src tests`、`uv run pytest -q`（59 passed）、`git diff --check`。
+  - 下一阶段：实现 `run_manager/command.py` 和 `run_manager/logs.py`，再迁移 `ToolRunManager`。
+- Confirmed (`2026-07-05_2146-run-manager-plan`): Run manager 重构阶段 3 已完成并验证：
+  - 新增 `src/linux_maa/run_manager/logs.py`，包含 `RunLogProfile`、`plain_stream_log_profile()`、stream source 映射和 diagnostic sink 支持。
+  - 新增 `src/linux_maa/run_manager/command.py`，包含 `CommandSpec`、`CommandRunDriver`、`CommandRunTextTemplates`，实现默认 command retry loop、stop/force-stop、timeout event、raw-line callback 透传。
+  - `GenericRunManager` / `RunContext` 增加 `run_process()` 包装，统一调用 `run_streaming_process()` 并把输出写入 retry-local visible log 和可选诊断日志。
+  - 新增 `tests/test_run_manager_command.py` 覆盖成功日志/诊断/raw-line、非 0 retry、stop running process、runtime timeout。
+  - 测试时发现并修复：失败 retry 的“准备重试”事件必须在 `finish_retry()` 前写入当前 retry，否则会创建新的 log-only retry 并耗尽 retry 计数。
+  - 验证通过：`uvx ruff check src tests`、`uv run python -m compileall -q src tests`、`uv run pytest -q`（63 passed）、`git diff --check`。
+  - 下一阶段：迁移 `ToolRunManager` 到 `GenericRunManager` + `CommandRunDriver`。
+- Confirmed (`2026-07-05_2146-run-manager-plan`): Run manager 重构阶段 4 已完成并验证：
+  - 新增 `src/linux_maa/run_manager/router.py`，提供 `RunControlManager` protocol、`RunControlRoutes`、`register_run_control_routes()`，当前支持通用 `/current`、`/current/events`、current stop/force-stop 和可选 run-id get/stop/force-stop。
+  - `ToolRunManager` 已迁移为委托 `GenericRunManager` + `CommandRunDriver`；保留工具 registry/default config/command builder/ADB resource helper。工具运行日志使用 `plain_stream_log_profile("tool")` + `Diagnostics.append_tool_output`。
+  - `web/routes/tools.py` 已用通用 router 注册 current/SSE/stop/force-stop，现有 `/api/tools/current...` 路径保持不变。
+  - 验证通过：`uvx ruff check src tests`、`uv run python -m compileall -q src tests`、目标测试（25 passed）、`uv run pytest -q`（63 passed）、`git diff --check`。
+  - 下一阶段：迁移 `MaintenanceActionManager` live-run 部分；manual/schedule 仍未迁移。
+- Confirmed (`2026-07-05_2146-run-manager-plan`): Run manager 重构阶段 5 已完成并验证：
+  - `MaintenanceActionManager` live-run 部分已迁移到 `GenericRunManager` + `CommandRunDriver`；保留 `MAINTENANCE_COMMANDS`、`inspect_update_info()` 和 version/update helper 在 `maa/maintenance.py`。
+  - 维护动作使用 `RunStartPlan(kind="maintenance", max_retries=1)`，固定 maa-cli command，MAA log templates 通过 `RunLogProfile` 注入，诊断输出继续写 `Diagnostics.append_maa_cli_output`。
+  - `web/routes/maintenance.py` 已用通用 router 注册 `/api/maintenance/current` 和 `/api/maintenance/current/events`；stop/force-stop 端点仍未暴露。
+  - 验证通过：`uvx ruff check src tests`、`uv run python -m compileall -q src tests`、`uv run pytest -q`（63 passed）、`git diff --check`。
+  - 下一阶段：迁移手动 MAA run manager；scheduler live-run 部分仍未迁移。
+- Confirmed (`2026-07-05_2146-run-manager-plan`): Run manager 重构阶段 6 已完成并验证：
+  - `MaaRunManager` 已迁移为委托 `GenericRunManager`；新增 `ManualMaaRunDriver` 保留手动 MAA 差异逻辑，包括 task policy、generated config per retry、raw stderr `MaaTaskResultCollector`、MaaCore log delta、只重试未成功 task、final summary。
+  - 手动运行日志使用 MAA `RunLogProfile` + `RunContext.run_process()`，stop/force-stop 文案由 `RunTextTemplates` 注入。
+  - `web/routes/runs.py` 已用通用 router 注册 current/SSE/get-by-id/run-id stop/force-stop；启动 endpoint 保持领域特异。
+  - 新增 `tests/test_manual_run_manager.py` 覆盖 disabled-task skip 并确认持久化 exactly one sealed retry。
+  - 迁移中再次确认：retry seal 后再写 framework event 会创建额外 log-only retry；manual “准备重试/次数上限”事件已改为在 `finish_retry()` 前写入。
+  - 验证通过：`uvx ruff check src tests`、`uv run python -m compileall -q src tests`、目标测试（20 passed）、`uv run pytest -q`（64 passed）、`git diff --check`。
+  - 下一阶段：迁移 `SchedulerService` live-run 部分；schedule CRUD/background loop/daily stats 仍应留在 scheduler 领域。
+- Confirmed (`2026-07-05_2146-run-manager-plan`): Run manager 重构阶段 7 已完成并验证：
+  - `SchedulerService` live-run 部分已迁移到 `GenericRunManager`；新增 `ScheduledMaaRunDriver` 保留定时运行差异逻辑，包括 initial selection/skipped reason、restart script、retry buffer、Maa task command generation、raw stderr collector、MaaCore log delta、daily stats、retry policy 和 `_final_status()`。
+  - `SchedulerService` 保留 schedule CRUD/background loop/due-entry detection/status/schedule response；`current_response(schedule_id=...)` 仍支持 per-schedule 过滤。
+  - `_start_run()` 现在只构造 `RunStartPlan(kind="schedule")`，使用 schedule timeouts、`schedule.auto`/`schedule.manual` priority name、profile resource locks、selected task ids、schedule log profile。
+  - `web/routes/schedules.py` 已用通用 router 注册 `/api/schedules/current...` current/SSE/stop/force-stop；schedule CRUD 和 start-now endpoint 保持领域特异。
+  - 新增 `tests/test_scheduler_run_manager.py` 覆盖 scheduled skip 持久化 exactly one sealed retry；restart-script 测试改为通过 `ScheduledMaaRunDriver` + `GenericRunManager` 验证 visible logs 和 diagnostics。
+  - 最终一致性补丁：`MaintenanceActionManager` 也接受并使用 `WebServices` 创建的 shared `RunCoordinator`；四类 run domain 现在共享同一个 framework-level coordinator 实例。
+  - 验证通过：`uvx ruff check src tests`、`uv run python -m compileall -q src tests`、scheduler/backend 目标测试（22 passed）、`uv run pytest -q`（65 passed）、`git diff --check`。
+  - 后端四类运行 manager 的 live-run lifecycle 已统一；剩余可选项是前端 stream hook 整理、文档更新、以及用户计划中提到的 route/history `{kind}` category 后续调整。
+- Superseded/Confirmed (`2026-07-06_0037-callback-run-manager`): 上一阶段的 driver-owned-loop 设计已按用户反馈回收。当前有效 run-manager 架构：
+  - `RunDriver`、`RunContext`、`CommandRunDriver`、`CommandRunTextTemplates` 已取消；`src/linux_maa/run_manager/command.py` 只保留 `CommandSpec`。
+  - `GenericRunManager` 内置 command 执行和 retry 循环，`RunStartPlan.command` 是默认命令模式；callback 只决定动态命令、raw line 消费、attempt 结果、是否继续 retry、summary/task_results 等。
+  - `RunAttempt` 是只读 callback 视图，暴露 `run_id`、`retry_id`、`attempt_index`、`max_retries`、`task_ids` 和 `add_event()`/`wait_for_stop()`/`begin_task_sequence()`，不允许外部 begin/finish retry 或 finish run。
+  - 手动 MAA 已迁移到 `ManualMaaRunCallbacks`；定时 MAA 已迁移到 `ScheduledMaaRunCallbacks`；工具和维护使用 manager 内置 command 模式且不需要 callbacks。
+  - 定时重启脚本已改为 manager `RunScriptHooks`，source 标签形如 `script:before_run:stdout` / `script:before_retry:stderr`，输出进入同一可见日志管线和 script diagnostics。
+  - 修复用户报告的停止回归：当 stop 已请求或 attempt 因 stopped 结束时，manager 会清除 `continue_retry`，不再执行 `before_retry`、retry-start 文案或通用 retry-next 文案，避免“用户中断后仍残留第 N 次重试/准备重试”。
+  - 根目录 `RUN_MANAGER_REFACTOR_PLAN.md` 已重写为 callback-first 当前计划/架构说明。验证通过：`uvx ruff check src tests`、`uv run python -m compileall -q src tests`、`uv run pytest -q`（65 passed）、`git diff --check`。
+- Confirmed (`2026-07-09_1512-run-manager-generalize`): run_manager 通用语义清理已完成，不做旧字段兼容：
+  - `RunKind` 改为普通字符串；通用 `RunStartPlan` 使用 `initial_attempt_payload`/`history_scope`，`RunAttempt` 暴露只读 `payload`，`RetryDecision` 使用 `next_attempt_payload`、`retry_metadata`、`retry_artifacts`。
+  - `LiveRun`/`LiveRetry` 和历史 JSON 只保留基础运行字段、`metadata`、`artifacts`、`log_files`；不再有通用顶层 `selected_task_ids`、`task_ids`、`task_results`、`generated_config_dir`、`maacore_log_file`。
+  - 手动/定时 MAA 领域层通过 payload 传任务列表；task results 写入 retry metadata，generated config/MaaCore log 写入 artifacts；工具/维护传领域 `history_scope`。
+  - scheduler daily stats 和 trigger 去重迁出 `RunStateStore`，新增 `scheduler/state.py` 的 `SchedulerStateStore`。
+  - 前端运行类型和 LogPane 详情已改为读取 `run.metadata`/`run.artifacts` 和 `retry.artifacts`。
+  - 验证通过：`uv run pytest -q`（66 passed）、`uvx ruff check src tests`、`uv run python -m compileall -q src tests`、`cd frontend && npm run build`、`git diff --check`。
 - Confirmed (`2026-07-04_1305-unify-run-log-sse`): `RunStateStore` 历史索引改为 `state/linux-maa/run-history/run-retries.json`；历史文件为 `{"run": ..., "retries": [...]}`。每个 retry 持有 `log_entries`、`task_results`、`closed`、`updated_at`、`log_entries_file`，实际可见日志仍写到 `history/linux-maa/runs/**/<run-id>.json`。
 - Confirmed (`2026-07-04_1305-unify-run-log-sse`): 可见日志块 `LogEntry` 增加 `updated_at` 和 `closed`；当前 retry 的 `RunLogBuffer` 会在 retry seal 时 flush/close，结束后的 retry 不再更新。SSE patch 只对 `retries` 做列表补丁，run 顶层状态通过嵌套 `run` patch 更新。
 - Confirmed (`2026-07-04_1305-unify-run-log-sse`): task success/failure 已从可见日志系统剥离。`process.run_streaming_process()` 支持 raw line callback；manual/scheduled Maa callers 用 `MaaTaskResultCollector` 只消费 `maa-cli:stderr` 原始行来生成 retry-local `task_results`。`LogPipelineSession` 不再有 task projection API；task sequence hook 在 `2026-07-05_1823-check-history-chunking` 作为 display-only task block 命名能力恢复。

@@ -71,33 +71,21 @@ export type RunRecord = {
   id?: string;
   kind?: string;
   title?: string;
-  tool_id?: string;
-  tool_title?: string;
-  schedule_id?: string;
-  schedule_name?: string;
-  entry_id?: string;
-  entry_name?: string;
-  task?: string;
-  profile?: string;
-  maintenance_kind?: string;
   status: string;
   started_at?: string;
   updated_at?: string;
   ended_at?: string | null;
-  game_day?: string;
-  trigger?: string;
-  log_level?: number;
   return_code?: number | null;
   log_files?: Record<string, string>;
   event_log_file?: string | null;
-  maacore_log_file?: string | null;
   max_retries?: number;
   retry_count?: number;
   retry_group_count?: number;
   stop_requested?: boolean;
   force_stop_requested?: boolean;
-  config?: Record<string, unknown>;
-  summary?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
+  artifacts?: Record<string, unknown>;
+  history_scope?: string[];
 };
 
 export type RunRetry = {
@@ -110,13 +98,11 @@ export type RunRetry = {
   updated_at: string;
   ended_at?: string | null;
   return_code?: number | null;
-  task_ids: string[];
-  task_results?: MaaTaskResult[];
   log_entries?: MaaLogEntry[];
   log_entries_file?: string;
   log_files?: Record<string, string>;
-  generated_config_dir?: string | null;
-  maacore_log_file?: string | null;
+  metadata?: Record<string, unknown>;
+  artifacts?: Record<string, unknown>;
   closed?: boolean;
 };
 
@@ -220,13 +206,8 @@ type DailyTaskStats = {
 
 export type ScheduledRunSummary = {
   id: string;
-  schedule_id: string;
-  schedule_name: string;
-  entry_id: string;
-  entry_name: string;
-  task_config: string;
-  game_day: string;
-  trigger: string;
+  kind?: string;
+  title?: string;
   status: string;
   started_at?: string | null;
   updated_at?: string | null;
@@ -235,8 +216,10 @@ export type ScheduledRunSummary = {
   retry_group_count: number;
   max_retries?: number;
   log_files?: Record<string, string>;
-  selected_task_ids: string[];
-  summary: Record<string, unknown>;
+  event_log_file?: string | null;
+  metadata?: Record<string, unknown>;
+  artifacts?: Record<string, unknown>;
+  history_scope?: string[];
 };
 
 export type RunHistoryResponse = {

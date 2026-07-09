@@ -129,7 +129,7 @@ export function ScheduleStats({
               <div className="flex min-w-0 items-center justify-between gap-2">
                 <div className="flex min-w-0 items-center gap-2">
                   <span className={`status-pill ${item.status}`}>{STATUS_LABELS[item.status] || item.status}</span>
-                  <span className="rounded-sm border bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">{item.trigger === "manual" ? "手动" : "定时"}</span>
+                  <span className="rounded-sm border bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">{stringMetadata(item, "trigger") === "manual" ? "手动" : "定时"}</span>
                 </div>
                 <div className="ml-auto flex h-6 shrink-0 items-center gap-1">
                   {onViewHistory ? (
@@ -138,7 +138,7 @@ export function ScheduleStats({
                       variant="ghost"
                       size="icon"
                       className="size-6 text-muted-foreground/70 opacity-0 transition-opacity hover:text-foreground hover:opacity-100 focus-visible:opacity-100 group-hover:opacity-70"
-                      aria-label={`查看 ${item.entry_name} 历史日志`}
+                      aria-label={`查看 ${stringMetadata(item, "entry_name")} 历史日志`}
                       disabled={loadingHistoryRunId === item.id}
                       onClick={(event) => {
                         event.preventDefault();
@@ -155,7 +155,7 @@ export function ScheduleStats({
                       variant="ghost"
                       size="icon"
                       className="size-6 text-muted-foreground/70 opacity-0 transition-opacity hover:text-destructive hover:opacity-100 focus-visible:opacity-100 group-hover:opacity-70"
-                      aria-label={`删除 ${item.entry_name} 运行记录`}
+                      aria-label={`删除 ${stringMetadata(item, "entry_name")} 运行记录`}
                       disabled={loadingHistoryRunId === item.id}
                       onClick={(event) => {
                         event.preventDefault();
@@ -168,7 +168,7 @@ export function ScheduleStats({
                   ) : null}
                 </div>
               </div>
-              <div className="truncate text-muted-foreground">{formatDateTime(item.started_at)} · {item.entry_name} · 重试 {item.retry_count}</div>
+              <div className="truncate text-muted-foreground">{formatDateTime(item.started_at)} · {stringMetadata(item, "entry_name")} · 重试 {item.retry_count}</div>
             </div>
           ))}
           {detail.recent_runs.length === 0 ? <CardContent className="p-0 text-xs text-muted-foreground">暂无运行记录</CardContent> : null}
@@ -185,6 +185,11 @@ function ConfigGroup({ title, children }: { title: string; children: ReactNode }
       <div className="grid grid-cols-3 gap-2 max-lg:grid-cols-2 max-sm:grid-cols-1">{children}</div>
     </div>
   );
+}
+
+function stringMetadata(run: { metadata?: Record<string, unknown> }, key: string): string {
+  const value = run.metadata?.[key];
+  return typeof value === "string" ? value : "";
 }
 
 function NumberInput({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) {

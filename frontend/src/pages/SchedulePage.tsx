@@ -351,7 +351,7 @@ export function SchedulePage() {
                 {item.last_run ? (
                   <div className="grid gap-1 text-xs">
                     <span className={`status-pill ${item.last_run.status}`}>{STATUS_LABELS[item.last_run.status] || item.last_run.status}</span>
-                    <span className="text-muted-foreground">{item.last_run.entry_name} · {formatDateTime(item.last_run.started_at)}</span>
+                    <span className="text-muted-foreground">{stringMetadata(item.last_run, "entry_name")} · {formatDateTime(item.last_run.started_at)}</span>
                   </div>
                 ) : (
                   <span className="status-pill idle">暂无运行记录</span>
@@ -531,7 +531,7 @@ function mergeScheduleRuntimeFields(current: ScheduleResponse, latest: ScheduleR
 }
 
 function runForSchedule(run: RunState, scheduleId?: string): RunState {
-  return scheduleId && run.schedule_id === scheduleId ? run : idleRun();
+  return scheduleId && stringMetadata(run, "schedule_id") === scheduleId ? run : idleRun();
 }
 
 function isRunActive(run: RunState): boolean {
@@ -540,9 +540,15 @@ function isRunActive(run: RunState): boolean {
 
 function completedScheduleRun(previous: RunState | null, current: RunState): { runId: string; scheduleId: string } | null {
   if (!previous || !isRunActive(previous) || isRunActive(current)) return null;
-  if (!previous.id || !previous.schedule_id) return null;
+  const scheduleId = stringMetadata(previous, "schedule_id");
+  if (!previous.id || !scheduleId) return null;
   if (current.id && current.id !== previous.id) return null;
-  return { runId: previous.id, scheduleId: previous.schedule_id };
+  return { runId: previous.id, scheduleId };
+}
+
+function stringMetadata(run: { metadata?: Record<string, unknown> }, key: string): string {
+  const value = run.metadata?.[key];
+  return typeof value === "string" ? value : "";
 }
 
 function scheduleStartDisabledReason(globalRun: RunState, dirty: boolean, selectedEntryId: string): string {

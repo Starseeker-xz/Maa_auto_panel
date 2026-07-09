@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import json
-import subprocess
-import threading
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
@@ -12,18 +10,19 @@ from linux_maa.config.app_settings import FrameworkSettingsManager
 from linux_maa.config.manager import ConfigManager
 from linux_maa.config.tasks import TASK_SUFFIXES, prepare_framework_task_config
 from linux_maa.diagnostics import Diagnostics, get_logger
-from linux_maa.logs.state import RunLogBuffer
 from linux_maa.maa.log_templates import register_maa_log_sources
 from linux_maa.maa.results import MaaTaskDescriptor, MaaTaskResultCollector
 from linux_maa.maa.runtime import MaaRuntime
-from linux_maa.process import run_streaming_process
-from linux_maa.run_coordinator import RUN_PRIORITY_NORMAL, RunCoordinator, RunLease, adb_device_resources_from_profile
-from linux_maa.run_executor import LiveRetry, LiveRun, now_text
-from linux_maa.run_state import RunStateStore
+from linux_maa.process import StreamingProcessResult
+from linux_maa.run_manager.command import CommandSpec
+from linux_maa.run_manager.coordinator import RunCoordinator
+from linux_maa.run_manager.logs import RunLogProfile
+from linux_maa.run_manager.manager import GenericRunManager, RetryDecision, RunAttempt, RunCallbacks, RunStartPlan, RunTextTemplates
+from linux_maa.run_manager.state import LiveRun
+from linux_maa.run_manager.store import RunStateStore
+from linux_maa.run_resources import RUN_PRIORITY_NORMAL, adb_device_resources_from_profile
 from linux_maa.scheduler.models import TaskPolicy
 from linux_maa.scheduler.policy import enabled_task_ids_from_config, retry_unfinished_task_ids, task_policies_from_config
-from linux_maa.state import idle_response
-from linux_maa.time_utils import server_now_iso
 from linux_maa.utils import dict_value, relative_path, resolve_existing_named_file, slugify, write_text_atomic
 
 
@@ -147,8 +146,144 @@ class MaaRunRequest:
     retry_count: int = 1
 
 
+@dataclass
+class ManualMaaRunCallbacks:
+    """Manual MAA attempt hooks; GenericRunManager owns lifecycle and retry loop."""
+
+    runtime: MaaRuntime
+    diagnostics: Diagnostics
+    request: MaaRunRequest
+    policies: list[TaskPolicy]
+    selected_task_ids: list[str]
+
+    def __post_init__(self) -> None:
+        self.policy_by_id = {policy.id: policy for policy in self.policies}
+        self.run_successful_task_ids: set[str] = set()
+        self.collectors: dict[str, MaaTaskResultCollector] = {}
+        self.maacore_offsets: dict[str, int] = {}
+
+    def to_callbacks(self) -> RunCallbacks:
+        return RunCallbacks(
+            on_start=self.on_start,
+            build_command=self.build_command,
+            on_raw_line=self.on_raw_line,
+            evaluate_attempt=self.evaluate_attempt,
+            after_attempt=self.after_attempt,
+        )
+
+    def on_start(self, attempt: RunAttempt) -> RetryDecision | None:
+        if self.selected_task_ids:
+            return None
+        generated_config_dir = _generated_config_dir(self.runtime, attempt.run_id)
+        attempt.add_event("当前任务配置没有启用的子任务。", tone="warning")
+        return RetryDecision(
+            "skipped",
+            0,
+            run_status="skipped",
+            retry_metadata={"task_results": []},
+            retry_artifacts={"generated_config_dir": generated_config_dir},
+            summary_patch={"task_results": [], "generated_config_dir": generated_config_dir},
+        )
+
+    def build_command(self, attempt: RunAttempt) -> CommandSpec:
+        task_ids = _attempt_task_ids(attempt)
+        prepare_messages: list[str] = []
+        run_task, run_env = prepare_maa_cli_task(
+            self.runtime,
+            self.request.task,
+            run_id=attempt.run_id,
+            attempt=attempt.attempt_index,
+            messages=prepare_messages,
+            selected_task_ids=set(task_ids),
+            force_enable_selected=True,
+        )
+        cmd = [
+            str(self.runtime.maa_bin),
+            "run",
+            run_task,
+            "--batch",
+            "--profile",
+            self.request.profile,
+        ]
+        if self.request.log_level > 0:
+            cmd.extend(["-v"] * self.request.log_level)
+        attempt.add_event(f"开始第 {attempt.attempt_index} 次尝试: {', '.join(_task_names(self.policy_by_id, task_ids))}", tone="info")
+        for message in prepare_messages:
+            attempt.add_event(message, tone="info")
+
+        task_descriptors = _task_descriptors(self.policy_by_id, task_ids)
+        attempt.configure_log(lambda log: log.begin_task_sequence(_task_descriptor_dicts(task_descriptors)))
+        self.collectors[attempt.retry_id] = MaaTaskResultCollector(task_descriptors)
+        self.maacore_offsets[attempt.retry_id] = self.diagnostics.maacore_log_offset()
+        return CommandSpec(cmd, env=run_env)
+
+    def on_raw_line(self, attempt: RunAttempt, stream: str, line: str) -> None:
+        collector = self.collectors.get(attempt.retry_id)
+        if collector is not None:
+            collector.consume_raw_line(f"maa-cli:{stream}", line)
+
+    def evaluate_attempt(self, attempt: RunAttempt, result: StreamingProcessResult) -> RetryDecision:
+        generated_config_dir = _generated_config_dir(self.runtime, attempt.run_id)
+        collector = self.collectors.pop(attempt.retry_id, MaaTaskResultCollector([]))
+        collector.finish()
+        maacore_log_file = self.diagnostics.capture_maacore_log(attempt.retry_id, self.maacore_offsets.pop(attempt.retry_id, 0))
+        task_results = list(collector.results)
+        task_ids = _attempt_task_ids(attempt)
+        status_by_task_id = collector.status_by_task_id(task_ids)
+        self.run_successful_task_ids.update(task_id for task_id, status in status_by_task_id.items() if status == "succeeded")
+
+        attempt_status = "succeeded" if result.return_code == 0 and all(status == "succeeded" for status in status_by_task_id.values()) else "failed"
+        if result.stopped or attempt.stop_requested:
+            attempt_status = "stopped"
+        if result.timed_out:
+            attempt_status = "failed"
+
+        next_task_ids: list[str] = []
+        if attempt_status != "stopped":
+            next_task_ids = retry_unfinished_task_ids(
+                self.selected_task_ids,
+                status_by_task_id,
+                run_successful_task_ids=self.run_successful_task_ids,
+            )
+        will_retry = bool(next_task_ids) and attempt.attempt_index < attempt.max_retries and attempt_status != "stopped"
+        run_status = None
+        if attempt_status == "stopped":
+            run_status = "stopped"
+        elif not next_task_ids:
+            run_status = "succeeded"
+        elif not will_retry:
+            run_status = "failed"
+
+        return RetryDecision(
+            attempt_status,
+            result.return_code,
+            run_status=run_status,
+            continue_retry=will_retry,
+            next_attempt_payload={"task_ids": next_task_ids},
+            retry_metadata={"task_ids": task_ids, "task_results": task_results},
+            retry_artifacts={"generated_config_dir": generated_config_dir, "maacore_log_file": maacore_log_file},
+            summary_patch={"task_results": task_results, "generated_config_dir": generated_config_dir},
+        )
+
+    def after_attempt(
+        self,
+        attempt: RunAttempt,
+        _result: StreamingProcessResult,
+        decision: RetryDecision,
+    ) -> RetryDecision | None:
+        if attempt.stop_requested or decision.retry_status == "stopped":
+            return None
+        next_task_ids = _payload_task_ids(decision.next_attempt_payload or {})
+        if decision.continue_retry and next_task_ids:
+            attempt.add_event(f"准备重试: {', '.join(_task_names(self.policy_by_id, next_task_ids))}", tone="warning")
+        elif next_task_ids and attempt.attempt_index >= attempt.max_retries:
+            attempt.add_event("重试次数已达上限，仍有未成功子任务。", tone="danger")
+        return None
+
+
 class MaaRunManager:
     """Orchestrates manual MAA task runs: start, stop, status, SSE change notification."""
+
     def __init__(
         self,
         runtime: MaaRuntime,
@@ -164,140 +299,88 @@ class MaaRunManager:
         self.framework_settings = framework_settings or FrameworkSettingsManager(runtime)
         self.configs = configs or ConfigManager(runtime)
         self.run_coordinator = run_coordinator or RunCoordinator()
-        self._lock = threading.Lock()
-        self._condition = threading.Condition(self._lock)
-        self._version = 0
-        self._runs: dict[str, LiveRun] = {}
-        self._current_run_id: str | None = None
+        self.runs = GenericRunManager(runtime, self.run_state, self.diagnostics, self.run_coordinator)
 
     def start(self, request: MaaRunRequest) -> LiveRun:
         profile_data = self._profile_data(request.profile)
         resources = adb_device_resources_from_profile(profile_data)
         run_id = uuid.uuid4().hex[:12]
-        started_at = now_text()
         log_files = self.diagnostics.maa_cli_log_files(run_id)
         max_retries = _retry_count(request.retry_count)
-        state = LiveRun(
-            id=run_id,
-            kind="manual",
-            title=request.task,
-            status="running",
-            started_at=started_at,
-            updated_at=started_at,
-            max_retries=max_retries,
-            log_files=log_files,
-            event_log_file=self.diagnostics.event_log_file(run_id),
-            metadata={
-                "task": request.task,
-                "profile": request.profile,
-                "log_level": request.log_level,
-                "retry_count": max_retries,
-                "resource_locks": [resource.to_dict() for resource in resources],
-                "run_priority": RUN_PRIORITY_NORMAL,
-            },
+        log_profile = _maa_cli_log_profile(self.diagnostics)
+        task_data = load_task_file(resolve_task_file(self.runtime, request.task))
+        policies = task_policies_from_config(task_data)
+        selected_task_ids = enabled_task_ids_from_config(task_data)
+        callbacks = ManualMaaRunCallbacks(
+            runtime=self.runtime,
+            diagnostics=self.diagnostics,
+            request=request,
+            policies=policies,
+            selected_task_ids=selected_task_ids,
         )
-        lease = RunLease(
+        state = self.runs.start(
+            RunStartPlan(
+                kind="manual",
+                title=request.task,
+                callbacks=callbacks.to_callbacks(),
+                max_retries=max_retries,
+                timeouts=self.framework_settings.run_timeouts(),
+                log_profile=log_profile,
+                metadata={
+                    "task": request.task,
+                    "profile": request.profile,
+                    "log_level": request.log_level,
+                    "resource_locks": [resource.to_dict() for resource in resources],
+                    "run_priority": RUN_PRIORITY_NORMAL,
+                },
+                log_files=log_files,
+                event_log_file=self.diagnostics.event_log_file(run_id),
+                initial_attempt_payload={"task_ids": selected_task_ids},
+                history_scope=("manual",),
+                resources=resources,
+                priority_name="normal",
+                force_after_seconds=self._preemption_force_after_seconds(),
+                text=RunTextTemplates(
+                    process_name="maa-cli",
+                    completed="",
+                    exit_code="maa-cli 退出码: {return_code}",
+                    retry_start="第 {retry_index} 次重试",
+                    retry_next="",
+                    retry_limit_reached="",
+                    start_failed="启动 maa-cli 失败: {error}",
+                    stop_requested="收到停止请求，正在等待 maa-cli 自行停止...",
+                    force_stop_requested="收到强制停止请求，正在强杀 maa-cli...",
+                    execution_failed="手动运行失败: {error}",
+                ),
+            ),
             run_id=run_id,
-            kind="manual",
-            title=request.task,
-            priority=RUN_PRIORITY_NORMAL,
-            resources=resources,
-            request_stop=lambda: self._request_stop_for_run(state),
-            request_force_stop=lambda: self._request_force_stop_for_run(state),
-            force_after_seconds=self._preemption_force_after_seconds(),
         )
-        try:
-            self.run_coordinator.acquire(lease)
-            with self._lock:
-                current = self._runs.get(self._current_run_id or "")
-                if current and current.status in {"running", "stopping"}:
-                    raise RuntimeError(f"Run already active: {current.id}")
-                if state.stop_requested:
-                    raise RuntimeError("Run was preempted before it started")
-
-                self.run_state.create_run(
-                    run_id=run_id,
-                    kind="manual",
-                    title=request.task,
-                    max_retries=max_retries,
-                    log_files=log_files,
-                    event_log_file=state.event_log_file,
-                    metadata={"task": request.task, "profile": request.profile, "retry_count": max_retries},
-                )
-                logger.info("manual run started run_id=%s task=%s profile=%s log_level=%s", run_id, request.task, request.profile, request.log_level)
-                self._runs[run_id] = state
-                self._current_run_id = run_id
-                self._notify_locked()
-        except Exception:
-            self.run_coordinator.release(run_id)
-            raise
-
-        thread = threading.Thread(target=self._run, args=(state,), daemon=True)
-        state.thread = thread
-        try:
-            thread.start()
-        except Exception:
-            self.run_coordinator.release(run_id)
-            raise
+        logger.info("manual run started run_id=%s task=%s profile=%s log_level=%s", run_id, request.task, request.profile, request.log_level)
         return state
 
     def wait_for_change(self, last_version: int, timeout: float | None = None) -> int:
-        with self._condition:
-            if self._version == last_version:
-                self._condition.wait(timeout)
-            return self._version
+        return self.runs.wait_for_change(last_version, timeout)
 
     def current(self) -> LiveRun | None:
-        with self._lock:
-            return self._runs.get(self._current_run_id or "")
+        return self.runs.current()
 
     def current_response(self, *, include_logs: bool = True) -> dict[str, object]:
-        with self._lock:
-            state = self._runs.get(self._current_run_id or "")
-            version = self._version
-            payload = state.to_dict(include_logs=include_logs) if state is not None else idle_response()
-        payload["stream_version"] = version
-        return payload
+        return self.runs.current_response(include_logs=include_logs)
 
     def get(self, run_id: str) -> LiveRun | None:
-        with self._lock:
-            return self._runs.get(run_id)
+        return self.runs.get(run_id)
+
+    def stop_current(self) -> LiveRun:
+        return self.runs.stop_current()
+
+    def force_stop_current(self) -> LiveRun:
+        return self.runs.force_stop_current()
 
     def stop(self, run_id: str) -> LiveRun:
-        state = self.get(run_id)
-        if state is None:
-            raise KeyError(run_id)
-        with self._lock:
-            if state.status in {"running", "stopping"}:
-                self._append_framework_log_locked(state, "收到停止请求，正在等待 maa-cli 自行停止...", tone="warning")
-                logger.warning("manual run stop requested run_id=%s", state.id)
-                state.request_stop()
-                self._notify_locked()
-        return state
+        return self.runs.stop(run_id)
 
     def force_stop(self, run_id: str) -> LiveRun:
-        state = self.get(run_id)
-        if state is None:
-            raise KeyError(run_id)
-        with self._lock:
-            if state.status in {"running", "stopping"}:
-                self._append_framework_log_locked(state, "收到强制停止请求，正在强杀 maa-cli...", tone="danger")
-                logger.warning("manual run force stop requested run_id=%s", state.id)
-                state.request_force_stop()
-                self._notify_locked()
-        return state
-
-    def _request_stop_for_run(self, state: LiveRun) -> None:
-        if self.get(state.id) is None:
-            state.request_stop()
-            return
-        self.stop(state.id)
-
-    def _request_force_stop_for_run(self, state: LiveRun) -> None:
-        if self.get(state.id) is None:
-            state.request_force_stop()
-            return
-        self.force_stop(state.id)
+        return self.runs.force_stop(run_id)
 
     def _preemption_force_after_seconds(self) -> float | None:
         seconds = self.framework_settings.run_timeouts().stop_kill_seconds
@@ -310,236 +393,18 @@ class MaaRunManager:
             return {}
         return dict_value(data)
 
-    def _mark_log_updated(self, state: LiveRun, retry: LiveRetry | None = None) -> None:
-        with self._lock:
-            if retry is not None:
-                retry.touch()
-            state.touch()
-            self._notify_locked()
 
-    def _append_maa_log(self, state: LiveRun, retry: LiveRetry, text: str, stream: str = "output") -> None:
-        self.diagnostics.append_maa_cli_output(state.id, stream, text)
-        if retry.log.append(text, source=f"maa-cli:{stream}"):
-            self._mark_log_updated(state, retry)
-
-    def _flush_maa_log(self, state: LiveRun, retry: LiveRetry) -> None:
-        if retry.log.flush():
-            self._mark_log_updated(state, retry)
-
-    def _append_framework_log(self, state: LiveRun, text: str, *, tone: str = "info") -> None:
-        self.diagnostics.append_run_event(state.id, "manual", "framework", text)
-        logger.info("manual run event run_id=%s text=%s", state.id, text)
-        with self._lock:
-            self._append_framework_log_locked(state, text, tone=tone)
-            self._notify_locked()
-
-    def _append_framework_log_locked(self, state: LiveRun, text: str, *, tone: str = "info") -> None:
-        retry = state.current_retry
-        if retry is None:
-            retry = state.begin_retry(log=_new_maa_log_buffer())
-        if retry.log.append(f"{text.rstrip()}\n", source="framework:event", metadata={"time": server_now_iso(), "tone": tone}):
-            retry.touch()
-        state.touch()
-
-    def _finish_retry(self, state: LiveRun, retry: LiveRetry, status: str, return_code: int | None, *, task_results: list[dict[str, object]], maacore_log_file: str | None = None) -> None:
-        with self._lock:
-            retry.task_results = task_results
-            retry.seal(status=status, return_code=return_code)
-            if maacore_log_file is not None:
-                retry.maacore_log_file = maacore_log_file
-                state.maacore_log_file = maacore_log_file
-            self._notify_locked()
-        generated_config_dir = relative_path(self.runtime.generated_config_dir / state.id, self.runtime.repo_root)
-        retry.generated_config_dir = generated_config_dir
-        self.run_state.add_retry(
-            retry_id=retry.id,
-            run_id=state.id,
-            retry_index=retry.retry_index,
-            retry_group=retry.retry_group,
-            status=status,
-            started_at=retry.started_at,
-            updated_at=retry.updated_at,
-            ended_at=retry.ended_at or retry.updated_at,
-            return_code=return_code,
-            task_ids=retry.task_ids,
-            task_results=task_results,
-            log_entries=retry.log.entries(),
-            log_files=retry.log_files,
-            generated_config_dir=generated_config_dir,
-            maacore_log_file=maacore_log_file,
-        )
-
-    def _finish_run(self, state: LiveRun, status: str, return_code: int | None) -> None:
-        try:
-            with self._lock:
-                state.finish(status=status, return_code=return_code)
-                self._notify_locked()
-            generated_config_dir = relative_path(self.runtime.generated_config_dir / state.id, self.runtime.repo_root)
-            self.run_state.finish_run(
-                state.id,
-                status=status,
-                return_code=return_code,
-                maacore_log_file=state.maacore_log_file,
-                generated_config_dir=generated_config_dir,
-                retry_count=len(state.retries),
-                retry_group_count=1,
-                summary={
-                    "task_results": state.retries[-1].task_results if state.retries else [],
-                    "generated_config_dir": generated_config_dir,
-                },
-            )
-            self.run_state.enforce_retention()
-            self.diagnostics.enforce_retention()
-            logger.info("manual run finished run_id=%s status=%s return_code=%s maacore_log_file=%s", state.id, status, return_code, state.maacore_log_file)
-        finally:
-            self.run_coordinator.release(state.id)
-
-    def _run(self, state: LiveRun) -> None:
-        task = str(state.metadata.get("task") or state.title)
-        profile = str(state.metadata.get("profile") or "default")
-        log_level = int(state.metadata.get("log_level") or 0)
-        task_data = load_task_file(resolve_task_file(self.runtime, task))
-        policies = task_policies_from_config(task_data)
-        policy_by_id = {policy.id: policy for policy in policies}
-        selected_task_ids = enabled_task_ids_from_config(task_data)
-        if not selected_task_ids:
-            self._append_framework_log(state, "当前任务配置没有启用的子任务。", tone="warning")
-            self._finish_run(state, "skipped", 0)
-            return
-
-        next_task_ids = selected_task_ids
-        run_successful_task_ids: set[str] = set()
-        final_status = "failed"
-        final_return_code: int | None = None
-
-        while next_task_ids and len(state.retries) < state.max_retries and not state.stop_requested:
-            attempt_index = len(state.retries) + 1
-            retry = state.begin_retry(task_ids=next_task_ids, log=_new_maa_log_buffer(), log_files=state.log_files)
-            prepare_messages: list[str] = []
-            run_task, run_env = prepare_maa_cli_task(
-                self.runtime,
-                task,
-                run_id=state.id,
-                attempt=attempt_index,
-                messages=prepare_messages,
-                selected_task_ids=set(next_task_ids),
-                force_enable_selected=True,
-            )
-            cmd = [
-                str(self.runtime.maa_bin),
-                "run",
-                run_task,
-                "--batch",
-                "--profile",
-                profile,
-            ]
-            if log_level > 0:
-                cmd.extend(["-v"] * log_level)
-            if attempt_index == 1:
-                self._append_framework_log(state, f"运行: {task}")
-            self._append_framework_log(state, f"开始第 {attempt_index} 次尝试: {', '.join(_task_names(policy_by_id, next_task_ids))}", tone="info")
-            for message in prepare_messages:
-                self._append_framework_log(state, message)
-            task_descriptors = _task_descriptors(policy_by_id, next_task_ids)
-            retry.log.begin_task_sequence(_task_descriptor_dicts(task_descriptors))
-            collector = MaaTaskResultCollector(task_descriptors)
-            maacore_log_start = self.diagnostics.maacore_log_offset()
-            try:
-                result = self._run_process(state, retry, cmd, run_env, collector)
-            except Exception as exc:
-                self._append_framework_log(state, f"启动 maa-cli 失败: {exc}")
-                logger.exception("manual run process start failed run_id=%s", state.id)
-                collector.finish()
-                self._finish_retry(state, retry, "failed", None, task_results=collector.results)
-                self._finish_run(state, "failed", None)
-                return
-            collector.finish()
-            maacore_log_file = self.diagnostics.capture_maacore_log(retry.id, maacore_log_start)
-            task_results = list(collector.results)
-            status_by_task_id = collector.status_by_task_id(next_task_ids)
-            run_successful_task_ids.update(task_id for task_id, status in status_by_task_id.items() if status == "succeeded")
-
-            attempt_status = "succeeded" if result.return_code == 0 and all(status == "succeeded" for status in status_by_task_id.values()) else "failed"
-            if result.stopped or state.stop_requested:
-                attempt_status = "stopped"
-            if result.timed_out:
-                attempt_status = "failed"
-            self._append_framework_log(state, f"maa-cli 退出码: {result.return_code}", tone="info" if result.return_code == 0 else "warning")
-            self._finish_retry(state, retry, attempt_status, result.return_code, task_results=task_results, maacore_log_file=maacore_log_file)
-            final_return_code = result.return_code
-
-            if attempt_status == "stopped":
-                final_status = "stopped"
-                break
-            next_task_ids = retry_unfinished_task_ids(selected_task_ids, status_by_task_id, run_successful_task_ids=run_successful_task_ids)
-            if not next_task_ids:
-                final_status = "succeeded"
-                break
-            if len(state.retries) < state.max_retries:
-                self._append_framework_log(state, f"准备重试: {', '.join(_task_names(policy_by_id, next_task_ids))}", tone="warning")
-
-        if state.stop_requested and final_status not in {"stopped", "succeeded"}:
-            final_status = "stopped"
-        elif next_task_ids and final_status != "stopped":
-            self._append_framework_log(state, "重试次数已达上限，仍有未成功子任务。", tone="danger")
-            final_status = "failed"
-        self._finish_run(state, final_status, final_return_code)
-
-    def _run_process(self, state: LiveRun, retry: LiveRetry, cmd: list[str], env: dict[str, str], collector: MaaTaskResultCollector):
-        try:
-            timeouts = self.framework_settings.run_timeouts()
-            result = run_streaming_process(
-                self.runtime,
-                cmd,
-                env=env,
-                on_output=lambda text: None,
-                on_stream_output=lambda stream, text: self._append_maa_log(state, retry, text, stream),
-                on_raw_line=lambda stream, line: collector.consume_raw_line(f"maa-cli:{stream}", line),
-                on_process=lambda proc: self._set_process(state, proc),
-                should_stop=lambda: state.stop_requested,
-                should_force_stop=lambda: state.force_stop_requested,
-                no_output_warning_seconds=timeouts.no_output_warning_seconds or None,
-                no_output_kill_seconds=timeouts.no_output_kill_seconds or None,
-                runtime_warning_seconds=timeouts.runtime_warning_seconds or None,
-                runtime_kill_seconds=timeouts.runtime_kill_seconds or None,
-                stop_warning_seconds=timeouts.stop_warning_seconds or None,
-                stop_kill_seconds=timeouts.stop_kill_seconds or None,
-                on_timeout=lambda level, elapsed: self._append_timeout_event(state, level, elapsed),
-            )
-            return result
-        finally:
-            self._flush_maa_log(state, retry)
-
-    def _append_timeout_event(self, state: LiveRun, level: str, elapsed: float) -> None:
-        messages = {
-            "no_output_warning": f"已 {elapsed:.0f}s 没有收到新输出，运行可能卡住。",
-            "no_output_kill": f"已 {elapsed:.0f}s 没有收到新输出，正在强制终止 maa-cli。",
-            "runtime_warning": f"运行时间已超过 {elapsed:.0f}s。",
-            "runtime_kill": "运行时间已超过上限，正在强制终止 maa-cli。",
-            "stop_warning": f"停止请求已等待 {elapsed:.0f}s，maa-cli 可能没有响应停止命令。",
-            "stop_kill": "停止等待超过上限，正在强制终止 maa-cli。",
-            "force_kill": "正在强制终止 maa-cli。",
-        }
-        tone = "warning" if level.endswith("warning") else "danger"
-        self._append_framework_log(state, messages.get(level, f"运行超时事件: {level}"), tone=tone)
-
-    def _set_process(self, state: LiveRun, proc: subprocess.Popen[str]) -> None:
-        with self._lock:
-            state.process = proc
-
-    def _notify_locked(self) -> None:
-        self._version += 1
-        self._condition.notify_all()
+def _maa_cli_log_profile(diagnostics: Diagnostics) -> RunLogProfile:
+    return RunLogProfile(
+        max_output_chunks=2000,
+        register_sources=register_maa_log_sources,
+        source_for_stream=lambda stream: f"maa-cli:{stream}",
+        diagnostic_sink=diagnostics.append_maa_cli_output,
+    )
 
 
-def _register_maa_cli_log_sources(log: RunLogBuffer) -> None:
-    register_maa_log_sources(log)
-
-
-def _new_maa_log_buffer() -> RunLogBuffer:
-    log = RunLogBuffer(max_output_chunks=2000)
-    _register_maa_cli_log_sources(log)
-    return log
+def _generated_config_dir(runtime: MaaRuntime, run_id: str) -> str:
+    return relative_path(runtime.generated_config_dir / run_id, runtime.repo_root)
 
 
 def _retry_count(value: object) -> int:
@@ -559,6 +424,15 @@ def _task_descriptors(policy_by_id: dict[str, TaskPolicy], task_ids: list[str]) 
 
 def _task_descriptor_dicts(descriptors: list[MaaTaskDescriptor]) -> list[dict[str, str]]:
     return [{"task_id": item.task_id, "source_name": item.source_name, "name": item.name} for item in descriptors]
+
+
+def _attempt_task_ids(attempt: RunAttempt) -> list[str]:
+    return _payload_task_ids(attempt.payload)
+
+
+def _payload_task_ids(payload: dict[str, object]) -> list[str]:
+    value = payload.get("task_ids")
+    return [str(item) for item in value] if isinstance(value, list) else []
 
 
 def _task_names(policy_by_id: dict[str, TaskPolicy], task_ids: list[str]) -> list[str]:

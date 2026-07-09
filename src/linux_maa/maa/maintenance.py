@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import subprocess
-import threading
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -12,13 +11,14 @@ import requests
 
 from linux_maa.config.app_settings import FrameworkSettingsManager
 from linux_maa.diagnostics import Diagnostics, get_logger
-from linux_maa.logs.state import RunLogBuffer
 from linux_maa.maa.log_templates import register_maa_log_sources
 from linux_maa.maa.runtime import MaaRuntime
-from linux_maa.process import run_streaming_process
-from linux_maa.run_executor import LiveRetry, LiveRun, now_text
-from linux_maa.run_state import RunStateStore
-from linux_maa.time_utils import server_now_iso
+from linux_maa.run_manager.command import CommandSpec
+from linux_maa.run_manager.coordinator import RunCoordinator
+from linux_maa.run_manager.logs import RunLogProfile
+from linux_maa.run_manager.manager import GenericRunManager, RunStartPlan, RunTextTemplates
+from linux_maa.run_manager.state import LiveRun
+from linux_maa.run_manager.store import RunStateStore
 from linux_maa.utils import dict_value, extract_version, is_newer_version
 
 
@@ -37,40 +37,33 @@ DEFAULT_CLI_API_URL = "https://github.com/MaaAssistantArknights/maa-cli/raw/vers
 
 class MaintenanceActionManager:
     """Manages maintenance actions: core/resource/cli updates with version checks."""
+
     def __init__(
         self,
         runtime: MaaRuntime,
         run_state: RunStateStore | None = None,
         diagnostics: Diagnostics | None = None,
         framework_settings: FrameworkSettingsManager | None = None,
+        run_coordinator: RunCoordinator | None = None,
     ) -> None:
         self.runtime = runtime
-        self.run_state = run_state or RunStateStore(runtime)
         self.diagnostics = diagnostics or Diagnostics(runtime)
         self.framework_settings = framework_settings or FrameworkSettingsManager(runtime)
-        self._lock = threading.Lock()
-        self._condition = threading.Condition(self._lock)
-        self._version = 0
-        self._current: LiveRun | None = None
+        self.runs = GenericRunManager(
+            runtime,
+            run_state or RunStateStore(runtime),
+            self.diagnostics,
+            run_coordinator,
+        )
 
     def current(self) -> LiveRun | None:
-        with self._lock:
-            return self._current
+        return self.runs.current()
 
     def current_response(self, *, include_logs: bool = True) -> dict[str, object]:
-        from linux_maa.state import idle_response
-
-        with self._lock:
-            version = self._version
-            payload = self._current.to_dict(include_logs=include_logs) if self._current is not None else idle_response()
-        payload["stream_version"] = version
-        return payload
+        return self.runs.current_response(include_logs=include_logs)
 
     def wait_for_change(self, last_version: int, timeout: float | None = None) -> int:
-        with self._condition:
-            if self._version == last_version:
-                self._condition.wait(timeout)
-            return self._version
+        return self.runs.wait_for_change(last_version, timeout)
 
     def start(self, kind: str) -> LiveRun:
         command_info = MAINTENANCE_COMMANDS.get(kind)
@@ -78,40 +71,37 @@ class MaintenanceActionManager:
             raise ValueError(f"Unsupported maintenance action: {kind}")
 
         title, args = command_info
-        with self._lock:
-            if self._current and self._current.status == "running":
-                raise RuntimeError(f"Maintenance action already running: {self._current.title}")
-            run_id = uuid.uuid4().hex[:12]
-            started_at = now_text()
-            log_files = self.diagnostics.maa_cli_log_files(run_id)
-            state = LiveRun(
-                id=run_id,
+        run_id = uuid.uuid4().hex[:12]
+        cmd = [str(self.runtime.maa_bin), *args]
+        log_profile = _maa_cli_log_profile(self.diagnostics)
+        state = self.runs.start(
+            RunStartPlan(
                 kind="maintenance",
                 title=title,
-                status="running",
-                started_at=started_at,
-                updated_at=started_at,
+                command=CommandSpec(cmd, env=self.runtime.env()),
                 max_retries=1,
-                log_files=log_files,
+                timeouts=self.framework_settings.run_timeouts(),
+                log_profile=log_profile,
+                log_files=self.diagnostics.maa_cli_log_files(run_id),
                 event_log_file=self.diagnostics.event_log_file(run_id),
                 metadata={"maintenance_kind": kind},
-            )
-            self.run_state.create_run(
-                run_id=state.id,
-                kind="maintenance",
-                title=title,
-                max_retries=1,
-                log_files=log_files,
-                event_log_file=state.event_log_file,
-                metadata={"maintenance_kind": kind},
-            )
-            self._current = state
-            logger.info("maintenance action started run_id=%s kind=%s title=%s", state.id, kind, title)
-            self._notify_locked()
-
-        thread = threading.Thread(target=self._run, args=(state, args), daemon=True)
-        state.thread = thread
-        thread.start()
+                history_scope=("maintenance", kind),
+                priority_name="normal",
+                text=RunTextTemplates(
+                    process_name="维护动作",
+                    start=f"$ {' '.join(cmd)}",
+                    completed="维护动作完成",
+                    exit_code="维护动作退出码: {return_code}",
+                    retry_next="准备重试维护动作。",
+                    start_failed="维护动作失败: {error}",
+                    stop_requested="收到停止请求，正在终止维护动作...",
+                    force_stop_requested="收到强制停止请求，正在强杀维护动作...",
+                    execution_failed="维护动作失败: {error}",
+                ),
+            ),
+            run_id=run_id,
+        )
+        logger.info("maintenance action started run_id=%s kind=%s title=%s", state.id, kind, title)
         return state
 
     def inspect_update_info(self, cli_config: dict[str, Any]) -> dict[str, object]:
@@ -131,114 +121,13 @@ class MaintenanceActionManager:
             "errors": errors,
         }
 
-    def _append(self, state: LiveRun, retry: LiveRetry, text: str, source: str = "framework", *, tone: str = "info") -> None:
-        if source.startswith("maa-cli:"):
-            self.diagnostics.append_maa_cli_output(state.id, source.split(":", 1)[1], text)
-            appended = retry.log.append(text, source=source)
-        else:
-            self.diagnostics.append_run_event(state.id, "maintenance", source, text)
-            logger.info("maintenance event run_id=%s source=%s text=%s", state.id, source, text.strip())
-            appended = retry.log.append(
-                f"{text.strip()}\n",
-                source="framework:event",
-                metadata={"time": server_now_iso(), "tone": tone},
-            )
-        with self._lock:
-            if appended:
-                retry.touch()
-                state.touch()
-                self._notify_locked()
-
-    def _set_done(self, state: LiveRun, retry: LiveRetry, status: str, return_code: int | None) -> None:
-        with self._lock:
-            retry.seal(status=status, return_code=return_code)
-            state.finish(status=status, return_code=return_code)
-            self._notify_locked()
-        self.run_state.add_retry(
-            retry_id=retry.id,
-            run_id=state.id,
-            retry_index=retry.retry_index,
-            retry_group=retry.retry_group,
-            status=status,
-            started_at=retry.started_at,
-            updated_at=retry.updated_at,
-            ended_at=retry.ended_at or retry.updated_at,
-            return_code=return_code,
-            task_ids=[],
-            task_results=retry.task_results,
-            log_entries=retry.log.entries(),
-            log_files=retry.log_files,
-        )
-        self.run_state.finish_run(state.id, status=status, return_code=return_code, retry_count=len(state.retries), retry_group_count=1)
-        self.run_state.enforce_retention()
-        self.diagnostics.enforce_retention()
-        logger.info("maintenance action finished run_id=%s status=%s return_code=%s", state.id, status, return_code)
-
-    def _run(self, state: LiveRun, args: list[str]) -> None:
-        retry = state.current_retry or state.begin_retry(log=_new_maa_cli_log_buffer(), log_files=state.log_files)
-        cmd = [str(self.runtime.maa_bin), *args]
-        self._append(state, retry, f"$ {' '.join(cmd)}\n")
-        try:
-            timeouts = self.framework_settings.run_timeouts()
-            result = run_streaming_process(
-                self.runtime,
-                cmd,
-                env=self.runtime.env(),
-                on_output=lambda text: None,
-                on_stream_output=lambda stream, text: self._append(state, retry, text, f"maa-cli:{stream}"),
-                on_process=lambda proc: self._set_process(state, proc),
-                should_stop=lambda: state.stop_requested,
-                should_force_stop=lambda: state.force_stop_requested,
-                no_output_warning_seconds=timeouts.no_output_warning_seconds or None,
-                no_output_kill_seconds=timeouts.no_output_kill_seconds or None,
-                runtime_warning_seconds=timeouts.runtime_warning_seconds or None,
-                runtime_kill_seconds=timeouts.runtime_kill_seconds or None,
-                stop_warning_seconds=timeouts.stop_warning_seconds or None,
-                stop_kill_seconds=timeouts.stop_kill_seconds or None,
-                on_timeout=lambda level, elapsed: self._append_timeout_event(state, retry, level, elapsed),
-            )
-            if retry.log.flush():
-                with self._lock:
-                    retry.touch()
-                    state.touch()
-                    self._notify_locked()
-            return_code = result.return_code
-            self._set_done(state, retry, "succeeded" if return_code == 0 else "failed", return_code)
-        except Exception as exc:
-            self._append(state, retry, f"维护动作失败: {exc}\n")
-            logger.exception("maintenance action failed run_id=%s", state.id)
-            self._set_done(state, retry, "failed", None)
-
-    def _append_timeout_event(self, state: LiveRun, retry: LiveRetry, level: str, elapsed: float) -> None:
-        messages = {
-            "no_output_warning": f"已 {elapsed:.0f}s 没有收到维护输出，维护动作可能卡住。",
-            "no_output_kill": f"已 {elapsed:.0f}s 没有收到维护输出，正在强制终止。",
-            "runtime_warning": f"维护动作运行时间已超过 {elapsed:.0f}s。",
-            "runtime_kill": "维护动作运行时间已超过上限，正在强制终止。",
-            "stop_warning": f"停止请求已等待 {elapsed:.0f}s，维护动作可能没有响应停止命令。",
-            "stop_kill": "停止等待超过上限，正在强制终止维护动作。",
-            "force_kill": "正在强制终止维护动作。",
-        }
-        tone = "warning" if level.endswith("warning") else "danger"
-        self._append(state, retry, messages.get(level, f"维护超时事件: {level}"), source="framework", tone=tone)
-
-    def _set_process(self, state: LiveRun, proc: subprocess.Popen[str]) -> None:
-        with self._lock:
-            state.process = proc
-
-    def _notify_locked(self) -> None:
-        self._version += 1
-        self._condition.notify_all()
-
-
-def _register_maa_cli_log_sources(log: RunLogBuffer) -> None:
-    register_maa_log_sources(log)
-
-
-def _new_maa_cli_log_buffer() -> RunLogBuffer:
-    log = RunLogBuffer(max_output_chunks=1000)
-    _register_maa_cli_log_sources(log)
-    return log
+def _maa_cli_log_profile(diagnostics: Diagnostics) -> RunLogProfile:
+    return RunLogProfile(
+        max_output_chunks=1000,
+        register_sources=register_maa_log_sources,
+        source_for_stream=lambda stream: f"maa-cli:{stream}",
+        diagnostic_sink=diagnostics.append_maa_cli_output,
+    )
 
 
 def _current_versions(runtime: MaaRuntime, errors: list[str]) -> dict[str, object]:

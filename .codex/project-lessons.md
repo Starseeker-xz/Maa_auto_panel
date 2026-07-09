@@ -22,6 +22,7 @@ Mistake notebook for recurring project-specific issues. Source session id on eac
 
 ## Backend
 
+- `2026-07-06_0037-callback-run-manager`: 运行管理通用化时，不要把领域差异包装成 driver-owned retry loop。项目期望是 manager 内置生命周期和命令执行，领域只传初始命令与可选 callbacks，由 callbacks 返回 `RetryDecision` 决定下一命令、下一任务、结果和是否继续；否则手动/定时/工具/维护会再次各自为政。
 - `2026-07-05_1823-check-history-chunking`: 将 task success/failure 从可见日志剥离时，不要删除 `maa-task-lifecycle` 可见 block rule。策略结果可以只来自 `MaaTaskResultCollector`，但 UI 仍需要 lifecycle block rule 把 `StartUp`/`Infrast` 详情聚合成 task cards；测试必须断言 `kind == "task"`，不能只测 collector。
 - `2026-07-05_1823-check-history-chunking`: schedule stop/force-stop 必须对终态 run 幂等，不能让 `request_force_stop()` 把已结束状态改回 `stopping`。缓冲等待/重试上限阶段创建的 log-only retry 也要在 run finish 前 seal 并写入 history，否则 UI 会显示已结束 run 里仍有 running retry 段。
 - `2026-07-05_1823-check-history-chunking`: `LiveRun.run_dict()` 的 metadata 不能覆盖核心字段（例如 `retry_count`）。新增 metadata key 前检查是否与 run schema 顶层字段同名，避免把配置值误显示为运行事实。

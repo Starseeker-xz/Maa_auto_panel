@@ -207,6 +207,7 @@ export function SettingsPage() {
   const cliValidation = settings?.maa_cli.validation;
   const effectiveTimezone = settings?.framework.effective_timezone;
   const actionRunning = maintenance.status === "running" || maintenance.status === "stopping";
+  const maintenanceKind = stringMetadata(maintenance, "maintenance_kind");
   const hasMaintenanceLog = actionRunning || Boolean(maintenance.retries?.some((retry) => retry.log_entries?.length)) || error === MAINTENANCE_EVENTS_ERROR;
   const currentTimezoneMode = stringAt(framework, ["framework", "timezone", "mode"], "auto");
   const serverClientTimezoneMismatch =
@@ -472,11 +473,11 @@ export function SettingsPage() {
           <UpdateInfoPanel info={updateInfo} busy={updateInfoBusy} onRefresh={() => void handleRefreshUpdateInfo()} />
           <div className="grid grid-cols-[repeat(auto-fit,minmax(11rem,1fr))] gap-2">
             <Button className="min-w-0 whitespace-normal px-3" variant="outline" onClick={() => setMaintenanceConfirmKind("core-update")} disabled={actionRunning}>
-              <RefreshCw className={cn("size-4", actionRunning && maintenance.maintenance_kind === "core-update" && "animate-spin")} />
+              <RefreshCw className={cn("size-4", actionRunning && maintenanceKind === "core-update" && "animate-spin")} />
               更新 Core/基础包
             </Button>
             <Button className="min-w-0 whitespace-normal px-3" variant="outline" onClick={() => setMaintenanceConfirmKind("resource-update")} disabled={actionRunning}>
-              <RefreshCw className={cn("size-4", actionRunning && maintenance.maintenance_kind === "resource-update" && "animate-spin")} />
+              <RefreshCw className={cn("size-4", actionRunning && maintenanceKind === "resource-update" && "animate-spin")} />
               热更资源
             </Button>
             <Button className="min-w-0 whitespace-normal px-3" variant="outline" onClick={() => setMaintenanceConfirmKind("cli-update")} disabled={actionRunning}>
@@ -671,6 +672,11 @@ function shortCommit(value: unknown) {
 }
 
 function stringValue(value: unknown) {
+  return typeof value === "string" ? value : "";
+}
+
+function stringMetadata(run: MaintenanceActionState, key: string): string {
+  const value = run.metadata?.[key];
   return typeof value === "string" ? value : "";
 }
 

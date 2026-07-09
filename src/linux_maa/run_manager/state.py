@@ -6,10 +6,10 @@ from dataclasses import dataclass, field
 from typing import Any, Literal
 
 from linux_maa.logs.state import RunLogBuffer
-from linux_maa.run_state import RunKind
 from linux_maa.time_utils import server_now_iso
 
 
+RunKind = str
 RunStatus = Literal["idle", "running", "stopping", "succeeded", "failed", "soft_failed", "stopped", "skipped"]
 
 
@@ -48,11 +48,9 @@ class LiveRetry:
     status: str = "running"
     ended_at: str | None = None
     return_code: int | None = None
-    task_ids: list[str] = field(default_factory=list)
-    task_results: list[dict[str, object]] = field(default_factory=list)
     log_files: dict[str, str] = field(default_factory=dict)
-    generated_config_dir: str | None = None
-    maacore_log_file: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
+    artifacts: dict[str, Any] = field(default_factory=dict)
     closed: bool = False
     log: RunLogBuffer = field(default_factory=RunLogBuffer)
 
@@ -78,14 +76,12 @@ class LiveRetry:
             "updated_at": self.updated_at,
             "ended_at": self.ended_at,
             "return_code": self.return_code,
-            "task_ids": list(self.task_ids),
             "log_files": dict(self.log_files),
-            "generated_config_dir": self.generated_config_dir,
-            "maacore_log_file": self.maacore_log_file,
+            "metadata": dict(self.metadata),
+            "artifacts": dict(self.artifacts),
             "closed": self.closed,
         }
         if include_logs:
-            data["task_results"] = list(self.task_results)
             data["log_entries"] = self.log.entries()
         return data
 
@@ -105,8 +101,8 @@ class LiveRun:
     return_code: int | None = None
     log_files: dict[str, str] = field(default_factory=dict)
     event_log_file: str | None = None
-    maacore_log_file: str | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
+    artifacts: dict[str, Any] = field(default_factory=dict)
     retries: list[LiveRetry] = field(default_factory=list)
     process: subprocess.Popen[str] | None = field(default=None, repr=False)
     thread: threading.Thread | None = field(default=None, repr=False)
@@ -125,7 +121,6 @@ class LiveRun:
         self,
         *,
         retry_group: int = 1,
-        task_ids: list[str] | None = None,
         log_files: dict[str, str] | None = None,
         log: RunLogBuffer | None = None,
     ) -> LiveRetry:
@@ -137,7 +132,6 @@ class LiveRun:
             retry_group=retry_group,
             started_at=started_at,
             updated_at=started_at,
-            task_ids=task_ids or [],
             log_files=log_files or self.log_files,
             log=log or RunLogBuffer(),
         )
@@ -187,11 +181,11 @@ class LiveRun:
             "retry_group_count": max((retry.retry_group for retry in self.retries), default=0),
             "log_files": dict(self.log_files),
             "event_log_file": self.event_log_file,
-            "maacore_log_file": self.maacore_log_file,
             "stop_requested": self.stop_requested,
             "force_stop_requested": self.force_stop_requested,
+            "metadata": dict(self.metadata),
+            "artifacts": dict(self.artifacts),
         }
-        data.update({key: value for key, value in self.metadata.items() if key not in data and value is not None and value != ""})
         return data
 
     def to_dict(self, *, include_logs: bool = True) -> dict[str, object]:

@@ -6,13 +6,15 @@ import pytest
 
 from linux_maa.config.manager import ConfigManager
 from linux_maa.maa.runtime import MaaRuntime
-from linux_maa.run_coordinator import (
-    RUN_PRIORITY_NORMAL,
-    RUN_PRIORITY_SCHEDULE_MANUAL,
-    RUN_PRIORITY_SCHEDULED,
+from linux_maa.run_manager.coordinator import (
     RunConflictError,
     RunCoordinator,
     RunLease,
+)
+from linux_maa.run_resources import (
+    RUN_PRIORITY_NORMAL,
+    RUN_PRIORITY_SCHEDULE_MANUAL,
+    RUN_PRIORITY_SCHEDULED,
     adb_device_resource,
     adb_device_resources_from_profile,
     schedule_priority,

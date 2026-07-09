@@ -5,7 +5,7 @@ from copy import deepcopy
 from dataclasses import asdict, dataclass, field
 from typing import Any, Literal
 
-from linux_maa.run_executor import RunTimeouts
+from linux_maa.run_manager.state import RunTimeouts
 from linux_maa.utils import slugify
 
 RestartMode = Literal["none", "before_run", "before_retry"]

@@ -6,27 +6,11 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 
 from linux_maa.diagnostics import get_logger
-from linux_maa.settings import DEFAULT_DEVICE_SERIAL
-from linux_maa.utils import dict_value
+from linux_maa.run_resources import RunResource, resources_conflict
 
 logger = get_logger(__name__)
 
-RUN_PRIORITY_NORMAL = 10
-RUN_PRIORITY_SCHEDULE_MANUAL = 20
-RUN_PRIORITY_SCHEDULED = 30
-
 ResourceCallback = Callable[[], None]
-
-
-@dataclass(frozen=True)
-class RunResource:
-    """A resource claimed by a live run. Conflict rules stay generic around this type."""
-
-    kind: str
-    identifier: str
-
-    def to_dict(self) -> dict[str, str]:
-        return {"kind": self.kind, "identifier": self.identifier}
 
 
 @dataclass
@@ -130,7 +114,7 @@ class RunCoordinator:
         return [
             active
             for active in self._leases.values()
-            if active.run_id != lease.run_id and any(_resources_conflict(candidate, current) for candidate in lease.resources for current in active.resources)
+            if active.run_id != lease.run_id and any(resources_conflict(candidate, current) for candidate in lease.resources for current in active.resources)
         ]
 
     def _preemption_callback_locked(self, lease: RunLease, now: float) -> ResourceCallback | None:
@@ -153,26 +137,3 @@ class RunCoordinator:
         if not lease.force_after_seconds or lease.preempt_stop_requested_at is None or lease.preempt_force_requested:
             return None
         return max(0.05, lease.force_after_seconds - (now - lease.preempt_stop_requested_at))
-
-
-def adb_device_resource(address: object) -> RunResource | None:
-    normalized = str(address or "").strip()
-    if not normalized:
-        return None
-    return RunResource(kind="adb-device", identifier=normalized)
-
-
-def adb_device_resources_from_profile(profile_data: dict[str, object]) -> tuple[RunResource, ...]:
-    connection = dict_value(profile_data.get("connection"))
-    resource = adb_device_resource(connection.get("address") or DEFAULT_DEVICE_SERIAL)
-    return (resource,) if resource is not None else ()
-
-
-def schedule_priority(trigger: str) -> int:
-    return RUN_PRIORITY_SCHEDULED if trigger == "schedule" else RUN_PRIORITY_SCHEDULE_MANUAL
-
-
-def _resources_conflict(left: RunResource, right: RunResource) -> bool:
-    if left.kind == "adb-device" and right.kind == "adb-device":
-        return left.identifier == right.identifier
-    return left.kind == right.kind and left.identifier == right.identifier

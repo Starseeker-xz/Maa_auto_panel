@@ -11,7 +11,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import tomli_w
 
-from linux_maa.run_executor import RunTimeouts
+from linux_maa.run_manager.state import RunTimeouts
 from linux_maa.utils import bounded_int
 from linux_maa.maa.runtime import MaaRuntime
 from linux_maa.utils import relative_path, write_text_atomic

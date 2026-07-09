@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from linux_maa.web.sse import state_event_stream
+from linux_maa.run_manager.router import RunControlRoutes, register_run_control_routes
 from linux_maa.web.services import WebServices
 
 
@@ -23,27 +23,14 @@ def create_tools_router(services: WebServices) -> APIRouter:
     def list_tools() -> dict[str, object]:
         return tools.tools_response()
 
-    @router.get("/current")
-    def current_tool_run() -> dict[str, object]:
-        return tools.current_response()
-
-    @router.get("/current/events")
-    def current_tool_run_events(request: Request):
-        return state_event_stream(request, tools.current_response, tools.wait_for_change)
-
-    @router.post("/current/stop")
-    def stop_current_tool_run() -> dict[str, object]:
-        try:
-            return tools.stop_current().to_dict()
-        except KeyError as exc:
-            raise HTTPException(status_code=404, detail="No tool run active") from exc
-
-    @router.post("/current/force-stop")
-    def force_stop_current_tool_run() -> dict[str, object]:
-        try:
-            return tools.force_stop_current().to_dict()
-        except KeyError as exc:
-            raise HTTPException(status_code=404, detail="No tool run active") from exc
+    register_run_control_routes(
+        router,
+        RunControlRoutes(
+            manager=tools,
+            stop_target="current",
+            current_not_found_detail="No tool run active",
+        ),
+    )
 
     @router.post("/{tool_id}/run")
     def start_tool_run(tool_id: str, payload: StartToolPayload) -> dict[str, object]:

@@ -77,7 +77,7 @@ export function ToolsPage() {
   const selectedTool = tools.find((tool) => tool.id === selectedToolId);
   const selectedConfig = configByTool[selectedToolId] || {};
   const visibleRun = runForTool(run, selectedToolId);
-  const activeToolId = isActiveRun(run) ? run.tool_id || "" : "";
+  const activeToolId = isActiveRun(run) ? stringMetadata(run, "tool_id") : "";
 
   function handleConfigChange(fieldId: string, value: string) {
     setConfigByTool((current) => ({
@@ -168,7 +168,8 @@ function stringifyConfig(config: Record<string, unknown>) {
 }
 
 function runForTool(run: RunState, toolId: string): RunState {
-  if (run.tool_id && toolId && run.tool_id !== toolId) return idleRun(run.stream_version);
+  const runToolId = stringMetadata(run, "tool_id");
+  if (runToolId && toolId && runToolId !== toolId) return idleRun(run.stream_version);
   return run;
 }
 
@@ -178,6 +179,11 @@ function isActiveRun(run: RunState) {
 
 function idleRun(streamVersion?: number): RunState {
   return { status: "idle", run: { status: "idle" }, stream_version: streamVersion, retries: [] };
+}
+
+function stringMetadata(run: RunState, key: string): string {
+  const value = run.metadata?.[key];
+  return typeof value === "string" ? value : "";
 }
 
 function readStoredCount(key: string, fallback: number) {

@@ -2,7 +2,10 @@
 
 ## Active Sessions（活跃引用 — 含架构决策或已知未解决问题）
 
-- `2026-07-05_1926-inspect-concurrency`: 审查并实现运行并发仲裁。新增共享 `RunCoordinator`，手动 Maa、定时 Maa、工具运行按提交的 ADB 连接地址声明 `adb-device` 占用；自动定时最高优先级、手动触发定时次高、普通手动/工具同级。低优先级冲突返回 409，同级等待，高优先级通过被占用运行自己的 stop/force-stop 逻辑抢占。
+- `2026-07-09_1512-run-manager-generalize`: 按用户要求清理整个 `run_manager/` 的非通用字段，不做兼容。通用 run/retry/current/history payload 改为基础字段 + `metadata` + `artifacts`；attempt task state 改为 opaque `payload`；MAA task results/generated config/MaaCore log 留在领域 metadata/artifacts；scheduler daily stats/trigger 迁出到 `SchedulerStateStore`；前端运行类型和 LogPane 详情同步。验证通过：后端 66 tests、ruff、compileall、前端 build、`git diff --check`。
+- `2026-07-06_0037-callback-run-manager`: 回收上一轮过度实现的 driver-owned-loop 设计。当前有效架构是 callback-first：`RunDriver`/`RunContext`/`CommandRunDriver` 已取消，`CommandSpec` 是 `GenericRunManager` 内置命令模式输入；手动 MAA 和定时 MAA 通过 callbacks 做领域决策，工具/维护只传命令。定时重启脚本已迁入 manager `RunScriptHooks`。根目录 `RUN_MANAGER_REFACTOR_PLAN.md` 已重写为当前准确信息源。验证通过：`uvx ruff check src tests`、`uv run python -m compileall -q src tests`、`uv run pytest -q`（65 passed）、`git diff --check`。
+- `2026-07-05_2146-run-manager-plan`: 已被 `2026-07-06_0037-callback-run-manager` 修正/覆盖。该会话完成了 `run_manager/` 子包、`run_resources.py`、通用 router 和四类运行迁移的基础工作，但其中 `RunDriver`/`RunContext`/`CommandRunDriver` 设计已废弃，不应继续作为后续实现依据。
+- `2026-07-05_1926-inspect-concurrency`: 审查并实现运行并发仲裁。新增共享 `RunCoordinator`，手动 Maa、定时 Maa、工具运行按提交的 ADB 连接地址声明 `adb-device` 占用；自动定时最高优先级、手动触发定时次高、普通手动/工具同级。低优先级冲突返回 409，同级等待，高优先级通过被占用运行自己的 stop/force-stop 逻辑抢占。后续交接方案：将四类运行 manager 的重复生命周期逻辑抽成通用 `RunManagerBase`/hook 架构，并把 `RunCoordinator` 默认改为后端进程级 singleton，而非由 `WebServices` 创建注入。
 - `2026-07-05_1823-check-history-chunking`: 修复运行/SSE/history 重构后的回归：恢复 display-only `maa-task-lifecycle` 可见日志分块，保持 `MaaTaskResultCollector` 作为 task_results 权威来源；修复 schedule stop/force-stop 终态幂等、缓冲等待 log-only retry seal、metadata 覆盖 `retry_count`。WebUI 服务已重启并验证 `/api/schedules/current` idle。
 - `2026-07-04_1305-unify-run-log-sse`: 大规模运行/SSE/history 重构；四类运行统一为 `LiveRun` + `LiveRetry`，history/SSE payload 改为 `{run, retries}`，task_results 从可见日志剥离到 Maa raw stderr collector，手动/定时/工具支持重试次数，维护 panel 接入 SSE，通用 timeout 与 force-stop 已接入。
 - `2026-07-04_1115-review-cleanup`: 前后端死代码/兼容导入清理；移除内部包级 re-export 依赖，保留 `linux_maa.tools.game` 的 `python -m` 入口；前端收窄未使用导出和类型面；测试/构建通过。

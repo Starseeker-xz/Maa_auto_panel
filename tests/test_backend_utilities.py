@@ -2,7 +2,6 @@ from pathlib import Path
 import asyncio
 import os
 import sys
-import threading
 
 import pytest
 
@@ -10,10 +9,13 @@ from linux_maa.config.manager import ConfigManager
 from linux_maa.diagnostics import Diagnostics
 from linux_maa.maa.runtime import MaaRuntime
 from linux_maa.process import run_streaming_process
-from linux_maa.run_executor import LiveRun
+from linux_maa.run_manager.command import CommandSpec
+from linux_maa.run_manager.manager import GenericRunManager, RunScriptHooks, RunScriptSpec, RunStartPlan, RunTextTemplates
+from linux_maa.run_manager.state import LiveRun, RunTimeouts
+from linux_maa.run_manager.store import RunStateStore
 from linux_maa.scheduler.models import RestartScriptPolicy, ScheduleConfig, ScheduleEntry
 from linux_maa.scheduler.scripts import ScheduleScriptManager
-from linux_maa.scheduler.service import SchedulerService
+from linux_maa.scheduler.service import SchedulerService, _schedule_log_profile, _schedule_script_log_profile
 from linux_maa.tools.manager import ToolRunManager, _build_game_update_command
 from linux_maa.utils import is_newer_version, write_text_atomic
 from linux_maa.web.app import create_app
@@ -89,9 +91,9 @@ def test_tool_start_rejects_stopping_current_run(tmp_path: Path) -> None:
         updated_at="2026-07-03T00:00:00",
         metadata={"tool_id": "game-update", "tool_title": "更新游戏"},
     )
-    with manager._lock:
-        manager._runs[state.id] = state
-        manager._current_run_id = state.id
+    with manager.runs._lock:
+        manager.runs._runs[state.id] = state
+        manager.runs._current_run_id = state.id
 
     with pytest.raises(RuntimeError):
         manager.start("game-update", {})
@@ -128,8 +130,12 @@ def test_scheduler_force_stop_terminal_current_run_is_idempotent() -> None:
         updated_at="2026-07-05T18:24:02",
         metadata={"schedule_id": "daily"},
     )
-    service._lock = threading.RLock()
-    service._current = state
+
+    class FakeRuns:
+        def force_stop_current(self) -> LiveRun:
+            return state
+
+    service.runs = FakeRuns()
 
     returned = service.force_stop_current()
 
@@ -223,15 +229,15 @@ def test_schedule_response_uses_single_current_snapshot_for_matching_run() -> No
         def read(self) -> dict[str, object]:
             return {"effective_timezone": {"name": "UTC"}}
 
-    class FakeStore:
+    class FakeSchedulerState:
         def daily_stats(self, schedule_id: str, game_day: str) -> dict[str, object]:
             assert schedule_id == "target-schedule"
             assert game_day
             return {}
 
-        def recent_runs(self, schedule_id: str, *, limit: int) -> list[object]:
-            assert schedule_id == "target-schedule"
-            assert limit == 12
+    class FakeRunStore:
+        def runs(self, kind: str | None = None, *, limit: int = 50) -> list[object]:
+            assert kind == "schedule"
             return []
 
     class FakeFileInfo:
@@ -258,7 +264,8 @@ def test_schedule_response_uses_single_current_snapshot_for_matching_run() -> No
     service.configs = FakeConfigs()
     service.framework_settings = FakeSettings()
     service.schedules = FakeSchedules()
-    service.store = FakeStore()
+    service.store = FakeRunStore()
+    service.scheduler_state = FakeSchedulerState()
     service.scripts = FakeScripts()
     config = ScheduleConfig(
         id="target-schedule",
@@ -279,6 +286,7 @@ def test_schedule_response_uses_single_current_snapshot_for_matching_run() -> No
 def test_schedule_restart_script_streams_to_visible_logs_and_diagnostics(tmp_path: Path) -> None:
     runtime = MaaRuntime(tmp_path)
     diagnostics = Diagnostics(runtime)
+    store = RunStateStore(runtime)
     script_path = runtime.script_dir / "hook.sh"
     script_path.parent.mkdir(parents=True, exist_ok=True)
     script_path.write_text(
@@ -287,33 +295,6 @@ def test_schedule_restart_script_streams_to_visible_logs_and_diagnostics(tmp_pat
         "printf 'target=%s\\n' \"$TARGET\"\n"
         "printf 'warn=%s\\n' \"$MAA_CONFIG_DIR\" >&2\n",
         encoding="utf-8",
-    )
-    service = SchedulerService.__new__(SchedulerService)
-    service.runtime = runtime
-    service.diagnostics = diagnostics
-    service.scripts = ScheduleScriptManager(runtime)
-    service._lock = threading.Lock()
-    service._condition = threading.Condition(service._lock)
-    service._version = 0
-    state = LiveRun(
-        id="run-script",
-        kind="schedule",
-        title="Daily / 04:00",
-        status="running",
-        started_at="2026-07-03T00:00:00",
-        updated_at="2026-07-03T00:00:00",
-        metadata={
-            "schedule_id": "daily",
-            "schedule_name": "Daily",
-            "entry_id": "t0400",
-            "entry_name": "04:00",
-            "task_config": "daily",
-            "profile": "default",
-            "profile_name": "default",
-            "log_level": 1,
-            "game_day": "2026-07-03",
-            "trigger": "manual",
-        },
     )
     config = ScheduleConfig(
         id="daily",
@@ -324,14 +305,48 @@ def test_schedule_restart_script_streams_to_visible_logs_and_diagnostics(tmp_pat
         profile_data={},
         restart=RestartScriptPolicy(mode="before_run", script="hook.sh", variables={"TARGET": "ark"}),
     )
+    log_profile = _schedule_log_profile(diagnostics, include_script=True)
+    script_manager = ScheduleScriptManager(runtime)
+    script_log_profile = _schedule_script_log_profile(diagnostics)
 
-    service._run_restart_script(state, config, "before_run")
+    def script_command(_attempt) -> CommandSpec:
+        command = script_manager.command(config.restart.script, config.restart.variables)
+        return CommandSpec(command.cmd, env=command.env)
+
+    manager = GenericRunManager(runtime, store, diagnostics)
+    state = manager.start(
+        RunStartPlan(
+            kind="schedule",
+            title="Daily / 04:00",
+            command=CommandSpec([sys.executable, "-c", ""], env=os.environ.copy()),
+            log_profile=log_profile,
+            script_hooks=RunScriptHooks(
+                before_run=(
+                    RunScriptSpec(
+                        command=script_command,
+                        label="hook.sh",
+                        source_prefix="script",
+                        timeouts=RunTimeouts(runtime_kill_seconds=120),
+                        log_profile=script_log_profile,
+                    ),
+                )
+            ),
+            script_log_profile=script_log_profile,
+            log_files={**diagnostics.maa_cli_log_files("run-script"), **diagnostics.script_log_files("run-script")},
+            event_log_file=diagnostics.event_log_file("run-script"),
+            text=RunTextTemplates(start="", completed="", exit_code=""),
+        ),
+        run_id="run-script",
+    )
+    assert state.thread is not None
+    state.thread.join(timeout=5)
+    assert not state.thread.is_alive()
 
     entries = state.to_dict()["retries"][0]["log_entries"]
     lines = [entry["messages"][0]["text"] for entry in entries if entry["kind"] in {"event", "line"}]
-    assert lines[0] == "运行重启脚本(before_run): hook.sh"
+    assert lines[0] == "运行脚本(before_run): hook.sh"
     assert set(lines[1:]) == {"Summary", "target=ark", f"warn={runtime.config_dir}"}
-    assert state.retries[0].task_results == []
+    assert state.retries[0].metadata == {}
     assert (tmp_path / "debug/linux-maa/external/scripts/run-script.stdout.log").read_text(encoding="utf-8") == "Summary\ntarget=ark\n"
     assert (tmp_path / "debug/linux-maa/external/scripts/run-script.stderr.log").read_text(encoding="utf-8") == f"warn={runtime.config_dir}\n"
 

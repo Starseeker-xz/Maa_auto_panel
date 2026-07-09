@@ -6,7 +6,8 @@ from pathlib import Path
 
 from linux_maa.diagnostics import Diagnostics, LogRetentionPolicy
 from linux_maa.maa.runtime import MaaRuntime
-from linux_maa.run_state import RunStateStore
+from linux_maa.run_manager.store import RunStateStore
+from linux_maa.scheduler.state import SchedulerStateStore
 
 
 def test_run_state_store_writes_readable_state_outside_debug(tmp_path: Path) -> None:
@@ -22,7 +23,6 @@ def test_run_state_store_writes_readable_state_outside_debug(tmp_path: Path) -> 
         kind="schedule",
         title="Daily / 04:00",
         max_retries=3,
-        selected_task_ids=["startup"],
         log_files=log_files,
         event_log_file=event_log_file,
         metadata={
@@ -34,6 +34,7 @@ def test_run_state_store_writes_readable_state_outside_debug(tmp_path: Path) -> 
             "game_day": "2026-07-01",
             "trigger": "schedule",
         },
+        history_scope=("schedules", "daily"),
     )
     store.add_retry(
         retry_id="run-1-1",
@@ -45,45 +46,35 @@ def test_run_state_store_writes_readable_state_outside_debug(tmp_path: Path) -> 
         updated_at="2026-07-01T04:01:00",
         ended_at="2026-07-01T04:01:00",
         return_code=0,
-        task_ids=["startup"],
-        task_results=[{"task_id": "startup", "status": "succeeded"}],
+        metadata={"task_ids": ["startup"], "task_results": [{"task_id": "startup", "status": "succeeded"}]},
+        artifacts={"generated_config_dir": "runtime/maa/generated-configs/schedule-run-1"},
         log_entries=[{"type": "block", "id": "log-1", "source": "framework:event", "kind": "event", "messages": [{"text": "开始运行"}], "lines": ["开始运行"]}],
         log_files=log_files,
-        generated_config_dir="runtime/maa/generated-configs/schedule-run-1",
     )
-    store.update_daily_stats(
-        schedule_id="daily",
-        game_day="2026-07-01",
-        task_names={"startup": "启动"},
-        task_statuses={"startup": "succeeded"},
-    )
-    store.mark_triggered(schedule_id="daily", entry_id="t0400", game_day="2026-07-01", run_id=run_id)
     store.finish_run(
         run_id,
         status="succeeded",
         retry_count=1,
         retry_group_count=1,
-        summary={"final_status": "succeeded"},
+        metadata={"summary": {"final_status": "succeeded"}},
     )
 
-    run = store.recent_runs("daily", limit=1)[0]
+    run = store.runs(kind="schedule", limit=1)[0]
     assert run.status == "succeeded"
+    assert run.metadata["schedule_id"] == "daily"
     assert run.log_files == {
         "stdout": "debug/linux-maa/external/maa-cli/run-1.stdout.log",
         "stderr": "debug/linux-maa/external/maa-cli/run-1.stderr.log",
     }
     assert run.event_log_file == "debug/linux-maa/events/run-1.jsonl"
     assert store.retries(run_id)[0]["log_entries"][0]["kind"] == "event"
-    assert store.already_triggered(schedule_id="daily", entry_id="t0400", game_day="2026-07-01")
-    assert store.daily_stats("daily", "2026-07-01")["startup"].successes == 1
-    assert store.retries(run_id)[0]["generated_config_dir"] == "runtime/maa/generated-configs/schedule-run-1"
+    assert store.retries(run_id)[0]["metadata"]["task_results"] == [{"task_id": "startup", "status": "succeeded"}]
+    assert store.retries(run_id)[0]["artifacts"]["generated_config_dir"] == "runtime/maa/generated-configs/schedule-run-1"
     assert store.retries(run_id)[0]["log_entries_file"] == "history/linux-maa/runs/schedules/daily/run-1.json"
 
     recent_runs = (tmp_path / "state/linux-maa/run-history/recent-run-records.json").read_text(encoding="utf-8")
     retries = (tmp_path / "state/linux-maa/run-history/run-retries.json").read_text(encoding="utf-8")
     history = (tmp_path / "history/linux-maa/runs/schedules/daily/run-1.json").read_text(encoding="utf-8")
-    daily_stats = (tmp_path / "state/linux-maa/scheduler/daily-task-stats.json").read_text(encoding="utf-8")
-    triggers = (tmp_path / "state/linux-maa/scheduler/triggered-schedule-entries.json").read_text(encoding="utf-8")
     assert "Recent WebUI, scheduled, maintenance, and tool run records" in recent_runs
     assert "Per-retry run index" in retries
     assert "log_entries_file" in retries
@@ -92,9 +83,27 @@ def test_run_state_store_writes_readable_state_outside_debug(tmp_path: Path) -> 
     assert "开始运行" in history
     assert json.loads(history)["run"]["status"] == "succeeded"
     assert json.loads(history)["run"]["retry_count"] == 1
+    assert not (tmp_path / "debug/linux-maa/history").exists()
+
+
+def test_scheduler_state_store_records_stats_and_triggers(tmp_path: Path) -> None:
+    runtime = MaaRuntime(tmp_path)
+    scheduler_state = SchedulerStateStore(runtime)
+
+    scheduler_state.update_daily_stats(
+        schedule_id="daily",
+        game_day="2026-07-01",
+        task_names={"startup": "启动"},
+        task_statuses={"startup": "succeeded"},
+    )
+    scheduler_state.mark_triggered(schedule_id="daily", entry_id="t0400", game_day="2026-07-01", run_id="run-1")
+
+    assert scheduler_state.already_triggered(schedule_id="daily", entry_id="t0400", game_day="2026-07-01")
+    assert scheduler_state.daily_stats("daily", "2026-07-01")["startup"].successes == 1
+    daily_stats = (tmp_path / "state/linux-maa/scheduler/daily-task-stats.json").read_text(encoding="utf-8")
+    triggers = (tmp_path / "state/linux-maa/scheduler/triggered-schedule-entries.json").read_text(encoding="utf-8")
     assert "Per-schedule daily child-task run/success counters" in daily_stats
     assert "avoid duplicate scheduled execution" in triggers
-    assert not (tmp_path / "debug/linux-maa/history").exists()
 
 
 def test_diagnostics_writes_framework_and_external_logs(tmp_path: Path) -> None:
@@ -134,7 +143,7 @@ def test_run_state_store_records_single_attempt_for_generic_runs(tmp_path: Path)
     runtime = MaaRuntime(tmp_path)
     store = RunStateStore(runtime)
 
-    store.create_run(run_id="manual-1", kind="manual", title="General", metadata={"task": "General", "profile": "default"})
+    store.create_run(run_id="manual-1", kind="manual", title="General", metadata={"task": "General", "profile": "default"}, history_scope=("manual",))
     store.add_retry(
         retry_id="manual-1-1",
         run_id="manual-1",
@@ -145,13 +154,19 @@ def test_run_state_store_records_single_attempt_for_generic_runs(tmp_path: Path)
         updated_at="2026-07-04T01:01:00",
         ended_at="2026-07-04T01:01:00",
         return_code=1,
-        task_ids=[],
-        task_results=[{"type": "task", "name": "Mall", "status": "unknown"}],
+        metadata={"task_results": [{"type": "task", "name": "Mall", "status": "unknown"}]},
+        artifacts={"generated_config_dir": "runtime/maa/generated-configs/manual-1"},
         log_entries=[{"type": "block", "id": "log-1", "source": "maa-cli:stdout", "kind": "summary", "messages": [], "lines": ["Summary"]}],
         log_files={"stdout": "debug/linux-maa/external/maa-cli/manual-1.stdout.log"},
-        generated_config_dir="runtime/maa/generated-configs/manual-1",
     )
-    store.finish_run("manual-1", status="stopped", return_code=1, retry_count=1, retry_group_count=1, summary={"generated_config_dir": "runtime/maa/generated-configs/manual-1"})
+    store.finish_run(
+        "manual-1",
+        status="stopped",
+        return_code=1,
+        retry_count=1,
+        retry_group_count=1,
+        metadata={"summary": {"generated_config_dir": "runtime/maa/generated-configs/manual-1"}},
+    )
 
     retry = store.retries("manual-1")[0]
     assert retry["retry_index"] == 1
@@ -162,8 +177,8 @@ def test_run_state_store_records_single_attempt_for_generic_runs(tmp_path: Path)
     assert history_path.is_file()
     history = json.loads(history_path.read_text(encoding="utf-8"))
     assert history["run"]["status"] == "stopped"
-    assert history["run"]["summary"] == {"generated_config_dir": "runtime/maa/generated-configs/manual-1"}
-    assert store.run("manual-1").summary == {"generated_config_dir": "runtime/maa/generated-configs/manual-1"}
+    assert history["run"]["metadata"]["summary"] == {"generated_config_dir": "runtime/maa/generated-configs/manual-1"}
+    assert store.run("manual-1").metadata["summary"] == {"generated_config_dir": "runtime/maa/generated-configs/manual-1"}  # type: ignore[union-attr]
 
 
 def test_diagnostics_retention_prunes_debug_artifacts(tmp_path: Path) -> None:
