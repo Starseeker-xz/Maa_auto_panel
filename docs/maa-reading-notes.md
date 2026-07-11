@@ -7,6 +7,7 @@ Source session: `2026-06-26_1620-maa-cli-framework-docs`
 - Mirrored MAA Chinese docs from `MaaAssistantArknights/MaaAssistantArknights` branch `archive/dev-v1`, path `docs/zh-cn`, into `docs/maa-upstream/zh-cn/`.
 - Copied selected `maa-cli` schemas and example configs into `docs/maa-cli/`.
 - Read first-pass focus areas: CLI install/usage/config, MaaCore integration protocol, callback schema, task-flow schema, connection docs, Windows GUI/newbie/feature docs, Linux/redroid support docs.
+- Canonical online references: [install](https://docs.maa.plus/zh-cn/manual/cli/install.html), [usage](https://docs.maa.plus/zh-cn/manual/cli/usage.html), [config](https://docs.maa.plus/zh-cn/manual/cli/config.html), and [integration protocol](https://docs.maa.plus/zh-cn/protocol/integration.html). Prefer the online versions when behavior may have changed since the mirrored snapshot.
 
 ## What MAA Is Doing
 

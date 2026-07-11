@@ -1,7 +1,18 @@
 # Maa Auto Panel 容器化构筑建议
 
-状态：供下一 session 实施  
+状态：用于约束未来部署边界；未经用户明确要求，不构筑、不启动、不切换现有服务
 来源会话：`2026-07-10_0416-full-project-audit`
+
+## 0. 当前开发与构筑政策
+
+容器化是项目方向，但 Dockerfile/Compose 当前首先是**架构与部署边界的可执行说明**，不是立即替换现有常驻服务的发布动作：
+
+- 日常开发、修改和验收继续使用当前 systemd 服务重启模式，以保持快速反馈。
+- 除非用户明确要求“构筑/测试一个 Docker 新版本”，否则不执行 `docker build`、`docker compose build` 或 `docker compose up`。
+- 即使只做容器 smoke test，也必须先停止当前 systemd/dev 实例；测试完成后停止并删除测试容器，再恢复原服务。
+- 当前只有一个 redroid 目标和一套持久状态，开发实例与常驻容器不能并行运行。二者不仅会抢 ADB 设备，还会重复触发 scheduler，且进程内 coordinator 无法跨实例仲裁。
+- 未来若确实需要“常驻容器 + 并行开发实例”，必须为开发环境准备独立设备/redroid、独立 data/cache/ADB state，并默认禁用开发 scheduler。仅改端口不足以形成隔离。
+- 在项目功能和部署流程真正稳定前，生成容器文件不等于投入生产；生产切换必须由用户单独确认并执行第 12 节的数据迁移与回退流程。
 
 ## 1. 推荐结论
 
@@ -105,7 +116,7 @@ frontend-builder
 
 python-builder
   python:3.12-slim-bookworm
-  使用 uv --frozen 安装 production dependencies 和项目包
+  使用 uv --locked --no-dev --no-editable 安装 production dependencies 和项目包
 
 runtime
   python:3.12-slim-bookworm
@@ -354,20 +365,18 @@ docker compose run --rm panel init-runtime
 
 回退：停 Compose，将数据同步回原路径或把 systemd WorkingDirectory 指向备份数据，然后只启动 systemd；任何时候保持单实例。
 
-## 13. 下一 session 的实施顺序
+## 13. 用户明确要求构筑后的实施顺序
 
-建议严格按以下顺序：
+只有收到明确的 Docker 构筑请求后，才按以下顺序实施：
 
-1. 增加 `FrameworkPaths` 的环境变量/显式 root 支持，或先确认 `/app` 固定布局足够作为 v1。
-2. application lifespan/graceful shutdown/process group（已完成）。
-3. 修复 maintenance runtime exclusive claim。
-4. 新增 `/api/health`、`/api/ready`。
-5. 新增 `.dockerignore`。
-6. 编写 multi-stage Dockerfile。
-7. 编写 Compose 与 entrypoint preflight。
-8. 在临时数据副本上 build/up，不直接挂生产目录。
-9. 验证前端、settings、maa version/list、ADB、手动 smoke、stop/force-stop、scheduler restart recovery。
-10. 写入 README 的容器部署、备份、升级、回退说明。
+1. 确认现有 `MAA_AUTO_PANEL_DATA_DIR`/`MAA_AUTO_PANEL_CACHE_DIR` 与 `/app` 固定布局；application lifespan、graceful shutdown 和 process group 已完成。
+2. 新增 `.dockerignore`。
+3. 编写 multi-stage Dockerfile，明确不 COPY 或安装本机 MAA runtime。
+4. 编写 Compose 和最小 runtime 安装命令，使用官方 maa-cli 安装脚本 + `maa install`。
+5. 停止 systemd/dev 服务，在隔离的临时 data/cache 上 build/up；不得直接挂当前常驻服务的数据目录。
+6. 验证前端、settings、maa version/list、ADB、手动 smoke、stop/force-stop、scheduler restart recovery。
+7. 停止并清理测试容器，恢复 systemd 服务。
+8. 后续再补 runtime exclusive claim、health/ready/preflight、更新原子性与部署文档；它们不阻断基础构筑文件落地。
 
 ## 14. 验收标准
 
@@ -384,13 +393,15 @@ docker compose run --rm panel init-runtime
 
 ## 15. 2026-07-11 构筑前复核结论
 
-正式写 Dockerfile 前还需先完成或明确以下门槛：
+以下是构筑阶段已知事项，其中只有第 1 项阻断挂载当前损坏 runtime 的集成 smoke test；第 2～4 项可后置：
 
 1. **恢复可复现的 MAA runtime 基线（当前阻断 smoke test）**：当前 `data/runtime/maa` 在宿主和干净 `python:3.12-slim-bookworm` 容器中执行 `maa version` 都失败。已确认 `libMaaCore.so` 需要 `libopencv_world4.so.411`，而 `libMaaAdbControlUnit.so` 需要 `.412`，目录仅有 `.411`。先用完整、带版本和 checksum 的上游 artifact 重建临时 baseline，再判断最终镜像缺少哪些系统库；不要通过伪造 SONAME symlink 掩盖混合更新。
-2. **先修 runtime 更新互斥与原子性**：maintenance 仍未取得 exclusive `runtime:maa` claim。容器化会把 runtime 变成长期持久卷，更不能允许运行中覆盖二进制；至少先完成互斥，staging/checksum/rollback 可紧随其后。
+2. **后续修复 runtime 更新互斥与原子性**：maintenance 仍未取得 exclusive `runtime:maa` claim。容器化会把 runtime 变成长期持久卷，后续应避免运行中覆盖二进制；该问题不阻断基础构筑文件。
 3. **实现 health/ready 与 preflight**：这是 Compose healthcheck、首次空卷提示和权限诊断的基础。preflight 以非 root 身份运行，只报告 UID/GID、目录权限、runtime 完整性，不尝试静默修复宿主目录。
 4. **确定 bootstrap 供应链**：记录精确 maa-cli/MaaCore/resource 版本、下载 URL、SHA-256 和目标架构；空卷初始化必须显式执行且可重复验证。构建期若未来需要私有 token，使用 BuildKit secret mount，不能放入 `ARG`/`ENV` 或镜像层。
-5. **分开验证应用镜像与 runtime**：先用空 data/cache 的应用镜像验证 Python wheel、前端、schema、health、非 root 和只读 rootfs；再挂载修复后的 runtime 做 `maa version/list`、ADB screenshot、最小任务。这样能明确故障属于镜像还是持久化 runtime。
+5. **分开验证应用镜像与 runtime**：只有用户明确要求构筑 Docker 新版本后，才先用空 data/cache 的应用镜像验证 Python wheel、前端、schema、非 root 和只读 rootfs；再挂载重装后的 runtime 做 `maa version/list`、ADB screenshot、最小任务。这样能明确故障属于镜像还是持久化 runtime。
 6. **补一份真实部署配置检查**：运行 `docker compose config`，验证 publish 地址确实存在于宿主、`platform: linux/amd64`、`stop_grace_period: 2m`、唯一 init、单实例和 volume 路径；之后才挂临时数据副本执行 `up`。
 
 其余已确认无需提前扩张：不需要 host network、privileged、Docker socket、USB mount、数据库、认证系统或多容器拆分。第一版保持单 panel 容器、外部 TCP redroid 和单实例即可。
+
+本节第 2～4 项（runtime 更新互斥、health/ready/preflight、固定 bootstrap 供应链）不是当前编写基础构筑文件的前置条件，可在镜像边界落地后补充；它们不得被误写成当前必须先完成的阻断项。当前只要求构筑文件不复制本机 runtime，并保留通过官方安装脚本和 `maa install` 重新生成隔离 runtime 的路径。

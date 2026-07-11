@@ -23,10 +23,10 @@ This directory keeps both mirrored upstream references and project-owned notes/d
 
 ## High-Value Upstream Files
 
-- `maa-upstream/zh-cn/manual/cli/install.md`: maa-cli install and MaaCore/resource install flow.
-- `maa-upstream/zh-cn/manual/cli/usage.md`: maa-cli commands, predefined tasks, custom task execution, logs.
-- `maa-upstream/zh-cn/manual/cli/config.md`: config directory, custom tasks, profile fields, hot update options.
-- `maa-upstream/zh-cn/protocol/integration.md`: MaaCore task types and task parameters.
+- [`maa-upstream/zh-cn/manual/cli/install.md`](https://docs.maa.plus/zh-cn/manual/cli/install.html): maa-cli installation, custom `MAA_INSTALL_DIR`, self-update, and `maa install` for MaaCore/resources.
+- [`maa-upstream/zh-cn/manual/cli/usage.md`](https://docs.maa.plus/zh-cn/manual/cli/usage.html): MaaCore install/update commands, predefined/custom task execution, logs, directory and version inspection commands.
+- [`maa-upstream/zh-cn/manual/cli/config.md`](https://docs.maa.plus/zh-cn/manual/cli/config.html): `MAA_CONFIG_DIR`, custom tasks, profiles, conditions, batch behavior, and hot-update options.
+- [`maa-upstream/zh-cn/protocol/integration.md`](https://docs.maa.plus/zh-cn/protocol/integration.html): authoritative MaaCore task types/parameters and integration interfaces; use with the current copied schemas because maa-cli does not validate every task parameter itself.
 - `maa-upstream/zh-cn/protocol/callback-schema.md`: MaaCore callback events and structured failure/progress data.
 - `maa-upstream/zh-cn/protocol/task-schema.md`: internal task pipeline fields, retry limits, `next`, `onErrorNext`, `exceededNext`.
 - `maa-upstream/zh-cn/manual/connection.md`: ADB address/config/touch mode notes.

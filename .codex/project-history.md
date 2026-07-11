@@ -12,6 +12,7 @@
 
 ## Product direction
 
+- Confirmed (`2026-07-11_0111-audit-container-plan`): 容器文件当前用于固化未来部署边界，不代表立即生产切换。未经用户明确要求不得 build/up Docker；日常开发继续使用现有 systemd 服务重启。当前 dev/systemd 与 Docker 实例绝不并行连接同一 redroid 或共享 data；若未来需要并行开发，必须隔离设备、data/cache/ADB state 并禁用开发 scheduler。
 - Confirmed (`2026-07-10_0416-full-project-audit`): 当前功能闭环已基本完成，主要工作转为架构重整、长期运行可靠性与通用扩展。
 - Confirmed (`2026-07-10_0416-full-project-audit`): 目标是让 MAA/maa-cli 成为自动化框架的一个 integration，并支持未来其他 maa-cli 类工具及正式自定义脚本接口。
 - Confirmed (`2026-07-10_0416-full-project-audit`): 当前不需要数据库、微服务或动态第三方插件加载器。优先顺序是运行/安全基线 → 框架上下文解耦 → 内部 Action/Integration registry → 第二 integration 验证。

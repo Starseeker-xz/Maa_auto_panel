@@ -23,3 +23,5 @@
 - Bind mounts obscure image contents at the mounted target. Runtime seed/bootstrap must live outside `/app/data` or be downloaded explicitly with a pinned checksum.
 - Clean `python:3.12-slim-bookworm` test installed the proposed runtime packages, mounted current runtime/config, then ran `maa version`; it failed after printing maa-cli v0.7.5. The same command fails on the host.
 - Confirmed current runtime inconsistency: `libMaaCore.so` needs OpenCV `.411`; `libMaaAdbControlUnit.so` needs `.412`; only `.411` is present. A known-good pinned runtime baseline is required before system-library conclusions or end-to-end container smoke tests.
+- User clarified deployment policy: Docker artifacts currently constrain future architecture only. Do not build/up or replace the always-running systemd development service unless explicitly requested. Never run Docker and dev/systemd instances concurrently against the sole redroid/shared state.
+- Verified all four official references already exist as tracked offline mirrors. Added their canonical online URLs to `docs/README.md` and `docs/maa-reading-notes.md`: CLI install, usage, config, and MaaCore integration protocol.
