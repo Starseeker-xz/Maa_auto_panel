@@ -341,7 +341,7 @@ export function SettingsPage() {
               );
             })}
           </div>
-          <PathLine label="框架设置文件" value={settings?.framework.file.path || "config/linux-maa/settings.toml"} />
+          <PathLine label="框架设置文件" value={settings?.framework.file.path || "config/framework/settings.toml"} />
         </SettingsCard>
 
         <SettingsCard title="设备配置">

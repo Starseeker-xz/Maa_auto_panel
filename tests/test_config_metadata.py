@@ -1,13 +1,14 @@
 from pathlib import Path
 
-from linux_maa.config.manager import ConfigManager
-from linux_maa.config.schema import ConfigSchemaValidator
-from linux_maa.config.tasks import prepare_framework_task_config, task_items_to_config_data
-from linux_maa.maa.runtime import MaaRuntime
+from maa_auto_panel.config.manager import ConfigManager
+from maa_auto_panel.config.schema import ConfigSchemaValidator
+from maa_auto_panel.config.tasks import prepare_framework_task_config, task_items_to_config_data
+from maa_auto_panel.maa.runtime import MaaRuntime
 
 
 def repo_runtime() -> MaaRuntime:
-    return MaaRuntime(Path(__file__).resolve().parents[1])
+    repo_root = Path(__file__).resolve().parents[1]
+    return MaaRuntime(repo_root)
 
 
 def test_retry_even_success_metadata_is_valid() -> None:
@@ -18,7 +19,7 @@ def test_retry_even_success_metadata_is_valid() -> None:
                 "name": "启动 B 服",
                 "type": "StartUp",
                 "params": {"client_type": "Bilibili", "start_game_enabled": True},
-                "linux_maa": {
+                "framework": {
                     "id": "startup",
                     "unlimited_runs": True,
                     "important": True,
@@ -42,7 +43,7 @@ def test_retry_even_success_round_trips_through_task_items() -> None:
                 "name": "关闭游戏",
                 "type": "CloseDown",
                 "params": {"client_type": "Bilibili"},
-                "linux_maa": {
+                "framework": {
                     "id": "closedown",
                     "unlimited_runs": True,
                     "important": True,
@@ -55,8 +56,8 @@ def test_retry_even_success_round_trips_through_task_items() -> None:
     items = manager.task_items_from_data(data)
     written = task_items_to_config_data({"$schema": data["$schema"]}, items)
 
-    assert items[0]["linux_maa"]["retry_even_success"] is True
-    assert written["tasks"][0]["linux_maa"]["retry_even_success"] is True
+    assert items[0]["framework"]["retry_even_success"] is True
+    assert written["tasks"][0]["framework"]["retry_even_success"] is True
 
 
 def test_txwy_client_type_matches_current_integration_docs() -> None:
@@ -87,9 +88,9 @@ def test_infrast_runtime_preprocess_logs_plan_name() -> None:
                 "params": {
                     "mode": 10000,
                     "filename": "排班.json",
-                    "plan_index": "__linux_maa_runtime__:infrast_plan_index",
+                    "plan_index": "__framework_runtime__:infrast_plan_index",
                 },
-                "linux_maa": {
+                "framework": {
                     "managed_params": {
                         "plan_index": {
                             "type": "runtime",

@@ -4,14 +4,14 @@ import threading
 
 import pytest
 
-from linux_maa.config.manager import ConfigManager
-from linux_maa.maa.runtime import MaaRuntime
-from linux_maa.run_manager.coordinator import (
+from maa_auto_panel.config.manager import ConfigManager
+from maa_auto_panel.maa.runtime import MaaRuntime
+from maa_auto_panel.run_manager.coordinator import (
     RunConflictError,
     RunCoordinator,
     RunLease,
 )
-from linux_maa.run_resources import (
+from maa_auto_panel.run_resources import (
     RUN_PRIORITY_NORMAL,
     RUN_PRIORITY_SCHEDULE_MANUAL,
     RUN_PRIORITY_SCHEDULED,
@@ -19,7 +19,7 @@ from linux_maa.run_resources import (
     adb_device_resources_from_profile,
     schedule_priority,
 )
-from linux_maa.tools.manager import ToolRunManager
+from maa_auto_panel.tools.manager import ToolRunManager
 
 
 def test_lower_priority_conflict_is_rejected() -> None:

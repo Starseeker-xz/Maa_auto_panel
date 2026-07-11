@@ -13,6 +13,7 @@ import {
   useSidebar
 } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { APP_TITLE } from "@/lib/branding";
 import { getSettings, listSchedules } from "@/lib/api";
 import { loadStoredTheme, setActiveTheme, syncSystemTheme, themeFromFrameworkSettings } from "@/lib/theme";
 import type { ScheduleConfigFile } from "@/lib/types";
@@ -21,7 +22,7 @@ import { SchedulePage } from "@/pages/SchedulePage";
 import { SettingsPage } from "@/pages/SettingsPage";
 import { ToolsPage } from "@/pages/ToolsPage";
 
-const LAST_MAIN_PATH_KEY = "linux-maa:last-main-path";
+const LAST_MAIN_PATH_KEY = "maa-auto-panel:last-main-path";
 
 export function App() {
   return (
@@ -82,7 +83,7 @@ function AppShell() {
     <div className="min-h-screen bg-background text-foreground">
           <Sidebar>
             <SidebarHeader>
-              <div className="font-semibold tracking-tight">Linux MAA</div>
+              <div className="font-semibold tracking-tight">{APP_TITLE}</div>
             </SidebarHeader>
             <SidebarContent>
               <SidebarMenuButton active={page === "main"} icon={<Home />} onClick={() => navigate(window.localStorage.getItem(LAST_MAIN_PATH_KEY) || "/")}>

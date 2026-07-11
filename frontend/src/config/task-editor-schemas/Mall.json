@@ -20,7 +20,7 @@
           "type": "string"
         },
         "default": [],
-        "x-linuxMaaManaged": "array"
+        "x-frameworkManaged": "array"
       },
       "blacklist": {
         "type": "array",
@@ -29,7 +29,7 @@
           "type": "string"
         },
         "default": [],
-        "x-linuxMaaManaged": "array"
+        "x-frameworkManaged": "array"
       },
       "force_shopping_if_credit_full": {
         "type": "boolean",

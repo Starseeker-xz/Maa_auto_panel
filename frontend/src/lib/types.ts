@@ -17,7 +17,7 @@ export type TaskItem = {
   strategy?: unknown;
   params: Record<string, unknown>;
   variants: unknown[];
-  linux_maa: {
+  framework: {
     id?: string;
     unlimited_runs?: boolean;
     min_daily_successes?: number;

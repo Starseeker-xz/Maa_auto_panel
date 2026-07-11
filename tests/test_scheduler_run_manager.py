@@ -1,12 +1,12 @@
 from pathlib import Path
 
-from linux_maa.diagnostics import Diagnostics
-from linux_maa.maa.runtime import MaaRuntime
-from linux_maa.run_manager.manager import GenericRunManager, RunStartPlan
-from linux_maa.run_manager.store import RunStateStore
-from linux_maa.scheduler.models import ScheduleConfig, ScheduleEntry, TaskPolicy
-from linux_maa.scheduler.service import ScheduledMaaRunCallbacks, _schedule_log_profile
-from linux_maa.scheduler.state import SchedulerStateStore
+from maa_auto_panel.diagnostics import Diagnostics
+from maa_auto_panel.maa.runtime import MaaRuntime
+from maa_auto_panel.run_manager.manager import GenericRunManager, RunStartPlan
+from maa_auto_panel.run_manager.store import RunStateStore
+from maa_auto_panel.scheduler.models import ScheduleConfig, ScheduleEntry, TaskPolicy
+from maa_auto_panel.scheduler.service import ScheduledMaaRunCallbacks, _schedule_log_profile
+from maa_auto_panel.scheduler.state import SchedulerStateStore
 
 
 def test_scheduled_driver_skip_persists_sealed_retry(tmp_path: Path) -> None:

@@ -1,48 +1,18 @@
 # Conversation Index
 
-## Active Sessions（活跃引用 — 含架构决策或已知未解决问题）
+项目本地只索引仍有直接未来参考价值的会话。完成或已被后续结论覆盖的会话统一归档，不作为默认启动上下文。
 
-- `2026-07-09_1512-run-manager-generalize`: 按用户要求清理整个 `run_manager/` 的非通用字段，不做兼容。通用 run/retry/current/history payload 改为基础字段 + `metadata` + `artifacts`；attempt task state 改为 opaque `payload`；MAA task results/generated config/MaaCore log 留在领域 metadata/artifacts；scheduler daily stats/trigger 迁出到 `SchedulerStateStore`；前端运行类型和 LogPane 详情同步。验证通过：后端 66 tests、ruff、compileall、前端 build、`git diff --check`。
-- `2026-07-06_0037-callback-run-manager`: 回收上一轮过度实现的 driver-owned-loop 设计。当前有效架构是 callback-first：`RunDriver`/`RunContext`/`CommandRunDriver` 已取消，`CommandSpec` 是 `GenericRunManager` 内置命令模式输入；手动 MAA 和定时 MAA 通过 callbacks 做领域决策，工具/维护只传命令。定时重启脚本已迁入 manager `RunScriptHooks`。根目录 `RUN_MANAGER_REFACTOR_PLAN.md` 已重写为当前准确信息源。验证通过：`uvx ruff check src tests`、`uv run python -m compileall -q src tests`、`uv run pytest -q`（65 passed）、`git diff --check`。
-- `2026-07-05_2146-run-manager-plan`: 已被 `2026-07-06_0037-callback-run-manager` 修正/覆盖。该会话完成了 `run_manager/` 子包、`run_resources.py`、通用 router 和四类运行迁移的基础工作，但其中 `RunDriver`/`RunContext`/`CommandRunDriver` 设计已废弃，不应继续作为后续实现依据。
-- `2026-07-05_1926-inspect-concurrency`: 审查并实现运行并发仲裁。新增共享 `RunCoordinator`，手动 Maa、定时 Maa、工具运行按提交的 ADB 连接地址声明 `adb-device` 占用；自动定时最高优先级、手动触发定时次高、普通手动/工具同级。低优先级冲突返回 409，同级等待，高优先级通过被占用运行自己的 stop/force-stop 逻辑抢占。后续交接方案：将四类运行 manager 的重复生命周期逻辑抽成通用 `RunManagerBase`/hook 架构，并把 `RunCoordinator` 默认改为后端进程级 singleton，而非由 `WebServices` 创建注入。
-- `2026-07-05_1823-check-history-chunking`: 修复运行/SSE/history 重构后的回归：恢复 display-only `maa-task-lifecycle` 可见日志分块，保持 `MaaTaskResultCollector` 作为 task_results 权威来源；修复 schedule stop/force-stop 终态幂等、缓冲等待 log-only retry seal、metadata 覆盖 `retry_count`。WebUI 服务已重启并验证 `/api/schedules/current` idle。
-- `2026-07-04_1305-unify-run-log-sse`: 大规模运行/SSE/history 重构；四类运行统一为 `LiveRun` + `LiveRetry`，history/SSE payload 改为 `{run, retries}`，task_results 从可见日志剥离到 Maa raw stderr collector，手动/定时/工具支持重试次数，维护 panel 接入 SSE，通用 timeout 与 force-stop 已接入。
-- `2026-07-04_1115-review-cleanup`: 前后端死代码/兼容导入清理；移除内部包级 re-export 依赖，保留 `linux_maa.tools.game` 的 `python -m` 入口；前端收窄未使用导出和类型面；测试/构建通过。
-- `2026-07-04_1047-audit-log-pipeline-audit`: 审计自 `7820a5b 模块化日志管线尝试` 以来的改动；发现 stop 退化为仅 SIGTERM、bounded log cursor 切片丢 attempt history、历史日志忽略 events/no-attempt schedule logs、`history/` 未忽略、`warning` 状态契约不一致等问题。
-- `2026-07-04_1003-audit-log-pipeline`: 审计最近日志管线共通块逻辑并调整定时执行日志翻译/主题色高亮。
-- `2026-07-04_clone-maa-sources`: 克隆 MAA 和 maa-cli 上游源码到 `external/` 目录以供参考。
-- `2026-07-04_0341-log-template-framework`: 日志管线从 source template 重构为通用 source/block-rule 框架；事件改为普通 metadata 输入，前端日志 kind/status 放开为通用 block 渲染。
-- `2026-07-04_0055-modularize-log-pipeline`: 可见日志管线破坏性模块化；统一 block-shaped `log_entries`，MAA 模板移到 `maa/log_templates.py`，原始文本保存仍归 Diagnostics。
-- `2026-07-03_2049-review-latest-change`: 审查最近更改；确认测试/构建通过，发现审计文档中 `buttonVariants` 未使用导入说法已过时。
-- `2026-06-30_1626-maa-stage-candidates`: `linux_maa.managed_params` 架构设计，Fight stage 候选和 Infrast plan 动态选项 API。
-- `2026-06-30_1752-maa-cli-sequential-analysis`: 上游 maa-cli 调用模型分析（单 Assistant vs 逐子任务调用）。
-- `2026-06-30_1934-scheduled-retry-architecture`: `retry_even_success` 元数据和定时重试编排架构。
-- `2026-06-30_2318-gpu-ocr-research`: MaaCore GPU OCR 可用性测试 — 确认仅 CPU ONNX Runtime。
-- `2026-07-01_1506-sse-log-delta`: SSE 增量推送模式（全量快照 + patch）和 `PROJECT_EXECUTION_POLICY.md`。
-- `2026-07-02_1933-config-sync-ui-schema`: 前后端配置同步规则分析，废弃字段安全删除规则。
-- `2026-07-02_2144-manual-stop-delay`: **已知未解决问题** — MaaCore 冷 ADB 60 秒超时根因分析与复现数据。
-- `2026-07-03_0105-audit-log-module`: `RunLogBuffer` / `RunLogTranslator` 架构 — 所有 WebUI 可见日志的共享基础。
-- `2026-07-03_1200-audit-and-refactor-codex`: **当前会话** — 项目全面审计、`.codex` 状态文件重构、会话归档。
+## Active sessions
 
-## Archived Sessions（已归档 — 任务已完成，发现已汇入 project-history.md）
+- `2026-07-11_0111-audit-container-plan`: 简单审计并提交当前大规模重命名、路径与优雅停机工作；随后复核正式 Docker 构筑前置条件。
+- `2026-07-10_2207-graceful-shutdown`: 容器化优雅关闭已实现；FastAPI lifespan、SSE 主动退出、scheduler/四类 manager 共享 deadline、process group 清理和 status-0 SIGTERM 已通过真实 systemd 验证。
+- `2026-07-10_1752-audit-data-paths`: 容器化前路径审计与实施；框架 data 已收敛到 `data/`，download cache 独立到 `cache/downloads/`，路径对象与本机最终布局已完成；项目未发布，不保留 migration CLI、layout version 或旧路径兼容。
+- `2026-07-10_0416-full-project-audit`: 当前完整项目审计。根目录 `PROJECT_AUDIT.md` 是最新审计依据；包含安全/生命周期 P0、通用化边界、Action/Integration registry、自定义脚本接口、模块拆分/整合和分阶段路线。
+- `2026-07-10_0004-complete-rename-maa-auto-panel`: 当前命名与路径迁移的权威会话。项目/包/CLI 为 Maa Auto Panel / `maa_auto_panel` / `maa-auto-panel`，框架 namespace 与本地状态目录已泛化。
+- `2026-07-02_2144-manual-stop-delay`: 仍可能复发的 MaaCore 冷 ADB server 约 60 秒延迟复现与诊断。其他历史实现细节已汇入 project history/lessons。
 
-16 个已完成会话已归档至 `~/.codex/archived_sessions/linux-maa/`：
-- `2026-06-26_1620-maa-cli-framework-docs` — 初始环境探测与 MAA 文档镜像
-- `2026-06-26_1702-setup-maa-cli-test` — maa-cli/MaaCore 运行时安装
-- `2026-06-26_1727-webui-config-runner` — 最小 FastAPI WebUI
-- `2026-06-26_2030-separate-frontend` — React/Vite 前端分离
-- `2026-06-29_1929-shadcn-sidebar` — shadcn 组件替换 Mantine
-- `2026-06-29_2137-project-state-docs` — 项目文档刷新
-- `2026-06-29_2232-config-editing` — JSON Forms 任务编辑器
-- `2026-06-30_0014-task-editor-fixes` — 编辑器元数据和 UX 修复
-- `2026-06-30_0124-config-save-delete` — 后端保存/删除/回收站
-- `2026-06-30_1743-fix-infrast-plan-select` — Infrast 下拉标签修复
-- `2026-06-30_2056-scheduled-execution` — 定时执行完整实现
-- `2026-06-30_2342-full-project-audit` — 首次全量审计
-- `2026-07-01_1312-explain-log-flow` — 日志翻译重构为领域包
-- `2026-07-01_2153-manage-service-history` — Systemd 服务管理 + SQLite→JSON 迁移
-- `2026-07-02_2245-tools-page` — 三栏工具页面
-- `2026-07-03_1926-project-review` — 死代码清理
+## Archive
 
-- `2026-07-04_1126-logpanel-spacing`: Fixed LogPane header/footer spacing: CardHeader default empty second grid row was removed for LogPane; footer error text right-aligned and padded away from details button. Build passed.
+- 39 个完成、被覆盖或仅保留追溯价值的会话位于 `~/.codex/archived_sessions/maa-auto-panel/`。
+- 归档包含早期建项、配置编辑、调度器、日志管线、run-manager 重构各阶段、并发仲裁、旧审计、清理与重命名中间会话。
+- 需要追溯某项历史决策时按 session id 从归档读取；不要把归档会话重新批量加入启动上下文。

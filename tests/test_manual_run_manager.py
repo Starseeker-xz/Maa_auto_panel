@@ -1,8 +1,8 @@
 from pathlib import Path
 
-from linux_maa.maa.runner import MaaRunManager, MaaRunRequest
-from linux_maa.maa.runtime import MaaRuntime
-from linux_maa.run_manager.store import RunStateStore
+from maa_auto_panel.maa.runner import MaaRunManager, MaaRunRequest
+from maa_auto_panel.maa.runtime import MaaRuntime
+from maa_auto_panel.run_manager.store import RunStateStore
 
 
 def test_manual_run_manager_skips_disabled_task_and_persists_retry(tmp_path: Path) -> None:

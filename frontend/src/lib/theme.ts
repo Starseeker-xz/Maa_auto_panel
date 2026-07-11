@@ -25,7 +25,7 @@ const DEFAULT_THEME: ThemeSettings = {
   color: "cyan"
 };
 
-const THEME_STORAGE_KEY = "linux-maa:theme";
+const THEME_STORAGE_KEY = "maa-auto-panel:theme";
 let activeTheme = DEFAULT_THEME;
 
 export function themeFromFrameworkSettings(data: Record<string, unknown> | undefined): ThemeSettings {

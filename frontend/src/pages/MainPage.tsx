@@ -35,8 +35,8 @@ type ConfirmAction = "delete" | null;
 const DEFAULT_TASK_CONFIG_DATA = {
   "$schema": "../../../docs/maa-cli/schemas/task.schema.json"
 };
-const LAST_MAIN_PATH_KEY = "linux-maa:last-main-path";
-const MAIN_RETRY_COUNT_KEY = "linux-maa:main-retry-count";
+const LAST_MAIN_PATH_KEY = "maa-auto-panel:last-main-path";
+const MAIN_RETRY_COUNT_KEY = "maa-auto-panel:main-retry-count";
 const RUN_EVENTS_ERROR = "运行日志事件流连接中断，正在重连...";
 
 export function MainPage() {
@@ -238,7 +238,7 @@ export function MainPage() {
     }
   }
 
-  function handleTaskItemUpdate(itemId: string, patch: Partial<Pick<TaskItem, "params" | "linux_maa">>) {
+  function handleTaskItemUpdate(itemId: string, patch: Partial<Pick<TaskItem, "params" | "framework">>) {
     commitTaskItems((current) => current.map((item) => (item.id === itemId ? { ...item, ...patch } : item)));
   }
 

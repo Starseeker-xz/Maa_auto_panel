@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from linux_maa.logs.pipeline import LogSourceSpec, plain_translate_line
-from linux_maa.logs.state import RunLogBuffer
-from linux_maa.maa.log_templates import register_maa_log_sources
-from linux_maa.maa.results import MaaTaskDescriptor, MaaTaskResultCollector
+from maa_auto_panel.logs.pipeline import LogSourceSpec, plain_translate_line
+from maa_auto_panel.logs.state import RunLogBuffer
+from maa_auto_panel.maa.log_templates import register_maa_log_sources
+from maa_auto_panel.maa.results import MaaTaskDescriptor, MaaTaskResultCollector
 
 
 def maa_log(**kwargs: object) -> RunLogBuffer:

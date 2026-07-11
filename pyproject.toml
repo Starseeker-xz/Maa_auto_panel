@@ -1,7 +1,7 @@
 [project]
-name = "linux-maa"
+name = "maa-auto-panel"
 version = "0.1.0"
-description = "Linux-side automation helpers for MaaAssistantArknights"
+description = "Automation panel for MaaAssistantArknights"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
@@ -18,7 +18,7 @@ dependencies = [
 ]
 
 [project.scripts]
-linux-maa = "linux_maa.cli:main"
+maa-auto-panel = "maa_auto_panel.cli:main"
 
 [build-system]
 requires = ["hatchling"]

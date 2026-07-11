@@ -1,5 +1,5 @@
-from linux_maa.scheduler.models import DailyTaskStats, ScheduleEntry, TaskPolicy
-from linux_maa.scheduler.service import _final_status
+from maa_auto_panel.scheduler.models import DailyTaskStats, ScheduleEntry, TaskPolicy
+from maa_auto_panel.scheduler.service import _final_status
 
 
 def test_final_status_allows_unmet_daily_threshold_after_current_success() -> None:

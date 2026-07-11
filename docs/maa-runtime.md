@@ -1,29 +1,29 @@
 # Project-local MAA runtime
 
 This project keeps downloaded `maa-cli`/MaaCore runtime assets under
-`runtime/maa/`. The directory is ignored by git because it contains downloaded
+`data/runtime/maa/`. The data root is ignored by git because it contains downloaded
 binaries, MaaCore libraries/resources, caches, logs, generated config, and
 machine-local state.
 
-Editable maa-cli/framework configuration lives separately under `config/maa/`
-and `config/linux-maa/`. These local config directories are ignored by git
+Editable maa-cli/framework configuration lives under `data/config/maa/`
+and `data/config/framework/`. These local config directories are ignored by git
 because they are routinely edited for manual testing.
 
 ## Layout
 
-- `runtime/maa/bin/maa`: project-local `maa-cli` binary.
-- `config/maa`: managed editable configuration (`profiles/`, `tasks/`, `infrast/`, etc.).
-- `config/linux-maa`: framework settings, schedules, and scripts.
-- `runtime/maa/generated-configs`: temporary sanitized config generated for `maa-cli`.
-- `runtime/maa/data/maa/lib`: MaaCore shared libraries.
-- `runtime/maa/data/maa/resource`: bundled MaaCore resources.
-- `runtime/maa/data/maa/MaaResource`: hot-update resource repository.
-- `runtime/maa/cache/maa`: downloaded archives and metadata cache.
-- `runtime/maa/state/maa/debug`: default log directory.
-- `debug/linux-maa`: registered diagnostic log root. It is safe to delete when
+- `data/runtime/maa/bin/maa`: project-local `maa-cli` binary.
+- `data/config/maa`: managed editable configuration (`profiles/`, `tasks/`, `infrast/`, etc.).
+- `data/config/framework`: framework settings, schedules, and scripts.
+- `data/runtime/maa/generated-configs`: temporary sanitized config generated for `maa-cli`.
+- `data/runtime/maa/data/maa/lib`: MaaCore shared libraries.
+- `data/runtime/maa/data/maa/resource`: bundled MaaCore resources.
+- `data/runtime/maa/data/maa/MaaResource`: hot-update resource repository.
+- `data/runtime/maa/cache/maa`: downloaded archives and metadata cache.
+- `data/runtime/maa/state/maa/debug`: default log directory.
+- `data/debug/framework`: registered diagnostic log root. It is safe to delete when
   only diagnostics are needed temporarily. It contains `framework.log`,
   high-level run-event JSONL files, and external maa-cli/MaaCore log captures.
-- `state/linux-maa`: registered framework state root. It stores recent run
+- `data/state/framework`: registered framework state root. It stores recent run
   records and scheduler bookkeeping that should not be treated as disposable
   debug output.
 
@@ -37,7 +37,7 @@ scripts/maa-env maa run test --batch
 
 ## Current profile
 
-`config/maa/profiles/default.toml` was initialized from the uploaded
+`data/config/maa/profiles/default.toml` was initialized from the uploaded
 Windows GUI config:
 
 - ADB address: `192.168.5.151:5555`
@@ -54,15 +54,15 @@ copy back to ADB touch mode before retesting automation stability.
 
 ## Current managed task configs
 
-`config/maa/tasks/test.toml` is a first-pass conversion of the uploaded
-`test` GUI task queue. It currently includes explicit Linux MAA metadata ids
-under each task's `[tasks.linux_maa]` namespace. The framework strips or projects
+`data/config/maa/tasks/test.toml` is a first-pass conversion of the uploaded
+`test` GUI task queue. It currently includes explicit framework metadata ids
+under each task's `[tasks.framework]` namespace. The framework strips or projects
 that namespace before invoking raw `maa-cli`:
 
 - `StartUp` for Bilibili.
 - `Award`.
 - `Mall`.
-- `Infrast`, using `config/maa/infrast/排班.json` and `plan_index = 3`.
+- `Infrast`, using `data/config/maa/infrast/排班.json` and `plan_index = 3`.
 - `Fight` with `1-7`, no medicine/stones. In the visual editor this is shown as
   a managed stage plan list; the runner resolves it to one currently open
   MaaCore `stage` string before calling `maa-cli`.
@@ -76,12 +76,12 @@ Additional task files are also present:
   recommended daily run.
 
 Raw `maa-cli run <task>` rejects unknown framework metadata and cannot interpret
-Linux MAA runtime placeholders. Use the framework runner or WebUI when task
-files contain `[tasks.linux_maa]` fields or `__linux_maa_runtime__:*` values.
+Maa Auto Panel runtime placeholders. Use the framework runner or WebUI when task
+files contain `[tasks.framework]` fields or `__framework_runtime__:*` values.
 The runner generates sanitized temporary JSON task files under:
 
 ```text
-runtime/maa/generated-configs/<run-id>/tasks/
+data/runtime/maa/generated-configs/<run-id>/tasks/
 ```
 
 It symlinks non-task config directories, such as `profiles/` and `infrast/`,
@@ -90,7 +90,7 @@ into that generated config root.
 ## Managed parameter projection
 
 The visual editor sometimes needs to keep richer UI state than MaaCore accepts.
-That state is stored under each task's `linux_maa.managed_params` map. When a
+That state is stored under each task's `framework.managed_params` map. When a
 task config is saved, the MaaCore-facing `tasks.params` value is replaced by a
 runtime placeholder; when a run starts, the framework resolves that placeholder
 back to the exact value `maa-cli` can consume.
@@ -98,17 +98,17 @@ back to the exact value `maa-cli` can consume.
 Current managed forms:
 
 - `type = "array"` stores ordered `{ value, enabled }` items in metadata. The
-  saved param becomes `__linux_maa_runtime__:array:<key>`, and the runner's
+  saved param becomes `__framework_runtime__:array:<key>`, and the runner's
   generic array handler restores only enabled item values.
 - `handler = "fight_stage"` stores a Fight stage candidate list. The saved param
-  becomes `__linux_maa_runtime__:fight_stage`; the runner chooses the first
+  becomes `__framework_runtime__:fight_stage`; the runner chooses the first
   currently open stage through the same stage service used by the API.
   The GUI value "当前/上次" is stored as the framework value
-  `__linux_maa_stage__:current_last` so it can be ordered and used as a fallback;
+  `__framework_stage__:current_last` so it can be ordered and used as a fallback;
   immediately before `maa-cli` runs, that value maps to MaaCore's empty
   `stage = ""` convention.
 - `handler = "infrast_plan_index"` stores the user-selected Infrast plan option.
-  The saved param becomes `__linux_maa_runtime__:infrast_plan_index`; the runner
+  The saved param becomes `__framework_runtime__:infrast_plan_index`; the runner
   resolves the auto option by reading the custom scheduling JSON `period` values
   and choosing the currently active plan index.
 
@@ -149,10 +149,10 @@ maa run <generated-task> --batch --profile <profile> -v
 The frontend currently submits profile `default` and info-level logs for manual
 runs. WebUI runs do not pass `--log-file` to `maa-cli`, because that can move
 info callback logs out of stderr in the observed maa-cli runtime. Low-level
-MaaCore debug logs remain under `runtime/maa/state/maa/debug/` for diagnosis and
+MaaCore debug logs remain under `data/runtime/maa/state/maa/debug/` for diagnosis and
 are not streamed as normal UI output. For Maa-backed manual and scheduled retry
 segments, the framework records the `asst.log` offset before the retry and
-stores that retry's delta under `debug/linux-maa/external/maacore/<retry-id>.log`
+stores that retry's delta under `data/debug/framework/external/maacore/<retry-id>.log`
 when MaaCore writes new content.
 
 Timeout handling is shared by all process-backed runs:
@@ -168,27 +168,27 @@ expose `POST /api/runs/{run_id}/force-stop`; after a normal stop request the UI
 turns the stop button into a force-stop action.
 
 The WebUI captures visible process channels through the shared
-`linux_maa.logs` module:
+`maa_auto_panel.logs` module:
 
 - `maa-cli` stdout and stderr are read from separate pipes. The UI still shows a
   merged live view, but detailed per-run text logs store the original streams in
-  separate `debug/linux-maa/external/maa-cli/<run-id>.stdout.log` and
-  `debug/linux-maa/external/maa-cli/<run-id>.stderr.log` files. These paths are
+  separate `data/debug/framework/external/maa-cli/<run-id>.stdout.log` and
+  `data/debug/framework/external/maa-cli/<run-id>.stderr.log` files. These paths are
   not split by manual/scheduled origin because they are maa-cli process logs.
 - Tool stdout/stderr are written to
-  `debug/linux-maa/external/tools/<run-id>.*.log`; schedule script hook
+  `data/debug/framework/external/tools/<run-id>.*.log`; schedule script hook
   stdout/stderr are written to
-  `debug/linux-maa/external/scripts/<run-id>.*.log`.
+  `data/debug/framework/external/scripts/<run-id>.*.log`.
 - Maa-backed live runs force `MAA_LOG_PREFIX=Always` so stderr logs keep the
   timestamp/level prefix expected by the structured log parser.
 - Framework-level events are written to high-level JSONL event files and to the
-  global detailed framework log `debug/linux-maa/framework.log`. `framework.log`
+  global detailed framework log `data/debug/framework/framework.log`. `framework.log`
   uses Python's standard `logging` module with DEBUG, INFO, WARNING, ERROR, and
   CRITICAL levels and records API operations through middleware. Raw child
   process output is kept only in the external stdout/stderr files.
 
 The WebUI run managers do not pass raw process chunks straight through. The
-`src/linux_maa/logs/` package owns the generic WebUI-visible log pipeline:
+`src/maa_auto_panel/logs/` package owns the generic WebUI-visible log pipeline:
 source registration, terminal control characters, block assembly, bounded
 `output`, and unified `log_entries`. Each retry segment owns its own
 `RunLogBuffer`; once a retry is sealed, its visible blocks are closed and no
@@ -196,7 +196,7 @@ longer mutate. Callers register source defaults (`default_tone` and
 `default_translate_line`) plus source-scoped block definitions. The pipeline owns
 one active block per source and closes blocks with `matched_end`, `superseded`,
 `passive_boundary`, or `flush`. MAA-aware rules and translation hooks live in
-`src/linux_maa/maa/log_templates.py`, while arbitrary script and tool output use
+`src/maa_auto_panel/maa/log_templates.py`, while arbitrary script and tool output use
 the generic plain-line fallback. Raw stdout/stderr persistence remains owned by
 `Diagnostics`.
 
@@ -244,7 +244,7 @@ clients.
 
 The backend validates task configs in two layers:
 
-- It strips each task item's `linux_maa` namespace with the same metadata
+- It strips each task item's `framework` namespace with the same metadata
   removal used by the runner, then validates the sanitized result against
   `docs/maa-cli/schemas/task.schema.json`.
 - It validates framework metadata separately. The current metadata fields are
@@ -263,21 +263,21 @@ causes the task to be included when another important task requires retry.
 
 The task-config API returns parsed task items, per-item `params`, validation
 state, and the metadata schema. It can also save structured task-item edits back
-to `config/maa/tasks/` through `PUT /api/configs/tasks/{name}`. Saves rebuild the
+to `data/config/maa/tasks/` through `PUT /api/configs/tasks/{name}`. Saves rebuild the
 task file from structured data, validate it before writing, and currently support
 TOML and JSON output; TOML comments and hand formatting are not preserved by a
 visual save.
 
 `DELETE /api/configs/{kind}/{name}` moves the selected config file into the
-local recycle folder under `config/maa/.trash/`, including a small
+local recycle folder under `data/config/maa/.trash/`, including a small
 `trash-record.json` with the original path and deletion time. That recycle folder
 is ignored by git.
 
 `GET /api/settings` returns the framework settings, default Profile, maa-cli
 config, validation state, and the current maintenance action. `PUT
-/api/settings` writes the framework settings to `config/linux-maa/settings.toml`,
-the default Profile to `config/maa/profiles/default.toml`, and the maa-cli config
-to `config/maa/cli.toml` after validating the Maa config payloads. Framework
+/api/settings` writes the framework settings to `data/config/framework/settings.toml`,
+the default Profile to `data/config/maa/profiles/default.toml`, and the maa-cli config
+to `data/config/maa/cli.toml` after validating the Maa config payloads. Framework
 timezone settings support automatic backend-local timezone resolution, fixed UTC
 offsets, and IANA names such as `Europe/London` so daylight-saving offsets are
 resolved at save time. The frontend can also store the browser-reported IANA
@@ -300,7 +300,7 @@ and `Recruit`). UI editor templates live in
 defaults for UI creation live in `frontend/src/config/task-item-defaults.json`.
 Unknown task types are not edited visually until a template is added.
 
-The JSON Forms renderer treats arrays with `x-linuxMaaManaged` as managed arrays
+The JSON Forms renderer treats arrays with `x-frameworkManaged` as managed arrays
 and shows per-item enable checkboxes. Plain arrays remain normal arrays without
 checkboxes. Dynamic option fields use backend-provided option APIs instead of
 hardcoded schema enums. Infrast `filename` and `plan_index` are shown in the
@@ -319,22 +319,22 @@ affect `maa-cli`.
 
 ## Scheduled execution
 
-Scheduled execution configs live under `config/linux-maa/schedules/*.toml`.
+Scheduled execution configs live under `data/config/framework/schedules/*.toml`.
 Each config binds one maa-cli task config and stores its own Profile copy. The
 default Profile in Settings is only the template used for new schedules and for
 manual main-page runs.
 
-The scheduler persists state as readable JSON under `state/linux-maa/`:
+The scheduler persists state as readable JSON under `data/state/framework/`:
 
-- `state/linux-maa/run-history/recent-run-records.json`: recent WebUI,
+- `data/state/framework/run-history/recent-run-records.json`: recent WebUI,
   scheduled, and maintenance run records. Schedule overview "recent runs" is
   derived from this file.
-- `state/linux-maa/run-history/run-retries.json`: per-retry records for manual,
+- `data/state/framework/run-history/run-retries.json`: per-retry records for manual,
   scheduled, tool, and maintenance runs. Each row references retry-scoped
   visible log history through `log_entries_file`.
-- `state/linux-maa/scheduler/daily-task-stats.json`: per-schedule daily
+- `data/state/framework/scheduler/daily-task-stats.json`: per-schedule daily
   child-task run/success counters used by retry/skip policy.
-- `state/linux-maa/scheduler/triggered-schedule-entries.json`: schedule entries
+- `data/state/framework/scheduler/triggered-schedule-entries.json`: schedule entries
   already triggered for a game day, used to avoid duplicate execution.
 
 The `config/`, `history/`, `debug/`, and `state/` runtime directories remain
@@ -387,13 +387,13 @@ The WebUI exposes:
 - `POST /api/schedules/current/force-stop`
 
 Restart-script hooks are configured by schedule. Scripts are read from
-`config/linux-maa/scripts/`; a script can declare string variables with comments
-like `# linux-maa-var: CT_ID|容器 ID|151`, and those values are injected as
+`data/config/framework/scripts/`; a script can declare string variables with comments
+like `# framework-var: CT_ID|容器 ID|151`, and those values are injected as
 environment variables when the hook runs. Hooks run with the project
 `MaaRuntime.env()` environment, so scripts can call the project-local `maa`
 binary and see the same `MAA_CONFIG_DIR`/XDG paths as normal framework actions.
 Hook stdout/stderr stream live into the scheduled run's visible log and are also
-stored under `debug/linux-maa/external/scripts/`.
+stored under `data/debug/framework/external/scripts/`.
 
 ## Fight stage list API
 
@@ -408,19 +408,19 @@ The backend now exposes only the list-building half of that GUI behavior through
 `GET /api/maa/stages`. By default it returns currently open, non-hidden stage
 candidates; `include_unavailable=true` also returns stages that are known but not
 currently open. The API accepts `client`, maps `Bilibili` to `Official` like the
-GUI, reads the local `runtime/maa/cache/maa/StageActivityV2.json`, and includes
+GUI, reads the local `data/runtime/maa/cache/maa/StageActivityV2.json`, and includes
 the MaaCore version and source paths in the response.
 
 The same stage service is also used by the runner for managed Fight stage plans:
-`linux_maa.managed_params.stage` keeps the user-facing candidate list, while the
+`framework.managed_params.stage` keeps the user-facing candidate list, while the
 generated task config contains the first currently open stage as the single
 MaaCore `Fight.stage` value. The API returns `value =
-"__linux_maa_stage__:current_last"` and `maa_value = ""` for "当前/上次"; UI code
+"__framework_stage__:current_last"` and `maa_value = ""` for "当前/上次"; UI code
 uses the non-empty `value`, while the runner writes `maa_value` semantics.
 
 ## Infrast option APIs
 
-`GET /api/maa/infrast/files` lists JSON files under `config/maa/infrast/` for
+`GET /api/maa/infrast/files` lists JSON files under `data/config/maa/infrast/` for
 the Infrast custom schedule dropdown. It also returns an explicit empty option
 for "not selected" so the UI can disable plan selection.
 
@@ -434,8 +434,8 @@ plan's `period` against the current local time.
 For Docker, keep this same split:
 
 - image: install `adb`, `maa-cli`, Python app code, and any framework service.
-- volume: mount editable config under `/app/config/maa` and runtime state/cache
-  under `/app/runtime/maa` or dedicated data volumes.
+- volume: mount editable config under `/app/data/config/maa` and runtime state/cache
+  under `/app/data/runtime/maa` or dedicated data volumes.
 - entrypoint: run commands through the same environment variables used by
   `scripts/maa-env`.
 

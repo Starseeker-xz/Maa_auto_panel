@@ -205,7 +205,7 @@ function coerceEnumValue(value: string, enumValues: unknown[]) {
   return match ?? (value === EMPTY_SELECT_VALUE ? "" : value);
 }
 
-const EMPTY_SELECT_VALUE = "__linux_maa_empty_select_value__";
+const EMPTY_SELECT_VALUE = "__framework_empty_select_value__";
 
 function selectItemValue(value: unknown) {
   return String(value) === "" ? EMPTY_SELECT_VALUE : String(value);
@@ -257,12 +257,12 @@ function dynamicOptions(props: ControlProps): EnumOption[] {
 }
 
 function optionsSource(schema: ControlProps["schema"]) {
-  const value = (schema as LinuxMaaSchema)["x-optionsSource"];
+  const value = (schema as FrameworkSchema)["x-optionsSource"];
   return typeof value === "string" ? value : "";
 }
 
 function managedParamKind(schema: ControlProps["schema"]) {
-  const value = (schema as LinuxMaaSchema)["x-linuxMaaManaged"];
+  const value = (schema as FrameworkSchema)["x-frameworkManaged"];
   return typeof value === "string" ? value : "";
 }
 
@@ -351,8 +351,8 @@ type ConditionalSchema = ControlProps["schema"] & {
   "x-disabledWhen"?: FieldCondition[];
 };
 
-type LinuxMaaSchema = ConditionalSchema & {
-  "x-linuxMaaManaged"?: string;
+type FrameworkSchema = ConditionalSchema & {
+  "x-frameworkManaged"?: string;
   "x-optionsSource"?: string;
 };
 
@@ -385,8 +385,8 @@ type FieldCondition = {
   notEquals?: unknown;
 };
 
-export const linuxMaaRenderers = [
-  { tester: rankWith(8, (uischema, schema, context) => Boolean((schema as LinuxMaaSchema)["x-optionsSource"]) && (isStringControl(uischema, schema, context) || isIntegerControl(uischema, schema, context) || isNumberControl(uischema, schema, context))), renderer: withJsonFormsControlProps(DynamicSelectControl) },
+export const frameworkRenderers = [
+  { tester: rankWith(8, (uischema, schema, context) => Boolean((schema as FrameworkSchema)["x-optionsSource"]) && (isStringControl(uischema, schema, context) || isIntegerControl(uischema, schema, context) || isNumberControl(uischema, schema, context))), renderer: withJsonFormsControlProps(DynamicSelectControl) },
   { tester: rankWith(7, isPrimitiveArrayControl), renderer: withJsonFormsControlProps(PrimitiveArrayControl) },
   { tester: rankWith(6, isOneOfEnumControl), renderer: withJsonFormsControlProps(EnumControl) },
   { tester: rankWith(5, isEnumControl), renderer: withJsonFormsControlProps(EnumControl) },
@@ -397,4 +397,4 @@ export const linuxMaaRenderers = [
   ...vanillaRenderers
 ];
 
-export const linuxMaaCells = vanillaCells;
+export const frameworkCells = vanillaCells;

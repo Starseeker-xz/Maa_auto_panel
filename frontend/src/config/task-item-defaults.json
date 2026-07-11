@@ -6,7 +6,7 @@
       "client_type": "Bilibili",
       "start_game_enabled": true
     },
-    "linux_maa": {
+    "framework": {
       "unlimited_runs": true,
       "important": true,
       "retry_even_success": true
@@ -53,7 +53,7 @@
       "reception_message_board": true,
       "reception_clue_exchange": true,
       "reception_send_clue": true,
-      "plan_index": "__linux_maa_runtime__:infrast_plan_index"
+      "plan_index": "__framework_runtime__:infrast_plan_index"
     }
   },
   {
@@ -86,7 +86,7 @@
     "params": {
       "client_type": "Bilibili"
     },
-    "linux_maa": {
+    "framework": {
       "unlimited_runs": true,
       "important": true,
       "retry_even_success": true

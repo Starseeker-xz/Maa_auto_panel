@@ -8,7 +8,7 @@ import { ToolConfigPane } from "@/pages/tools/ToolConfigPane";
 import { ToolListPane } from "@/pages/tools/ToolListPane";
 
 const TOOL_EVENTS_ERROR = "小工具日志事件流连接中断，正在重连...";
-const TOOL_RETRY_COUNT_KEY = "linux-maa:tool-retry-count";
+const TOOL_RETRY_COUNT_KEY = "maa-auto-panel:tool-retry-count";
 
 export function ToolsPage() {
   const [tools, setTools] = React.useState<ToolDefinition[]>([]);

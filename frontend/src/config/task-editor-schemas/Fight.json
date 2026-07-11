@@ -8,7 +8,7 @@
         "title": "关卡计划",
         "default": [],
         "description": "按顺序配置候选关卡；运行前由框架选择第一个当前可用关卡。",
-        "x-linuxMaaManaged": "runtime-array",
+        "x-frameworkManaged": "runtime-array",
         "x-optionsSource": "fight-stages",
         "items": {
           "type": "string"

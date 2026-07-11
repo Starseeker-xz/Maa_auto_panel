@@ -5,20 +5,20 @@ import sys
 
 import pytest
 
-from linux_maa.config.manager import ConfigManager
-from linux_maa.diagnostics import Diagnostics
-from linux_maa.maa.runtime import MaaRuntime
-from linux_maa.process import run_streaming_process
-from linux_maa.run_manager.command import CommandSpec
-from linux_maa.run_manager.manager import GenericRunManager, RunScriptHooks, RunScriptSpec, RunStartPlan, RunTextTemplates
-from linux_maa.run_manager.state import LiveRun, RunTimeouts
-from linux_maa.run_manager.store import RunStateStore
-from linux_maa.scheduler.models import RestartScriptPolicy, ScheduleConfig, ScheduleEntry
-from linux_maa.scheduler.scripts import ScheduleScriptManager
-from linux_maa.scheduler.service import SchedulerService, _schedule_log_profile, _schedule_script_log_profile
-from linux_maa.tools.manager import ToolRunManager, _build_game_update_command
-from linux_maa.utils import is_newer_version, write_text_atomic
-from linux_maa.web.app import create_app
+from maa_auto_panel.config.manager import ConfigManager
+from maa_auto_panel.diagnostics import Diagnostics
+from maa_auto_panel.maa.runtime import MaaRuntime
+from maa_auto_panel.process import run_streaming_process
+from maa_auto_panel.run_manager.command import CommandSpec
+from maa_auto_panel.run_manager.manager import GenericRunManager, RunScriptHooks, RunScriptSpec, RunStartPlan, RunTextTemplates
+from maa_auto_panel.run_manager.state import LiveRun, RunTimeouts
+from maa_auto_panel.run_manager.store import RunStateStore
+from maa_auto_panel.scheduler.models import RestartScriptPolicy, ScheduleConfig, ScheduleEntry
+from maa_auto_panel.scheduler.scripts import ScheduleScriptManager
+from maa_auto_panel.scheduler.service import SchedulerService, _schedule_log_profile, _schedule_script_log_profile
+from maa_auto_panel.tools.manager import ToolRunManager, _build_game_update_command
+from maa_auto_panel.utils import is_newer_version, write_text_atomic
+from maa_auto_panel.web.app import create_app
 
 
 def test_config_resolve_rejects_path_traversal(tmp_path: Path) -> None:
@@ -75,7 +75,7 @@ def test_game_update_tool_runs_python_unbuffered(tmp_path: Path) -> None:
 
     command = _build_game_update_command(manager, {"address": "127.0.0.1:5555"})
 
-    assert command.cmd[:4] == [sys.executable, "-u", "-m", "linux_maa.tools.game"]
+    assert command.cmd[:4] == [sys.executable, "-u", "-m", "maa_auto_panel.tools.game"]
     assert command.cmd[4] == "update-game"
 
 
@@ -242,7 +242,7 @@ def test_schedule_response_uses_single_current_snapshot_for_matching_run() -> No
 
     class FakeFileInfo:
         def to_dict(self) -> dict[str, object]:
-            return {"filename": "target-schedule.toml", "path": "config/linux-maa/schedules/target-schedule.toml"}
+            return {"filename": "target-schedule.toml", "path": "config/framework/schedules/target-schedule.toml"}
 
     class FakeSchedules:
         def file_info(self, config: ScheduleConfig) -> FakeFileInfo:
@@ -290,7 +290,7 @@ def test_schedule_restart_script_streams_to_visible_logs_and_diagnostics(tmp_pat
     script_path = runtime.script_dir / "hook.sh"
     script_path.parent.mkdir(parents=True, exist_ok=True)
     script_path.write_text(
-        "# linux-maa-var: TARGET | Target | default\n"
+        "# framework-var: TARGET | Target | default\n"
         "printf 'Summary\\n'\n"
         "printf 'target=%s\\n' \"$TARGET\"\n"
         "printf 'warn=%s\\n' \"$MAA_CONFIG_DIR\" >&2\n",
@@ -347,8 +347,8 @@ def test_schedule_restart_script_streams_to_visible_logs_and_diagnostics(tmp_pat
     assert lines[0] == "运行脚本(before_run): hook.sh"
     assert set(lines[1:]) == {"Summary", "target=ark", f"warn={runtime.config_dir}"}
     assert state.retries[0].metadata == {}
-    assert (tmp_path / "debug/linux-maa/external/scripts/run-script.stdout.log").read_text(encoding="utf-8") == "Summary\ntarget=ark\n"
-    assert (tmp_path / "debug/linux-maa/external/scripts/run-script.stderr.log").read_text(encoding="utf-8") == f"warn={runtime.config_dir}\n"
+    assert (tmp_path / "data/debug/framework/external/scripts/run-script.stdout.log").read_text(encoding="utf-8") == "Summary\ntarget=ark\n"
+    assert (tmp_path / "data/debug/framework/external/scripts/run-script.stderr.log").read_text(encoding="utf-8") == f"warn={runtime.config_dir}\n"
 
 
 def test_create_app_exposes_expected_api_paths(tmp_path: Path) -> None:
@@ -371,7 +371,7 @@ def test_api_requests_are_written_to_framework_log(tmp_path: Path) -> None:
     status = asyncio.run(_asgi_get_status(app, "/api/history/runs"))
 
     assert status == 200
-    framework_log = tmp_path / "debug/linux-maa/framework.log"
+    framework_log = tmp_path / "data/debug/framework/framework.log"
     content = framework_log.read_text(encoding="utf-8")
     assert "INFO" in content
     assert "api request started method=GET path=/api/history/runs" in content

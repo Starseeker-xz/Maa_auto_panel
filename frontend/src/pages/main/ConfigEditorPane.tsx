@@ -5,7 +5,7 @@ import { AlertTriangle } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { linuxMaaCells, linuxMaaRenderers } from "@/lib/jsonformsRenderers";
+import { frameworkCells, frameworkRenderers } from "@/lib/jsonformsRenderers";
 import type { ConfigValidation, ManagedParamSpec, TaskItem } from "@/lib/types";
 import { schemaForTaskType } from "@/lib/taskSchemas";
 import { cn } from "@/lib/utils";
@@ -17,7 +17,7 @@ type ConfigEditorPaneProps = {
   taskConfig: string;
   selectedTaskItem?: TaskItem;
   validation?: ConfigValidation;
-  onTaskItemUpdate: (itemId: string, patch: Partial<Pick<TaskItem, "params" | "linux_maa">>) => void;
+  onTaskItemUpdate: (itemId: string, patch: Partial<Pick<TaskItem, "params" | "framework">>) => void;
 };
 
 export function ConfigEditorPane({ taskConfig, selectedTaskItem, validation, onTaskItemUpdate }: ConfigEditorPaneProps) {
@@ -32,7 +32,7 @@ export function ConfigEditorPane({ taskConfig, selectedTaskItem, validation, onT
 
   React.useEffect(() => {
     setParams({ ...(selectedTaskItem?.params || {}) });
-    setMetadata({ ...(selectedTaskItem?.linux_maa || {}) });
+    setMetadata({ ...(selectedTaskItem?.framework || {}) });
   }, [selectedTaskItem]);
 
   const editorSchema = selectedTaskItem ? schemaForTaskType(selectedTaskItem.type) : undefined;
@@ -80,7 +80,7 @@ export function ConfigEditorPane({ taskConfig, selectedTaskItem, validation, onT
               metadata={metadata}
               onChange={(nextMetadata) => {
                 setMetadata(nextMetadata);
-                onTaskItemUpdate(selectedTaskItem.id, { linux_maa: nextMetadata });
+                onTaskItemUpdate(selectedTaskItem.id, { framework: nextMetadata });
               }}
             />
           </section>
@@ -96,8 +96,8 @@ export function ConfigEditorPane({ taskConfig, selectedTaskItem, validation, onT
                 schema={editorSchema.schema}
                 uischema={currentUiSchema}
                 data={params}
-                renderers={linuxMaaRenderers}
-                cells={linuxMaaCells}
+                renderers={frameworkRenderers}
+                cells={frameworkCells}
                 config={{
                   rootData: params,
                   metadata,
@@ -105,14 +105,14 @@ export function ConfigEditorPane({ taskConfig, selectedTaskItem, validation, onT
                   onManagedParamChange: (path: string, spec: ManagedParamSpec) => {
                     const nextMetadata = withManagedParam(metadata, path, spec);
                     setMetadata(nextMetadata);
-                    onTaskItemUpdate(selectedTaskItem.id, { linux_maa: nextMetadata });
+                    onTaskItemUpdate(selectedTaskItem.id, { framework: nextMetadata });
                   },
                   onManagedParamValueChange: (path: string, value: unknown, spec: ManagedParamSpec) => {
                     const nextParams = { ...params, [path]: value };
                     const nextMetadata = withManagedParam(metadata, path, spec);
                     setParams(nextParams);
                     setMetadata(nextMetadata);
-                    onTaskItemUpdate(selectedTaskItem.id, { params: nextParams, linux_maa: nextMetadata });
+                    onTaskItemUpdate(selectedTaskItem.id, { params: nextParams, framework: nextMetadata });
                   }
                 }}
                 onChange={({ data }) => {

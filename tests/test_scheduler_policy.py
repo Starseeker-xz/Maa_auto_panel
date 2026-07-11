@@ -1,9 +1,9 @@
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from linux_maa.scheduler.models import DailyTaskStats, ScheduleEntry, TaskPolicy
-from linux_maa.scheduler.policy import initial_task_selection, retry_task_ids
-from linux_maa.scheduler.time import game_day_info
+from maa_auto_panel.scheduler.models import DailyTaskStats, ScheduleEntry, TaskPolicy
+from maa_auto_panel.scheduler.policy import initial_task_selection, retry_task_ids
+from maa_auto_panel.scheduler.time import game_day_info
 
 
 def test_cn_server_game_day_order_in_london_summer_time() -> None:

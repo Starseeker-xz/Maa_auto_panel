@@ -4,10 +4,10 @@ import time
 import json
 from pathlib import Path
 
-from linux_maa.diagnostics import Diagnostics, LogRetentionPolicy
-from linux_maa.maa.runtime import MaaRuntime
-from linux_maa.run_manager.store import RunStateStore
-from linux_maa.scheduler.state import SchedulerStateStore
+from maa_auto_panel.diagnostics import Diagnostics, LogRetentionPolicy
+from maa_auto_panel.maa.runtime import MaaRuntime
+from maa_auto_panel.run_manager.store import RunStateStore
+from maa_auto_panel.scheduler.state import SchedulerStateStore
 
 
 def test_run_state_store_writes_readable_state_outside_debug(tmp_path: Path) -> None:
@@ -63,18 +63,18 @@ def test_run_state_store_writes_readable_state_outside_debug(tmp_path: Path) -> 
     assert run.status == "succeeded"
     assert run.metadata["schedule_id"] == "daily"
     assert run.log_files == {
-        "stdout": "debug/linux-maa/external/maa-cli/run-1.stdout.log",
-        "stderr": "debug/linux-maa/external/maa-cli/run-1.stderr.log",
+        "stdout": "debug/framework/external/maa-cli/run-1.stdout.log",
+        "stderr": "debug/framework/external/maa-cli/run-1.stderr.log",
     }
-    assert run.event_log_file == "debug/linux-maa/events/run-1.jsonl"
+    assert run.event_log_file == "debug/framework/events/run-1.jsonl"
     assert store.retries(run_id)[0]["log_entries"][0]["kind"] == "event"
     assert store.retries(run_id)[0]["metadata"]["task_results"] == [{"task_id": "startup", "status": "succeeded"}]
     assert store.retries(run_id)[0]["artifacts"]["generated_config_dir"] == "runtime/maa/generated-configs/schedule-run-1"
-    assert store.retries(run_id)[0]["log_entries_file"] == "history/linux-maa/runs/schedules/daily/run-1.json"
+    assert store.retries(run_id)[0]["log_entries_file"] == "history/framework/runs/schedules/daily/run-1.json"
 
-    recent_runs = (tmp_path / "state/linux-maa/run-history/recent-run-records.json").read_text(encoding="utf-8")
-    retries = (tmp_path / "state/linux-maa/run-history/run-retries.json").read_text(encoding="utf-8")
-    history = (tmp_path / "history/linux-maa/runs/schedules/daily/run-1.json").read_text(encoding="utf-8")
+    recent_runs = (tmp_path / "data/state/framework/run-history/recent-run-records.json").read_text(encoding="utf-8")
+    retries = (tmp_path / "data/state/framework/run-history/run-retries.json").read_text(encoding="utf-8")
+    history = (tmp_path / "data/history/framework/runs/schedules/daily/run-1.json").read_text(encoding="utf-8")
     assert "Recent WebUI, scheduled, maintenance, and tool run records" in recent_runs
     assert "Per-retry run index" in retries
     assert "log_entries_file" in retries
@@ -83,7 +83,7 @@ def test_run_state_store_writes_readable_state_outside_debug(tmp_path: Path) -> 
     assert "开始运行" in history
     assert json.loads(history)["run"]["status"] == "succeeded"
     assert json.loads(history)["run"]["retry_count"] == 1
-    assert not (tmp_path / "debug/linux-maa/history").exists()
+    assert not (tmp_path / "data/debug/framework/history").exists()
 
 
 def test_scheduler_state_store_records_stats_and_triggers(tmp_path: Path) -> None:
@@ -100,8 +100,8 @@ def test_scheduler_state_store_records_stats_and_triggers(tmp_path: Path) -> Non
 
     assert scheduler_state.already_triggered(schedule_id="daily", entry_id="t0400", game_day="2026-07-01")
     assert scheduler_state.daily_stats("daily", "2026-07-01")["startup"].successes == 1
-    daily_stats = (tmp_path / "state/linux-maa/scheduler/daily-task-stats.json").read_text(encoding="utf-8")
-    triggers = (tmp_path / "state/linux-maa/scheduler/triggered-schedule-entries.json").read_text(encoding="utf-8")
+    daily_stats = (tmp_path / "data/state/framework/scheduler/daily-task-stats.json").read_text(encoding="utf-8")
+    triggers = (tmp_path / "data/state/framework/scheduler/triggered-schedule-entries.json").read_text(encoding="utf-8")
     assert "Per-schedule daily child-task run/success counters" in daily_stats
     assert "avoid duplicate scheduled execution" in triggers
 
@@ -117,7 +117,7 @@ def test_diagnostics_writes_framework_and_external_logs(tmp_path: Path) -> None:
     diagnostics.append_maa_cli_output("run-1", "stdout", "stdout line\n")
     diagnostics.append_maa_cli_output("run-1", "stderr", "stderr line\n")
 
-    framework = (tmp_path / "debug/linux-maa/framework.log").read_text(encoding="utf-8")
+    framework = (tmp_path / "data/debug/framework/framework.log").read_text(encoding="utf-8")
     assert "DEBUG" in framework
     assert "INFO" in framework
     assert "WARNING" in framework
@@ -125,18 +125,18 @@ def test_diagnostics_writes_framework_and_external_logs(tmp_path: Path) -> None:
     assert "CRITICAL" in framework
     assert "level probe DEBUG" in framework
     assert diagnostics.run_events("run-1")[0]["text"] == "人读事件"
-    assert (tmp_path / "debug/linux-maa/external/maa-cli/run-1.stdout.log").read_text(encoding="utf-8") == "stdout line\n"
-    assert (tmp_path / "debug/linux-maa/external/maa-cli/run-1.stderr.log").read_text(encoding="utf-8") == "stderr line\n"
+    assert (tmp_path / "data/debug/framework/external/maa-cli/run-1.stdout.log").read_text(encoding="utf-8") == "stdout line\n"
+    assert (tmp_path / "data/debug/framework/external/maa-cli/run-1.stderr.log").read_text(encoding="utf-8") == "stderr line\n"
 
     tool_log_files = diagnostics.tool_log_files("tool-1")
     diagnostics.append_tool_output("tool-1", "stdout", "tool stdout\n")
     diagnostics.append_tool_output("tool-1", "stderr", "tool stderr\n")
     assert tool_log_files == {
-        "stdout": "debug/linux-maa/external/tools/tool-1.stdout.log",
-        "stderr": "debug/linux-maa/external/tools/tool-1.stderr.log",
+        "stdout": "debug/framework/external/tools/tool-1.stdout.log",
+        "stderr": "debug/framework/external/tools/tool-1.stderr.log",
     }
-    assert (tmp_path / "debug/linux-maa/external/tools/tool-1.stdout.log").read_text(encoding="utf-8") == "tool stdout\n"
-    assert (tmp_path / "debug/linux-maa/external/tools/tool-1.stderr.log").read_text(encoding="utf-8") == "tool stderr\n"
+    assert (tmp_path / "data/debug/framework/external/tools/tool-1.stdout.log").read_text(encoding="utf-8") == "tool stdout\n"
+    assert (tmp_path / "data/debug/framework/external/tools/tool-1.stderr.log").read_text(encoding="utf-8") == "tool stderr\n"
 
 
 def test_run_state_store_records_single_attempt_for_generic_runs(tmp_path: Path) -> None:
@@ -157,7 +157,7 @@ def test_run_state_store_records_single_attempt_for_generic_runs(tmp_path: Path)
         metadata={"task_results": [{"type": "task", "name": "Mall", "status": "unknown"}]},
         artifacts={"generated_config_dir": "runtime/maa/generated-configs/manual-1"},
         log_entries=[{"type": "block", "id": "log-1", "source": "maa-cli:stdout", "kind": "summary", "messages": [], "lines": ["Summary"]}],
-        log_files={"stdout": "debug/linux-maa/external/maa-cli/manual-1.stdout.log"},
+        log_files={"stdout": "debug/framework/external/maa-cli/manual-1.stdout.log"},
     )
     store.finish_run(
         "manual-1",
@@ -172,8 +172,8 @@ def test_run_state_store_records_single_attempt_for_generic_runs(tmp_path: Path)
     assert retry["retry_index"] == 1
     assert retry["retry_group"] == 1
     assert retry["log_entries"][0]["kind"] == "summary"
-    assert retry["log_entries_file"] == "history/linux-maa/runs/manual/manual-1.json"
-    history_path = tmp_path / "history/linux-maa/runs/manual/manual-1.json"
+    assert retry["log_entries_file"] == "history/framework/runs/manual/manual-1.json"
+    history_path = tmp_path / "data/history/framework/runs/manual/manual-1.json"
     assert history_path.is_file()
     history = json.loads(history_path.read_text(encoding="utf-8"))
     assert history["run"]["status"] == "stopped"

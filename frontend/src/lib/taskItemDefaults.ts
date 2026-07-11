@@ -5,7 +5,7 @@ export type TaskItemDefault = {
   type: string;
   name: string;
   params: Record<string, unknown>;
-  linux_maa?: Record<string, unknown>;
+  framework?: Record<string, unknown>;
 };
 
 export const taskItemDefaults = defaults as TaskItemDefault[];
@@ -26,11 +26,11 @@ export function createTaskItem(type: string, currentItems: TaskItem[]): TaskItem
     enabled: true,
     params: { ...structuredClone(template.params), enable: true },
     variants: [],
-    linux_maa: {
+    framework: {
       id,
       unlimited_runs: true,
       important: true,
-      ...(template.linux_maa ? structuredClone(template.linux_maa) : {})
+      ...(template.framework ? structuredClone(template.framework) : {})
     }
   };
 }

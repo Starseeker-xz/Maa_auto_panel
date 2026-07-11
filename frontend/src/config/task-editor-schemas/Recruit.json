@@ -20,7 +20,7 @@
           4
         ],
         "description": "会点击的 Tag 等级。",
-        "x-linuxMaaManaged": "array"
+        "x-frameworkManaged": "array"
       },
       "confirm": {
         "type": "array",
@@ -33,7 +33,7 @@
           4
         ],
         "description": "会点击确认的 Tag 等级。",
-        "x-linuxMaaManaged": "array"
+        "x-frameworkManaged": "array"
       },
       "first_tags": {
         "type": "array",
@@ -43,7 +43,7 @@
         },
         "default": [],
         "description": "Tag 等级为 3 时优先选择的 Tags。",
-        "x-linuxMaaManaged": "array"
+        "x-frameworkManaged": "array"
       },
       "preserve_tags": {
         "type": "array",
@@ -53,7 +53,7 @@
         },
         "default": [],
         "description": "需要保留并跳过当前公招槽位的 Tag 名称列表",
-        "x-linuxMaaManaged": "array"
+        "x-frameworkManaged": "array"
       },
       "extra_tags_mode": {
         "type": "integer",

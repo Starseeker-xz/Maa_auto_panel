@@ -5,14 +5,14 @@ from pathlib import Path
 import sys
 import time
 
-from linux_maa.diagnostics import Diagnostics
-from linux_maa.maa.runtime import MaaRuntime
-from linux_maa.run_manager.command import CommandSpec
-from linux_maa.run_manager.coordinator import RunCoordinator
-from linux_maa.run_manager.logs import plain_stream_log_profile
-from linux_maa.run_manager.manager import GenericRunManager, RunCallbacks, RunStartPlan
-from linux_maa.run_manager.state import RunTimeouts
-from linux_maa.run_manager.store import RunStateStore
+from maa_auto_panel.diagnostics import Diagnostics
+from maa_auto_panel.maa.runtime import MaaRuntime
+from maa_auto_panel.run_manager.command import CommandSpec
+from maa_auto_panel.run_manager.coordinator import RunCoordinator
+from maa_auto_panel.run_manager.logs import plain_stream_log_profile
+from maa_auto_panel.run_manager.manager import GenericRunManager, RunCallbacks, RunStartPlan
+from maa_auto_panel.run_manager.state import RunTimeouts
+from maa_auto_panel.run_manager.store import RunStateStore
 
 
 def test_command_run_driver_streams_logs_and_raw_lines(tmp_path: Path) -> None:
@@ -42,8 +42,8 @@ def test_command_run_driver_streams_logs_and_raw_lines(tmp_path: Path) -> None:
     assert manager.current_response()["run"]["status"] == "succeeded"  # type: ignore[index]
     assert ("stdout", "hello") in raw_lines
     assert ("stderr", "warn") in raw_lines
-    assert (tmp_path / "debug/linux-maa/external/tools/cmd-run.stdout.log").read_text(encoding="utf-8") == "hello\n"
-    assert (tmp_path / "debug/linux-maa/external/tools/cmd-run.stderr.log").read_text(encoding="utf-8") == "warn\n"
+    assert (tmp_path / "data/debug/framework/external/tools/cmd-run.stdout.log").read_text(encoding="utf-8") == "hello\n"
+    assert (tmp_path / "data/debug/framework/external/tools/cmd-run.stderr.log").read_text(encoding="utf-8") == "warn\n"
 
 
 def test_command_run_driver_retries_until_command_succeeds(tmp_path: Path) -> None:

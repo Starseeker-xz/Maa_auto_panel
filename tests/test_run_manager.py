@@ -4,14 +4,14 @@ import os
 import sys
 import time
 
-from linux_maa.diagnostics import Diagnostics
-from linux_maa.maa.runtime import MaaRuntime
-from linux_maa.run_manager.command import CommandSpec
-from linux_maa.run_manager.coordinator import RunCoordinator
-from linux_maa.run_manager.manager import GenericRunManager, RetryDecision, RunAttempt, RunCallbacks, RunStartPlan
-from linux_maa.run_manager.state import RunTimeouts
-from linux_maa.run_manager.store import RunStateStore
-from linux_maa.run_resources import RunResource
+from maa_auto_panel.diagnostics import Diagnostics
+from maa_auto_panel.maa.runtime import MaaRuntime
+from maa_auto_panel.run_manager.command import CommandSpec
+from maa_auto_panel.run_manager.coordinator import RunCoordinator
+from maa_auto_panel.run_manager.manager import GenericRunManager, RetryDecision, RunAttempt, RunCallbacks, RunStartPlan
+from maa_auto_panel.run_manager.state import RunTimeouts
+from maa_auto_panel.run_manager.store import RunStateStore
+from maa_auto_panel.run_resources import RunResource
 
 
 def test_generic_run_manager_persists_retry_and_releases_resources(tmp_path) -> None:

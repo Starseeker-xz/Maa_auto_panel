@@ -1,4 +1,4 @@
-# Linux MAA Documentation
+# Maa Auto Panel Documentation
 
 This directory keeps both mirrored upstream references and project-owned notes/design docs.
 
@@ -15,9 +15,9 @@ This directory keeps both mirrored upstream references and project-owned notes/d
 
 ## Current Project Shape
 
-- Python backend/control plane: `src/linux_maa/`.
-- Managed MAA/framework config: `config/maa/`.
-- Ignored local runtime, generated config, logs, and cache: `runtime/maa/`.
+- Python backend/control plane: `src/maa_auto_panel/`.
+- Managed MAA/framework config: `data/config/maa/`.
+- Ignored local runtime, generated config, logs, and cache: `data/runtime/maa/`.
 - React/Vite frontend: `frontend/`.
 - FastAPI serves `frontend/dist` and exposes config/run APIs under `/api/`.
 

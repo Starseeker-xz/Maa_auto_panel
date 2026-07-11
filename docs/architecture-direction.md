@@ -74,7 +74,7 @@ Example target behavior:
 ## Suggested Project Structure
 
 ```text
-src/linux_maa/
+src/maa_auto_panel/
   app/                    # Web app entrypoint and lifecycle
   api/                    # REST/WebSocket API
   domain/                 # Workflow, step, retry policy, run state models
@@ -170,8 +170,8 @@ Current UI shape:
 Current config editing behavior:
 
 - Frontend edits are staged as drafts and only affect disk after explicit save.
-- Backend validates structured task config saves before writing `config/maa/tasks/*`.
-- Deleting a config moves the file to `config/maa/.trash/` through a reusable trash manager.
+- Backend validates structured task config saves before writing `data/config/maa/tasks/*`.
+- Deleting a config moves the file to `data/config/maa/.trash/` through a reusable trash manager.
 
 Recommendation remains: keep expanding workflow execution, run history, log viewing, and retry/fallback behavior before over-investing in new config-editor surfaces.
 

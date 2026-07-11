@@ -80,7 +80,7 @@
           "Training"
         ],
         "description": "要处理的基建设施，有序列表。",
-        "x-linuxMaaManaged": "array"
+        "x-frameworkManaged": "array"
       },
       "drones": {
         "type": "string",
@@ -189,9 +189,9 @@
       "plan_index": {
         "type": "string",
         "title": "基建计划",
-        "default": "__linux_maa_runtime__:infrast_plan_index",
+        "default": "__framework_runtime__:infrast_plan_index",
         "description": "选择自定义排班计划；未选择自定义排班文件时失效。选择时间轮换时会在运行开始时自动选择当前时间对应的计划。",
-        "x-linuxMaaManaged": "runtime-value",
+        "x-frameworkManaged": "runtime-value",
         "x-optionsSource": "infrast-plans",
         "x-disabledWhen": [
           {

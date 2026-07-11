@@ -37,8 +37,8 @@ async function readJson<T>(url: string, init?: RequestInit): Promise<T> {
 function withClientTimezone(init?: RequestInit): RequestInit {
   const headers = new Headers(init?.headers);
   const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  if (timezone) headers.set("x-linux-maa-client-timezone", timezone);
-  headers.set("x-linux-maa-client-offset-minutes", String(-new Date().getTimezoneOffset()));
+  if (timezone) headers.set("x-maa-auto-panel-client-timezone", timezone);
+  headers.set("x-maa-auto-panel-client-offset-minutes", String(-new Date().getTimezoneOffset()));
   return { ...init, headers };
 }
 

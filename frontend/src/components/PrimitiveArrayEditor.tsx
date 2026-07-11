@@ -183,7 +183,7 @@ export function PrimitiveArrayEditor({
                   </SelectItem>
                 ))
               ) : (
-                <SelectItem value="__linux_maa_no_available_options" disabled>
+                <SelectItem value="__framework_no_available_options" disabled>
                   已全部添加
                 </SelectItem>
               )}
@@ -348,7 +348,7 @@ function valueKey(value: PrimitiveArrayValue) {
   return String(value);
 }
 
-const EMPTY_SELECT_VALUE = "__linux_maa_empty_select_value__";
+const EMPTY_SELECT_VALUE = "__framework_empty_select_value__";
 
 function selectValueKey(value: PrimitiveArrayValue) {
   const key = valueKey(value);

@@ -1,54 +1,39 @@
 # Project Lessons
 
-Mistake notebook for recurring project-specific issues. Source session id on each entry.
+仅记录未来仍容易复发的项目级陷阱。每项带来源会话。
 
----
+## Runtime and process control
 
-## Testing
+- `2026-07-10_2207-graceful-shutdown`: Uvicorn 0.49 的 graceful timeout 会取消未退出 SSE 并记录 traceback；只设置 timeout 不算干净关闭。SIGTERM 到达时先广播应用 shutdown token，SSE 用短轮询主动结束，timeout 仅作兜底。
+- `2026-07-10_2207-graceful-shutdown`: Uvicorn 0.49 清理后会重新 raise 捕获的 SIGTERM；经 `uv run` 会成为 status 143，并让 systemd 记录 failed。容器入口需要 shutdown-aware Server：保留信号捕获和清理，但成功后不重新 raise SIGTERM。
+- `2026-07-10_2207-graceful-shutdown`: 容器关闭预算必须使用共享 absolute deadline；先同时通知所有 manager，再按同一 deadline join，不能给每个 manager 顺序分配完整 timeout。
+- `2026-07-10_0416-full-project-audit`: pipe 可读不代表 `TextIOWrapper.readline()` 不阻塞。流式进程必须 non-blocking 读 bytes、自行增量解码/分行，并测试无换行 partial output 下的 timeout/stop/force-stop。
+- `2026-07-10_0416-full-project-audit`: runtime 更新动作必须与使用该 runtime 的 run 互斥；需要 shared/exclusive resource claim，不能只锁 ADB device。
+- `2026-07-10_0416-full-project-audit`: daemon thread 不是 shutdown 方案。FastAPI lifespan/CLI signal 必须停止 scheduler、收尾 active run、杀 process group、持久化后 join。
+- `2026-07-06_0037-callback-run-manager`: 通用 manager 拥有 lifecycle/command/retry loop；领域 callbacks 只提供差异和 `RetryDecision`。不要恢复 driver-owned retry loop。
+- `2026-07-05_1823-check-history-chunking`: retry seal 后再写 event 会产生额外 log-only retry；retry-next/limit 等事件必须在 seal 前写入。stop/force-stop 对终态必须幂等。
+- `2026-07-04_1003-audit-log-pipeline`: 不要在持有非重入锁时调用会再次通知状态的 helper；scheduler 曾因此死锁。保持相关路径可重入或把 callback 移到锁外。
 
-- `2026-06-26_1727-webui-config-runner`: FastAPI `TestClient` 可能需要额外安装 `httpx2`。当前验证用真实 uvicorn + curl，或显式添加测试依赖。
-- `2026-06-30_0124-config-save-delete`: 用 FastAPI 测试临时仓库时使用 `create_app(explicit_repo_root)`（修复后）；修复前 `create_app(repo_root)` 内部仍调 `find_repo_root(repo_root)` 可能爬到真实仓库。
-- `2026-06-30_1934-scheduled-retry-architecture`: 仓库测试需要 uv dev 依赖组；`pytest` 应在 `[dependency-groups].dev` 中。运行用 `uv run pytest`。
+## State and diagnostics
 
-## Frontend
+- `2026-07-04_1047-audit-log-pipeline-audit`: 不要用有界日志列表长度当持久 cursor；裁剪后会错位。retry/history 使用独立持久结构或单调序号。
+- `2026-07-01_2153-manage-service-history`: 保持状态、结构化 history、外部诊断日志和 Python framework logging 分离；不要重新合成一个大而含糊的 history/log service。
+- `2026-07-10_0416-full-project-audit`: recent index retention 不等于 history retention。淘汰 index 时必须同步处理 history/artifacts；完成 run 后释放 manager plan/callback 引用。
+- `2026-07-10_0416-full-project-audit`: JSON parse failure不能静默当空状态后继续覆盖。隔离 corrupt 文件、记录诊断并阻止破坏性写入。
 
-- `2026-06-29_1929-shadcn-sidebar`: 本地 shadcn/Radix 封装中，不要在注入多个兄弟子元素的组件中使用 `Slot`/`asChild`。Radix `Slot` 期望单个有效子元素，否则运行时空白页。侧边栏导航用真实单子 `Link` 或 `useNavigate()`。
-- `2026-06-30_0014-task-editor-fixes`: 拆分前端 JSON 编辑器模板时，更新模板聚合/导入代码并验证所有 schema enum 表单仍路由到自定义渲染器。`oneOf`/`const` 选项需要 `isOneOfEnumControl`，否则 select 渲染器可能不生效。
-- `2026-06-30_0124-config-save-delete`: 主任务编辑器页面，以 URL 中的任务配置为单一真相来源。单独的 `taskConfig` state + `initialTaskConfig` ref 会导致路由变更被覆盖回初始配置。
-- `2026-06-30_0124-config-save-delete`: 浏览器前端检查可用 Playwright + Chromium（`/root/.cache/ms-playwright/`），用于视觉/布局验证。
-- `2026-06-30_1743-fix-infrast-plan-select`: JSON Forms 控件同时管理 `params` 和 `linux_maa.managed_params` 时，避免在同一 UI 事件中分开触发父级更新。用一个合并回调/patch。
-- `2026-07-01_1506-sse-log-delta`: 浏览器测试含 SSE/EventSource 连接的页面时，不要等 Playwright `networkidle`；长连接事件流使页面永不 idle 并超时。用 `domcontentloaded` + 目标 DOM 断言或短固定等待。
-- `2026-07-02_1933-config-sync-ui-schema`: 删除任务编辑器 schema 字段时，同步从模板 `general`/`advanced` 列表中移除 key，避免产生悬挂的 JSON Forms 控件。
+## Configuration and frontend
 
-## Backend
-
-- `2026-07-06_0037-callback-run-manager`: 运行管理通用化时，不要把领域差异包装成 driver-owned retry loop。项目期望是 manager 内置生命周期和命令执行，领域只传初始命令与可选 callbacks，由 callbacks 返回 `RetryDecision` 决定下一命令、下一任务、结果和是否继续；否则手动/定时/工具/维护会再次各自为政。
-- `2026-07-05_1823-check-history-chunking`: 将 task success/failure 从可见日志剥离时，不要删除 `maa-task-lifecycle` 可见 block rule。策略结果可以只来自 `MaaTaskResultCollector`，但 UI 仍需要 lifecycle block rule 把 `StartUp`/`Infrast` 详情聚合成 task cards；测试必须断言 `kind == "task"`，不能只测 collector。
-- `2026-07-05_1823-check-history-chunking`: schedule stop/force-stop 必须对终态 run 幂等，不能让 `request_force_stop()` 把已结束状态改回 `stopping`。缓冲等待/重试上限阶段创建的 log-only retry 也要在 run finish 前 seal 并写入 history，否则 UI 会显示已结束 run 里仍有 running retry 段。
-- `2026-07-05_1823-check-history-chunking`: `LiveRun.run_dict()` 的 metadata 不能覆盖核心字段（例如 `retry_count`）。新增 metadata key 前检查是否与 run schema 顶层字段同名，避免把配置值误显示为运行事实。
-- `2026-07-04_1047-audit-log-pipeline-audit`: 不要把有界、会从头裁剪的日志列表长度当作 attempt/history 的持久 cursor。裁剪后 `entries[start:]` 可能为空或错位；需要独立 attempt buffer、单调序号 cursor，或 run-level history collector。
-- `2026-07-04_1003-audit-log-pipeline`: Do not call log/update helpers that may re-enter scheduler state notifications while holding a non-reentrant scheduler lock. `SchedulerService` uses `RLock` after `stop_current()` deadlocked through `_append_framework_event()` -> `_mark_log_updated()`.
-- `2026-07-04_1003-audit-log-pipeline`: 改完后端代码后，顺手重启 WebUI 服务 `linux-maa-webui.service`，避免运行中的服务继续使用旧代码。
-- `2026-07-04_1003-audit-log-pipeline`: 如果同一运行状态同时存在 recent index 和 per-run history 快照，收尾路径必须同步所有可被 UI/调试读取的快照；不能只更新 recent index。新增 `RunStateStore._sync_run_history()` 作为 finish 后同步点。
-- `2026-06-30_1743-fix-infrast-plan-select`: `MaaRuntime` 没有 `discover()` 辅助方法。直接构造 `MaaRuntime(find_repo_root())`。
-- `2026-06-30_2056-scheduled-execution`: 仓库级 `rg` 搜索应排除 `frontend/node_modules`、`docs/maa-upstream`、`runtime`，或显式指定目标路径。
-- `2026-06-30_2056-scheduled-execution`: 本环境无裸 `python` 命令。仓库内用 `uv run python ...` 使用项目解释器和依赖。
-- `2026-06-30_2342-full-project-audit`: 不要把原始 scratch 产物或上游源码检出放在 tracked `.codex/conversations/**/scratch/` 中。未来会话应保持 scratch untracked，耐久发现汇入 project history/session 文件。
-- `2026-07-01_1312-explain-log-flow`: 拆分领域实现为多个文件时，保持在领域子包内而非散落为父包的兄弟模块。如 WebUI 日志内部应属于 `logs/` 顶级子包。
-- `2026-07-01_1506-sse-log-delta`: 代码修改前先做目标模块聚焦审计。如有明显架构风险，主动提出并处理低中风险改进，而非仅做最窄补丁。
-- `2026-07-01_2153-manage-service-history`: 不要手动搜索进程名或信任 `runtime/linux-maa/webui.pid`（该文件来自旧分离启动）。用 systemd unit `linux-maa-webui.service` 管理生命周期。
-- `2026-07-01_2153-manage-service-history`: 不要把高频原始进程输出倒入高级 JSONL 事件日志，不要用一个"history/log"类兼做状态和诊断。保持三分离：状态（`state/`）、诊断（`debug/`）、Python logging（框架日志）。
-- `2026-07-02_2144-manual-stop-delay`: 如 maa-cli 启停卡在"已连接"，先查 MaaCore 日志是否有 `adb devices ret 0, cost 60001 ms`。本地 ADB server 缺失使 MaaCore 在 NativeIO 中等待 60 秒；`kill_adb_on_exit = true` 使每次复发。
-- `2026-07-02_2245-tools-page`: 对实时进程日志，不要对生产者（如 `download_file()`）做专项进度条折叠。在 `run_streaming_process()` 中保留原始回车符，在 `RunLogTranslator` 中折叠终端重绘。
-- `2026-07-02_2245-tools-page`: 启动项目 Python CLI 作为实时日志子进程时用 `sys.executable -u` 或 `PYTHONUNBUFFERED=1`。`stdout=PIPE` 时普通 `print()` 输出会被块缓冲，可能只在进程退出时才到达。
-- `2026-07-03_0105-audit-log-module`: systemd 重启 WebUI 时浏览器持有的 SSE 连接可能触发 unit 停止超时和 SIGKILL。重启后验证 `systemctl status`、`ss -H -ltn sport = :8000`，或重试 curl。
-
-## Architecture & Process
-
-- `2026-07-04_1115-review-cleanup`: 清理包级或 helper 级 re-export 时，不只查 `__init__.py`。还要搜索像 `web.responses` 这类 helper 模块的偶然转发导入，并把调用方改到真正定义模块；否则删除“未使用导入”会破坏间接 import。
-- `2026-06-29_2137-project-state-docs`: 修改代码、配置布局、运行时行为、依赖、CLI 命令、WebUI 路由或前端结构时，显式检查 `README.md`、`docs/`、`.codex/project-history.md`、`.codex/project-lessons.md` 是否需要更新。
-- `2026-06-29_2137-project-state-docs`: 项目仍早期，不存在第三方调用方。对于重设计或升级，优先简化架构和删除废弃功能，而非保留旧行为作为 fallback。只在有明确当前运维理由时保留 fallback。
+- `2026-07-10_1752-audit-data-paths`: 项目尚未发布时不设计旧布局、旧 API 或旧数据的前向/向后兼容，不添加 migration CLI、layout version、兼容读取或过渡 facade。直接修改为最终结构，并对本机开发数据做一次性调整；只有用户明确提出发布兼容需求后才增加兼容层。
+- `2026-07-10_0004-complete-rename-maa-auto-panel`: 重命名不能无上下文全局替换 `maa_auto_panel`；包名、metadata namespace、placeholder、schema key、运行目录必须分别核对。
+- `2026-07-04_1115-review-cleanup`: 删除 re-export 时搜索所有 helper/包级间接导入，并把调用方改到真实定义模块。
+- `2026-07-02_1933-config-sync-ui-schema`: 删除 task editor schema 字段时同步模板 general/advanced keys，避免悬挂 JSON Forms 控件。
+- `2026-06-30_1743-fix-infrast-plan-select`: 同一 UI 事件同时修改 params 与 framework managed metadata 时使用一次合并 patch，避免双更新覆盖。
+- `2026-07-01_1506-sse-log-delta`: Playwright 不要等待含 EventSource 页面的 `networkidle`；使用 `domcontentloaded` + 目标 DOM 断言。
 
 ## Environment
 
-- `2026-07-03_1200-audit-and-refactor-codex`: 运行 `rg` 搜索时注意中文内容编码；用 `-e PATTERN` 传递以 `-` 开头的模式。
+- `2026-07-10_0416-full-project-audit`: 仓库移动/重命名后，venv console script shebang 和 editable install 元数据可能仍指向旧路径。优先重建/重装 `.venv`；临时验证用 `.venv/bin/python -m pytest`，不要仅信 `which pytest`。
+- `2026-07-10_0416-full-project-audit`: Docker multi-stage 复制 venv 时 builder/runtime 必须保持相同绝对路径，或使用 wheel 安装；否则 console-script shebang 会指向 builder 路径。`tini` 与 Compose `init: true` 二选一。
+- `2026-07-10_0416-full-project-audit`: 当前 scheduler/coordinator/store 仅支持单进程；容器化时禁止副本扩容、滚动双实例和 systemd/Compose 同时运行，否则会重复触发 schedule 且资源锁不跨进程。
+- `2026-07-10_2207-graceful-shutdown`: 当前 Starlette `TestClient` 要求未安装的 `httpx2`。生命周期测试直接使用 `app.router.lifespan_context(app)`；不要仅为该测试引入新 HTTP client 依赖。
+- `2026-06-30_2056-scheduled-execution`: 仓库搜索排除 `frontend/node_modules`、`docs/maa-upstream`、`runtime`、`external` 和运行日志目录；系统级一次性脚本使用 `python3`，项目命令使用项目解释器。

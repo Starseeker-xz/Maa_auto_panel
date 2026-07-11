@@ -36,7 +36,7 @@ import { ScheduleLeftPane } from "@/pages/schedule/ScheduleLeftPane";
 
 type CenterTab = "settings" | "stats";
 const SCHEDULE_RUN_EVENTS_ERROR = "定时运行日志事件流连接中断，正在重连...";
-const SCHEDULE_RETRY_COUNT_KEY = "linux-maa:schedule-retry-count";
+const SCHEDULE_RETRY_COUNT_KEY = "maa-auto-panel:schedule-retry-count";
 
 export function SchedulePage() {
   const { scheduleId } = useParams();
