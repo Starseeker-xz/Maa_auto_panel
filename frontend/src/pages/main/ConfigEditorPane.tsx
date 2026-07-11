@@ -5,6 +5,7 @@ import { AlertTriangle } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { SegmentedControl } from "@/components/SegmentedControl";
 import { frameworkCells, frameworkRenderers } from "@/lib/jsonformsRenderers";
 import type { ConfigValidation, ManagedParamSpec, TaskItem } from "@/lib/types";
 import { schemaForTaskType } from "@/lib/taskSchemas";
@@ -167,22 +168,14 @@ function ModeTabs({
   }
 
   return (
-    <div className="inline-grid grid-cols-2 rounded-md border bg-muted p-0.5">
-      <button
-        type="button"
-        className={cn("h-8 rounded-sm px-3 text-sm", mode === "general" ? "bg-background shadow-xs" : "text-muted-foreground")}
-        onClick={() => onModeChange("general")}
-      >
-        常规设置
-      </button>
-      <button
-        type="button"
-        className={cn("h-8 rounded-sm px-3 text-sm", mode === "advanced" ? "bg-background shadow-xs" : "text-muted-foreground")}
-        onClick={() => onModeChange("advanced")}
-      >
-        高级设置
-      </button>
-    </div>
+    <SegmentedControl
+      value={mode}
+      items={[
+        { value: "general", label: "常规设置" },
+        { value: "advanced", label: "高级设置" }
+      ]}
+      onChange={onModeChange}
+    />
   );
 }
 

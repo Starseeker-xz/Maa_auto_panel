@@ -19,6 +19,7 @@ from maa_auto_panel.run_manager.logs import RunLogProfile
 from maa_auto_panel.run_manager.manager import GenericRunManager, RunStartPlan, RunTextTemplates
 from maa_auto_panel.run_manager.state import LiveRun
 from maa_auto_panel.run_manager.store import RunStateStore
+from maa_auto_panel.run_resources import maa_runtime_resource
 from maa_auto_panel.utils import dict_value, extract_version, is_newer_version
 
 
@@ -54,6 +55,7 @@ class MaintenanceActionManager:
             run_state or RunStateStore(runtime),
             self.diagnostics,
             run_coordinator,
+            resource_wait_timeout_seconds=self.framework_settings.resource_wait_timeout_seconds,
         )
 
     def current(self) -> LiveRun | None:
@@ -86,7 +88,9 @@ class MaintenanceActionManager:
                 event_log_file=self.diagnostics.event_log_file(run_id),
                 metadata={"maintenance_kind": kind},
                 history_scope=("maintenance", kind),
+                resources=(maa_runtime_resource(exclusive=True),),
                 priority_name="normal",
+                preemptible=False,
                 text=RunTextTemplates(
                     process_name="维护动作",
                     start=f"$ {' '.join(cmd)}",

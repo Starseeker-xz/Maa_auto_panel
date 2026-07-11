@@ -1,5 +1,6 @@
 import React from "react";
 import { Download, RefreshCw, Search } from "lucide-react";
+import { useLocation } from "react-router-dom";
 
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { DirtyActions } from "@/components/DirtyActions";
@@ -7,17 +8,17 @@ import { CheckboxField, NumberField, PathLine, ReadOnlyLine, SectionTitle, Selec
 import { Button } from "@/components/ui/button";
 import { Card, CardTitle } from "@/components/ui/card";
 import { currentMaintenanceEventsUrl, getCurrentMaintenanceAction, getSettings, getUpdateInfo, saveSettings, startMaintenanceAction } from "@/lib/api";
-import { CONNECTION_CONFIGS, CONNECTION_TYPES, TOUCH_MODES } from "@/lib/constants";
-import { DELETE_VALUE, booleanAt, isRecord, optionalNumberAt, setNestedValue, stringAt, valueAt, type DeleteValue } from "@/lib/objectPath";
+import { booleanAt, isRecord, optionalNumberAt, setNestedValue, stringAt, valueAt, type DeleteValue } from "@/lib/objectPath";
 import { applyRunStateEvent, normalizeRunState, runEventsUrl } from "@/lib/runStream";
-import { loadStoredTheme, saveActiveTheme, setActiveTheme, themeColors, themeFromFrameworkSettings, themeModes, type ThemeColor, type ThemeMode } from "@/lib/theme";
 import { formatDateTime } from "@/lib/time";
 import type { ConfigValidation, MaintenanceActionState, SaveSettingsPayload, SettingsResponse, UpdateInfoResponse } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { LogPane } from "@/pages/main/LogPane";
+import { DeviceSettingsPanel, NotificationSettingsPanel, SettingsPanel } from "@/pages/settings/panels";
+import { SettingsNavigation } from "@/pages/settings/SettingsNavigation";
 
 type SettingsDraft = SaveSettingsPayload;
-type DraftSection = keyof SettingsDraft;
+type DraftSection = "framework" | "profile" | "maa_cli";
 
 const CHANNELS = ["Stable", "Beta", "Alpha"];
 const TIMEZONE_MODES = [
@@ -29,6 +30,8 @@ const COMMON_TIMEZONES = ["UTC", "Asia/Shanghai", "Asia/Tokyo", "Europe/London",
 const MAINTENANCE_EVENTS_ERROR = "维护日志事件流连接中断，正在重连...";
 
 export function SettingsPage() {
+  const location = useLocation();
+  const section = location.pathname === "/settings/framework" ? "framework" : "basic";
   const [settings, setSettings] = React.useState<SettingsResponse | null>(null);
   const [savedDraft, setSavedDraft] = React.useState<SettingsDraft | null>(null);
   const [draft, setDraft] = React.useState<SettingsDraft | null>(null);
@@ -39,6 +42,7 @@ export function SettingsPage() {
   const [error, setError] = React.useState("");
   const [busy, setBusy] = React.useState(false);
   const browserTimezone = React.useMemo(() => browserTimezoneInfo(), []);
+  const maintenanceWasRunning = React.useRef(false);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -48,10 +52,6 @@ export function SettingsPage() {
         if (cancelled) return;
         const diskDraft = draftFromSettings(data);
         const nextDraft = normalizeSettingsDraft(diskDraft);
-        const storedTheme = loadStoredTheme();
-        if (storedTheme) {
-          nextDraft.framework = setNestedValue(setNestedValue(nextDraft.framework, ["theme", "mode"], storedTheme.mode), ["theme", "color"], storedTheme.color);
-        }
         setSettings(data);
         setSavedDraft(diskDraft);
         setDraft(cloneDraft(nextDraft));
@@ -67,11 +67,6 @@ export function SettingsPage() {
       cancelled = true;
     };
   }, []);
-
-  React.useEffect(() => {
-    if (!draft) return;
-    setActiveTheme(themeFromFrameworkSettings(draft.framework));
-  }, [draft]);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -106,7 +101,18 @@ export function SettingsPage() {
     };
   }, []);
 
-  const dirty = Boolean(draft && savedDraft && JSON.stringify(draftForDirty(draft)) !== JSON.stringify(draftForDirty(savedDraft)));
+  React.useEffect(() => {
+    const running = maintenance.status === "running" || maintenance.status === "stopping";
+    if (running) {
+      maintenanceWasRunning.current = true;
+      return;
+    }
+    if (!maintenanceWasRunning.current) return;
+    maintenanceWasRunning.current = false;
+    void handleRefreshUpdateInfo();
+  }, [maintenance.status]);
+
+  const dirty = Boolean(draft && savedDraft && JSON.stringify(draftSectionForDirty(draft, section)) !== JSON.stringify(draftSectionForDirty(savedDraft, section)));
 
   function updateDraft(section: DraftSection, path: string[], value: unknown | DeleteValue) {
     setDraft((current) => {
@@ -130,7 +136,6 @@ export function SettingsPage() {
       setSavedDraft(diskDraft);
       setDraft(cloneDraft(nextDraft));
       setMaintenance(normalizeRunState(saved.maintenance));
-      setActiveTheme(themeFromFrameworkSettings(nextDraft.framework));
     } catch (exc) {
       setError(String(exc));
       throw exc;
@@ -144,10 +149,12 @@ export function SettingsPage() {
     setBusy(true);
     setError("");
     try {
-      const currentTheme = draft ? themeFromFrameworkSettings(draft.framework) : themeFromFrameworkSettings(savedDraft.framework);
-      const nextDraft = cloneDraft(savedDraft);
-      nextDraft.framework = setNestedValue(setNestedValue(nextDraft.framework, ["theme", "mode"], currentTheme.mode), ["theme", "color"], currentTheme.color);
-      setDraft(nextDraft);
+      setDraft((current) => {
+        if (!current) return current;
+        return section === "basic"
+          ? { ...current, profile: cloneRecord(savedDraft.profile), maa_cli: cloneRecord(savedDraft.maa_cli) }
+          : { ...current, framework: cloneRecord(savedDraft.framework), notifications: cloneNotifications(savedDraft.notifications) };
+      });
     } catch (exc) {
       setError(String(exc));
       throw exc;
@@ -158,10 +165,12 @@ export function SettingsPage() {
 
   async function handleMaintenance(kind: string) {
     setError("");
+    maintenanceWasRunning.current = true;
     try {
       setMaintenance(await startMaintenanceAction(kind));
       setMaintenanceConfirmKind("");
     } catch (exc) {
+      maintenanceWasRunning.current = false;
       setError(String(exc));
     }
   }
@@ -178,17 +187,6 @@ export function SettingsPage() {
     }
   }
 
-  function handleThemeChange(patch: Partial<{ mode: ThemeMode; color: ThemeColor }>) {
-    setDraft((current) => {
-      if (!current) return current;
-      const currentTheme = themeFromFrameworkSettings(current.framework);
-      const nextTheme = { ...currentTheme, ...patch };
-      const nextFramework = setNestedValue(setNestedValue(current.framework, ["theme", "mode"], nextTheme.mode), ["theme", "color"], nextTheme.color);
-      saveActiveTheme(nextTheme);
-      return { ...current, framework: nextFramework };
-    });
-  }
-
   if (!draft) {
     return (
       <section className="min-h-screen p-4">
@@ -203,7 +201,6 @@ export function SettingsPage() {
   const framework = draft.framework;
   const profile = draft.profile;
   const maaCli = draft.maa_cli;
-  const profileValidation = settings?.profile.validation;
   const cliValidation = settings?.maa_cli.validation;
   const effectiveTimezone = settings?.framework.effective_timezone;
   const actionRunning = maintenance.status === "running" || maintenance.status === "stopping";
@@ -212,12 +209,15 @@ export function SettingsPage() {
   const currentTimezoneMode = stringAt(framework, ["framework", "timezone", "mode"], "auto");
   const serverClientTimezoneMismatch =
     browserTimezone.offsetLabel !== effectiveTimezone?.label || (browserTimezone.name && effectiveTimezone?.name && browserTimezone.name !== effectiveTimezone.name);
-  const cpuOcrEnabled = booleanAt(profile, ["static_options", "cpu_ocr"], true);
 
   return (
     <section className="min-h-screen overflow-auto p-4">
-      <div className="grid min-h-[calc(100vh-2rem)] min-w-0 gap-4 2xl:grid-cols-[minmax(320px,0.8fr)_minmax(440px,1fr)_minmax(520px,1.2fr)] xl:grid-cols-[minmax(360px,0.9fr)_minmax(520px,1.1fr)]">
-        <SettingsCard title="框架与主题">
+      <div className="grid min-h-[calc(100vh-2rem)] min-w-0 content-start gap-4">
+        <SettingsNavigation />
+        <div className="grid min-w-0 gap-4 xl:grid-cols-2">
+        {section === "framework" ? (
+          <>
+        <SettingsPanel title="框架">
           <SelectField
             label="时区来源"
             help="影响之后定时任务按哪一天、哪一个小时计算。通常选浏览器时区；部署到 Docker 后，也可以让容器时区和你本地一致。"
@@ -271,6 +271,13 @@ export function SettingsPage() {
             help="保存时会重新解析。这里如果和浏览器时区冲突，后续定时任务可能和你的直觉不一致。"
             value={effectiveTimezone ? `${effectiveTimezone.label} · ${effectiveTimezone.name}` : "未保存"}
           />
+          <SectionTitle label="运行资源协调" help="所有手动、定时、工具和维护运行共享。等待超时后运行会记录失败且不会启动实际命令。" />
+          <NumberField
+            label="资源等待上限（秒）"
+            value={optionalNumberAt(framework, ["framework", "run_resources", "wait_timeout_seconds"]) ?? 300}
+            min={1}
+            onChange={(value) => updateDraft("framework", ["framework", "run_resources", "wait_timeout_seconds"], value === "" ? 300 : value)}
+          />
           <SectionTitle label="手动运行时限" help="用于手动任务、小工具和维护动作。0 表示不启用对应自动强停或警告。" />
           <div className="grid grid-cols-2 gap-2 max-sm:grid-cols-1">
             <NumberField
@@ -310,114 +317,22 @@ export function SettingsPage() {
               onChange={(value) => updateDraft("framework", ["framework", "run_timeouts", "stop_kill_seconds"], value === "" ? 0 : value)}
             />
           </div>
-          <SectionTitle label="主题" help="主题会立即应用并保存在浏览器本地，不需要点右下角保存。" />
-          <div className="grid grid-cols-3 gap-1">
-            {themeModes.map((mode) => {
-              const active = stringAt(framework, ["theme", "mode"], "system") === mode.value;
-              return (
-                <Button key={mode.value} variant={active ? "default" : "outline"} onClick={() => handleThemeChange({ mode: mode.value })}>
-                  {mode.label}
-                </Button>
-              );
-            })}
-          </div>
-          <div className="grid grid-cols-5 gap-2">
-            {themeColors.map((color) => {
-              const active = stringAt(framework, ["theme", "color"], "cyan") === color.value;
-              return (
-                <button
-                  key={color.value}
-                  type="button"
-                  className={cn(
-                    "grid h-12 min-w-0 place-items-center rounded-md border text-xs font-medium shadow-xs transition-all",
-                    active ? "border-primary ring-2 ring-primary/30" : "border-border hover:border-primary/70"
-                  )}
-                  data-color-swatch={color.value}
-                  onClick={() => handleThemeChange({ color: color.value })}
-                >
-                  <span className="size-5 rounded-full border border-black/10 shadow-xs" />
-                  <span className="max-w-full truncate">{color.label}</span>
-                </button>
-              );
-            })}
-          </div>
           <PathLine label="框架设置文件" value={settings?.framework.file.path || "config/framework/settings.toml"} />
-        </SettingsCard>
+        </SettingsPanel>
 
-        <SettingsCard title="设备配置">
-          <div className="grid grid-cols-2 gap-2 max-sm:grid-cols-1">
-            <SelectField
-              label="连接类型"
-              help="常规 Android 设备和模拟器选 ADB。PlayCover、Waydroid、MuMuPro 只有对应环境才需要切换。"
-              value={stringAt(profile, ["connection", "type"], "ADB")}
-              options={CONNECTION_TYPES.map((value) => [value, value])}
-              onChange={(value) => updateDraft("profile", ["connection", "type"], value)}
-            />
-            <SelectField
-              label="连接配置"
-              help="处理不同平台的 shell 和输入差异。Linux/redroid 通常用 CompatPOSIXShell；连接命令异常时再改。"
-              value={stringAt(profile, ["connection", "config"], "") || "__unset"}
-              options={CONNECTION_CONFIGS.map((value) => [value || "__unset", value || "未指定"])}
-              onChange={(value) => updateDraft("profile", ["connection", "config"], value === "__unset" ? DELETE_VALUE : value)}
-            />
-            <TextField
-              label="ADB 可执行文件"
-              help="找不到设备时才需要改。填 adb 表示使用系统 PATH 里的 adb。"
-              value={stringAt(profile, ["connection", "adb_path"], "adb")}
-              onChange={(value) => updateDraft("profile", ["connection", "adb_path"], value)}
-            />
-            <TextField
-              label="连接地址"
-              help="设备序列号或 IP:端口，例如 127.0.0.1:5555。留空时会尝试自动选一个可用设备。"
-              value={stringAt(profile, ["connection", "address"], "")}
-              onChange={(value) => updateDraft("profile", ["connection", "address"], value)}
-            />
-            <SelectField
-              label="触控模式"
-              help="点击和滑动的输入方式。ADB 最通用；只有当前设备明确支持 MiniTouch、MaaTouch 或 PlayTools 时再切换。"
-              value={stringAt(profile, ["instance_options", "touch_mode"], "ADB")}
-              options={TOUCH_MODES.map((value) => [value, value])}
-              onChange={(value) => updateDraft("profile", ["instance_options", "touch_mode"], value)}
-            />
-            <NumberField
-              label="用于 OCR 的 GPU ID"
-              help="只有关闭“使用 CPU 进行 OCR”后才会生效。单显卡通常填 0；不确定就保持空。"
-              value={optionalNumberAt(profile, ["static_options", "gpu_ocr"])}
-              disabled={cpuOcrEnabled}
-              onChange={(value) => updateDraft("profile", ["static_options", "gpu_ocr"], value === "" ? DELETE_VALUE : value)}
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-2 max-sm:grid-cols-1">
-            <CheckboxField
-              label="使用 CPU 进行 OCR"
-              help="更稳定，也不依赖显卡运行环境。关闭后可以指定 GPU ID。"
-              checked={cpuOcrEnabled}
-              onChange={(value) => updateDraft("profile", ["static_options", "cpu_ocr"], value)}
-            />
-            <CheckboxField
-              label="部署时暂停游戏"
-              help="部署操作容易误触或失败时再打开。多数设备保持关闭即可。"
-              checked={booleanAt(profile, ["instance_options", "deployment_with_pause"], false)}
-              onChange={(value) => updateDraft("profile", ["instance_options", "deployment_with_pause"], value)}
-            />
-            <CheckboxField
-              label="启用 adb-lite"
-              help="替代的 ADB 连接实现。普通 ADB 连接正常时保持关闭。"
-              checked={booleanAt(profile, ["instance_options", "adb_lite_enabled"], false)}
-              onChange={(value) => updateDraft("profile", ["instance_options", "adb_lite_enabled"], value)}
-            />
-            <CheckboxField
-              label="退出时关闭 ADB"
-              help="如果还有模拟器、调试工具或其他任务要使用 adb，就不要打开。"
-              checked={booleanAt(profile, ["instance_options", "kill_adb_on_exit"], false)}
-              onChange={(value) => updateDraft("profile", ["instance_options", "kill_adb_on_exit"], value)}
-            />
-          </div>
-          <ValidationList validation={profileValidation} />
-          <PathLine label="Profile 配置文件" value={settings?.profile.file.path || "config/maa/profiles/default.toml"} />
-        </SettingsCard>
+        <NotificationSettingsPanel value={draft.notifications} onChange={(notifications) => setDraft((current) => (current ? { ...current, notifications } : current))} />
+          </>
+        ) : (
+          <>
 
-        <SettingsCard title="更新与资源">
+        <DeviceSettingsPanel
+          profile={profile}
+          validation={settings?.profile.validation}
+          path={settings?.profile.file.path || "config/maa/profiles/default.toml"}
+          onChange={(path, value) => updateDraft("profile", path, value)}
+        />
+
+        <SettingsPanel title="更新与资源">
           <div className="grid grid-cols-2 gap-2 max-sm:grid-cols-1">
             <SelectField
               label="MaaCore 渠道"
@@ -496,20 +411,23 @@ export function SettingsPage() {
               className="max-h-64 min-h-32 border-dashed"
             />
           ) : null}
-        </SettingsCard>
+        </SettingsPanel>
+          </>
+        )}
+        </div>
       </div>
       {error ? <div className="mt-4 rounded-md border border-destructive/30 bg-destructive/10 p-2 text-sm text-destructive">{error}</div> : null}
 
       <DirtyActions
-        dirty={dirty}
-        busy={busy}
-        saveTitle="保存设置"
-        saveDescription="保存会写入框架设置、默认设备 Profile 和 maa-cli 配置。"
-        resetTitle="复位设置"
-        resetDescription="复位会丢弃设置页里的未保存修改，并恢复到当前磁盘内容。"
-        onSave={handleSave}
-        onReset={handleReset}
-      />
+          dirty={dirty}
+          busy={busy}
+          saveTitle={section === "basic" ? "保存基础设置" : "保存框架设置"}
+          saveDescription={section === "basic" ? "保存默认设备 Profile 与 maa-cli 更新配置。" : "保存框架运行设置与通知策略。"}
+          resetTitle="复位当前页"
+          resetDescription="复位只会丢弃当前设置页里的未保存修改。"
+          onSave={handleSave}
+          onReset={handleReset}
+        />
       <ConfirmDialog
         open={Boolean(maintenanceConfirmKind)}
         title={maintenanceDialogContent(maintenanceConfirmKind, updateInfo).title}
@@ -520,15 +438,6 @@ export function SettingsPage() {
         onConfirm={() => void handleMaintenance(maintenanceConfirmKind)}
       />
     </section>
-  );
-}
-
-function SettingsCard({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <Card className="min-h-0 min-w-0 gap-4 p-4">
-      <CardTitle className="text-sm">{title}</CardTitle>
-      <div className="grid min-w-0 gap-3">{children}</div>
-    </Card>
   );
 }
 
@@ -650,14 +559,10 @@ function offsetLabel(offsetMinutes: number) {
   return `UTC${sign}${String(Math.floor(absolute / 60)).padStart(2, "0")}:${String(absolute % 60).padStart(2, "0")}`;
 }
 
-function draftForDirty(value: SettingsDraft): SettingsDraft {
-  const framework = cloneRecord(value.framework);
-  delete framework.theme;
-  return {
-    framework,
-    profile: cloneRecord(value.profile),
-    maa_cli: cloneRecord(value.maa_cli)
-  };
+function draftSectionForDirty(value: SettingsDraft, section: "basic" | "framework") {
+  return section === "basic"
+    ? { profile: cloneRecord(value.profile), maa_cli: cloneRecord(value.maa_cli) }
+    : { framework: cloneRecord(value.framework), notifications: cloneNotifications(value.notifications) };
 }
 
 function resourceLabel(value: unknown) {
@@ -684,7 +589,8 @@ function draftFromSettings(settings: SettingsResponse): SettingsDraft {
   return normalizeSettingsDraft({
     framework: cloneRecord(settings.framework.data),
     profile: cloneRecord(settings.profile.data || {}),
-    maa_cli: cloneRecord(settings.maa_cli.data || {})
+    maa_cli: cloneRecord(settings.maa_cli.data || {}),
+    notifications: cloneNotifications(settings.notifications)
   });
 }
 
@@ -704,10 +610,15 @@ function cloneDraft(value: SettingsDraft): SettingsDraft {
   return {
     framework: cloneRecord(value.framework),
     profile: cloneRecord(value.profile),
-    maa_cli: cloneRecord(value.maa_cli)
+    maa_cli: cloneRecord(value.maa_cli),
+    notifications: cloneNotifications(value.notifications)
   };
 }
 
 function cloneRecord(value: Record<string, unknown>): Record<string, unknown> {
   return JSON.parse(JSON.stringify(value)) as Record<string, unknown>;
+}
+
+function cloneNotifications(value: SettingsDraft["notifications"]): SettingsDraft["notifications"] {
+  return JSON.parse(JSON.stringify(value)) as SettingsDraft["notifications"];
 }

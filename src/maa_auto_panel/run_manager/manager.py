@@ -20,7 +20,13 @@ from maa_auto_panel.process import (
     terminate_process_group,
 )
 from maa_auto_panel.run_manager.command import CommandSpec
-from maa_auto_panel.run_manager.coordinator import RunCoordinator, RunLease
+from maa_auto_panel.run_manager.coordinator import (
+    RunConflictError,
+    RunCoordinator,
+    RunLease,
+    RunResourceCancelledError,
+    RunResourceTimeoutError,
+)
 from maa_auto_panel.run_manager.logs import RunLogProfile
 from maa_auto_panel.run_manager.state import LiveRetry, LiveRun, RunKind, RunTimeouts, now_text
 from maa_auto_panel.run_manager.store import RunStateStore
@@ -43,6 +49,7 @@ BeforeRetry = Callable[["RunAttempt", "RetryDecision"], None]
 FinishCallback = Callable[["RunCallbackAPI", "RunCompletion"], "RunCompletion | None"]
 ScriptCommandBuilder = Callable[["RunAttempt"], CommandSpec | None]
 LogConfigurator = Callable[[RunLogBuffer], None]
+RunFinishedListener = Callable[[LiveRun], None]
 
 
 @dataclass(frozen=True)
@@ -144,6 +151,7 @@ class RunStartPlan:
     priority_name: str = "normal"
     priority: int | None = None
     force_after_seconds: float | None = None
+    preemptible: bool = True
     text: RunTextTemplates = field(default_factory=RunTextTemplates)
 
     def priority_value(self) -> int:
@@ -246,11 +254,15 @@ class GenericRunManager:
         store: RunStateStore | None = None,
         diagnostics: Diagnostics | None = None,
         coordinator: RunCoordinator | None = None,
+        on_run_finished: RunFinishedListener | None = None,
+        resource_wait_timeout_seconds: Callable[[], float] | None = None,
     ) -> None:
         self.runtime = runtime
         self.store = store or RunStateStore(runtime)
         self.diagnostics = diagnostics or Diagnostics(runtime)
         self.coordinator = coordinator or RunCoordinator()
+        self.on_run_finished = on_run_finished
+        self.resource_wait_timeout_seconds = resource_wait_timeout_seconds or (lambda: 300.0)
         self._lock = threading.RLock()
         self._condition = threading.Condition(self._lock)
         self._version = 0
@@ -287,42 +299,40 @@ class GenericRunManager:
             request_stop=lambda: self._request_stop_for_run(state),
             request_force_stop=lambda: self._request_force_stop_for_run(state),
             force_after_seconds=plan.force_after_seconds,
+            preemptible=plan.preemptible,
         )
-        try:
-            self.coordinator.acquire(lease)
-            with self._lock:
-                if self._closing:
-                    raise RuntimeError("Application is shutting down")
-                current = self._runs.get(self._current_run_id or "")
-                if current and current.status in {"running", "stopping"}:
-                    raise RuntimeError(f"Run already active: {current.id}")
-                if state.stop_requested:
-                    raise RuntimeError("Run was preempted before it started")
-                self.store.create_run(
-                    run_id=run_id,
-                    kind=plan.kind,
-                    title=plan.title,
-                    max_retries=state.max_retries,
-                    log_files=state.log_files,
-                    event_log_file=state.event_log_file,
-                    metadata=plan.metadata,
-                    artifacts=plan.artifacts,
-                    history_scope=plan.history_scope,
-                )
-                self._runs[run_id] = state
-                self._plans[run_id] = plan
-                self._current_run_id = run_id
-                self._notify_locked()
-        except Exception:
-            self.coordinator.release(run_id)
-            raise
+        with self._lock:
+            if self._closing:
+                raise RuntimeError("Application is shutting down")
+            current = self._runs.get(self._current_run_id or "")
+            if current and current.status in {"running", "stopping"}:
+                raise RuntimeError(f"Run already active: {current.id}")
+            self.store.create_run(
+                run_id=run_id,
+                kind=plan.kind,
+                title=plan.title,
+                max_retries=state.max_retries,
+                log_files=state.log_files,
+                event_log_file=state.event_log_file,
+                metadata=plan.metadata,
+                artifacts=plan.artifacts,
+                history_scope=plan.history_scope,
+            )
+            self._runs[run_id] = state
+            self._plans[run_id] = plan
+            self._current_run_id = run_id
+            self._notify_locked()
 
-        thread = threading.Thread(target=self._execute_loop, args=(state, plan), name=f"run-{state.id}", daemon=False)
+        thread = threading.Thread(target=self._execute_loop, args=(state, plan, lease), name=f"run-{state.id}", daemon=False)
         state.thread = thread
         try:
             thread.start()
-        except Exception:
-            self.coordinator.release(run_id)
+        except Exception as exc:
+            self.append_event(state, plan, plan.text.execution_failed.format(error=exc), tone="danger")
+            retry = state.current_retry
+            if retry is not None:
+                self._finish_retry(state, retry, "failed", None)
+            self._finish_run(state, RunCompletion(status="failed"))
             raise
         return state
 
@@ -397,6 +407,7 @@ class GenericRunManager:
                     self._append_event_locked(state, plan, plan.text.stop_requested, tone="warning")
                 state.request_stop()
                 self._notify_locked()
+        self.coordinator.notify_waiters()
         terminate_process_group(state.process)
         return state
 
@@ -412,6 +423,7 @@ class GenericRunManager:
                     self._append_event_locked(state, plan, plan.text.force_stop_requested, tone="danger")
                 state.request_force_stop()
                 self._notify_locked()
+        self.coordinator.notify_waiters()
         force_kill_process_group(state.process)
         return state
 
@@ -491,7 +503,7 @@ class GenericRunManager:
         with self._condition:
             return self._condition.wait_for(lambda: state.stop_requested, timeout=timeout)
 
-    def _execute_loop(self, state: LiveRun, plan: RunStartPlan) -> None:
+    def _execute_loop(self, state: LiveRun, plan: RunStartPlan, lease: RunLease) -> None:
         final_completion = RunCompletion(status="failed")
         previous_decision: RetryDecision | None = None
         next_command = plan.command
@@ -522,6 +534,34 @@ class GenericRunManager:
                     self._run_scripts(state, plan, retry, attempt, "after_run")
                     self._finish_retry_from_decision(state, retry, start_decision)
                     break
+
+                if attempt_index == 1:
+                    try:
+                        self.coordinator.acquire(
+                            lease,
+                            timeout_seconds=max(0.0, self.resource_wait_timeout_seconds()),
+                            on_wait=lambda blockers: self._report_resource_wait(attempt, blockers),
+                            should_cancel=lambda: state.stop_requested,
+                        )
+                    except RunResourceCancelledError:
+                        decision = RetryDecision("stopped", None, continue_retry=False, run_status="stopped")
+                        self._finish_retry_from_decision(state, retry, decision)
+                        final_completion = RunCompletion(status="stopped")
+                        break
+                    except RunConflictError as exc:
+                        attempt.add_event(self._resource_conflict_message(exc), tone="danger")
+                        decision = RetryDecision("failed", None, continue_retry=False, run_status="failed")
+                        final_completion = self._completion_from_decision(decision, fallback_status="failed")
+                        final_completion = self._run_finish_callback(attempt.api, plan, final_completion)
+                        self._run_scripts(state, plan, retry, attempt, "after_run")
+                        self._finish_retry_from_decision(state, retry, decision)
+                        break
+                    self._report_resource_acquired(attempt)
+                    if state.stop_requested:
+                        decision = RetryDecision("stopped", None, continue_retry=False, run_status="stopped")
+                        self._finish_retry_from_decision(state, retry, decision)
+                        final_completion = RunCompletion(status="stopped")
+                        break
 
                 command = self._command_for(plan, attempt, next_command)
                 if command is None:
@@ -576,6 +616,40 @@ class GenericRunManager:
                     artifacts=retry.artifacts,
                 )
             self._finish_run(state, RunCompletion(status="failed"))
+
+    def _report_resource_wait(self, attempt: RunAttempt, blockers: list[RunLease]) -> None:
+        blocker_text = ", ".join(f"{item.title}({item.run_id})" for item in blockers)
+        state = self._state_for(attempt)
+        resource_wait = {
+            "status": "waiting",
+            "updated_at": now_text(),
+            "blockers": [item.to_dict() for item in blockers],
+        }
+        with self._lock:
+            state.metadata = {**state.metadata, "resource_wait": resource_wait}
+            state.touch()
+            self._notify_locked()
+        self.store.update_run_metadata(state.id, {"resource_wait": resource_wait})
+        attempt.add_event(f"等待运行资源释放: {blocker_text}", tone="warning")
+
+    def _report_resource_acquired(self, attempt: RunAttempt) -> None:
+        state = self._state_for(attempt)
+        previous = state.metadata.get("resource_wait")
+        if not isinstance(previous, dict) or previous.get("status") != "waiting":
+            return
+        resource_wait = {**previous, "status": "acquired", "updated_at": now_text(), "blockers": []}
+        with self._lock:
+            state.metadata = {**state.metadata, "resource_wait": resource_wait}
+            state.touch()
+            self._notify_locked()
+        self.store.update_run_metadata(state.id, {"resource_wait": resource_wait})
+        attempt.add_event("运行资源已取得，继续执行。", tone="info")
+
+    def _resource_conflict_message(self, exc: RunConflictError) -> str:
+        blocker_text = ", ".join(f"{item.title}({item.run_id})" for item in exc.blockers)
+        if isinstance(exc, RunResourceTimeoutError):
+            return f"等待运行资源超过全局上限 {exc.timeout_seconds:g} 秒，当前运行不会执行: {blocker_text}"
+        return f"运行资源申请失败，当前运行不会执行: {blocker_text}"
 
     def _run_start_hooks_if_needed(self, attempt: RunAttempt, plan: RunStartPlan, attempt_index: int) -> RetryDecision | None:
         state = self._state_for(attempt)
@@ -796,6 +870,11 @@ class GenericRunManager:
             self.store.enforce_retention()
             self.diagnostics.enforce_retention()
             logger.info("generic run finished run_id=%s kind=%s status=%s return_code=%s", state.id, state.kind, completion.status, completion.return_code)
+            if self.on_run_finished is not None:
+                try:
+                    self.on_run_finished(state)
+                except Exception:
+                    logger.exception("run finished listener failed run_id=%s kind=%s", state.id, state.kind)
         finally:
             if should_persist:
                 self.coordinator.release(state.id)

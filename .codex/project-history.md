@@ -8,7 +8,7 @@
 - Confirmed (`2026-07-10_0004-complete-rename-maa-auto-panel`): 项目名 `Maa Auto Panel`；Python 包 `maa_auto_panel`；distribution/CLI slug `maa-auto-panel`；入口 `maa-auto-panel = maa_auto_panel.cli:main`。仓库 `/root/Maa_auto_panel`，远端 `Starseeker-xz/Maa_auto_panel`。
 - Confirmed (`2026-07-11_0203-separate-runtime-and-agent-doc`): 当前通用框架目录为 `data/config/framework`、`data/state/framework`、`data/debug/framework`、`data/history/framework`；MAA 安装已从 data 拆为独立 `runtime/maa`；download cache 为 `cache/downloads`。任务 metadata namespace 为 `framework`；runtime placeholder 为 `__framework_runtime__:*`；schema 扩展键为 `x-frameworkManaged`。
 - Confirmed (`2026-07-10_0416-full-project-audit`): 2026-07-10 工作区含尚未提交的大规模重命名/通用化改动。后续操作必须保留这些用户改动，不得按 HEAD 旧路径判断当前架构。
-- Confirmed (`2026-07-10_0416-full-project-audit`): 最新完整审计是根目录 `PROJECT_AUDIT.md`。旧 `BACKEND_AUDIT.md`、`FRONTEND_AUDIT.md` 和此前审计结论不再是当前依据。
+- Confirmed (`2026-07-11_1805-consolidate-audits`): 根目录审计已统一为 `BACKEND_AUDIT.md` 与 `FRONTEND_AUDIT.md`；后续审计只修改这两份。改代码时可酌情参考，但必须先核对当前实现，因为报告结论大概率会过时。原 `PROJECT_AUDIT.md`、`PATH_MANAGEMENT_AUDIT.md`、`CONTAINERIZATION_PLAN.md` 已被整理替代。
 
 ## Product direction
 
@@ -21,6 +21,14 @@
 
 ## Current architecture
 
+- Confirmed (`2026-07-11_0203-separate-runtime-and-agent-doc`): 全局通知子系统位于 `notifications/`，固定五类 tag：runtime 缺失、runtime 更新、手动 MAA 完成、自动定时 MAA 完成、手动触发定时 MAA 完成。成功/失败使用 severity/status 区分，用户停止不通知；Toast 走独立 `/api/notifications/events` SSE，外部发送保留 `ExternalNotificationSender` protocol + 空实现。
+- Confirmed (`2026-07-11_0203-separate-runtime-and-agent-doc`): 通知策略独立保存于 `data/config/framework/notifications.toml`，每个 tag 可配置 `toast`/`external`。runtime 缺失在服务启动检查，更新可用复用 maintenance update-info 结果，MAA run 通知由 `GenericRunManager` 持久化终态后的 listener 统一触发。事件缓存有界且持续条件按组件集合去重。
+- Confirmed (`2026-07-11_0203-separate-runtime-and-agent-doc`): 前端 App 根挂载 `NotificationCenter`；Settings 的 panel 组件开始收敛到 `frontend/src/pages/settings/panels.tsx`，当前设备配置与通知配置已从页面编排中拆出。通知展示位置与离线语义以后续 `2026-07-11_1805-consolidate-audits` 结论为准。
+- Confirmed (`2026-07-11_1805-consolidate-audits`): 通知历史与 Toast 已分离。所有事件进入后端 100 条有界栈，SSE 标记 replay/live；前端右上角铃铛打开 18rem 通知抽屉，所有未读可见、重要未读红点，已读/逐条删除/清空按 event id 保存在当前浏览器。在线事件按 toast policy 弹出；离线成功只入栈，离线失败/警告上线补弹，runtime 缺失/更新可用可显式补弹。
+- Confirmed (`2026-07-11_1805-consolidate-audits`): 2026-07-11 smoke 通知曾表现为“能入栈但不 Toast/不显示未读”，根因是 systemd 后端自 03:06 未重启，旧事件缺少新版 `delivery/important/replay_toast` 字段而前端已更新。确认无 active run 后已重启 `maa-auto-panel-webui.service`，新 PID 9847，API 与静态 bundle 为新版，服务 active。
+- Confirmed (`2026-07-11_1805-consolidate-audits`): 前端新增贴合右上角、仅左/下边框的 App Toolbar，含通知及 disabled 的 Scrcpy/设备截图预留按钮。通知 Toast 使用 Sonner，抽屉使用 shadcn Sheet（22.5rem），均覆盖 Toolbar；新增共享 `SegmentedControl` 与 `FocusDeleteButton` 并迁移设置/任务/定时相关页面。依赖新增 `sonner` 与 shadcn CLI 引入的 `radix-ui`。
+- Confirmed (`2026-07-11_1805-consolidate-audits`): 设置 UI 已分为 `/settings` 基础设置（设备/更新）、`/settings/framework`（框架/通知）、`/settings/theme`。主题只使用前端 localStorage，不再由 framework settings 默认值、API payload 或 App 启动回读后端；后端写设置时删除遗留 theme key。
+- Confirmed (`2026-07-11_1805-consolidate-audits`): maintenance 从 running/stopping 进入终态后，设置页自动重新请求 update-info，避免更新成功后继续显示旧的“可更新”。2026-07-11 core-update `0ff39d6eb688` raw 输出仅有 MaaResource fetch，但 `scripts/maa-env maa version` 确认 MaaCore v6.14.1，用户确认 smoke 任务可运行。
 - Confirmed (`2026-07-09_1512-run-manager-generalize`): 手动、定时、工具、维护运行统一使用 `GenericRunManager` 与 `LiveRun`/`LiveRetry`；通用 payload 为基础字段 + `metadata` + `artifacts`，live/history 均为 `{run, retries}`。
 - Confirmed (`2026-07-06_0037-callback-run-manager`): manager 拥有 command/retry/lifecycle；领域只通过 callbacks 决定动态命令、raw-line 消费、attempt 结果和是否继续。不要恢复 driver-owned retry loop。
 - Confirmed (`2026-07-10_0416-full-project-audit`): `RunCoordinator` 跨四类 manager 共享，当前主要仲裁相同 ADB address；schedule auto > schedule manual > normal。
@@ -37,10 +45,10 @@
 - Confirmed (`2026-07-11_0111-audit-container-plan`): WebUI 手动更新后宿主 `maa version` 可报告 maa-cli 0.7.5 / MaaCore 6.14.0，但官方 stable 安装脚本 + 全新容器卷 `maa install --batch stable` 仍产生混合 Linux runtime：core 依赖 OpenCV `.411`，ADB control plugin 依赖 `.412`，artifact 仅含 `.411`。`maa version` 未加载 ADB plugin，不能作为设备任务可用证明。基础应用镜像不受阻；真实设备 smoke 暂缓，禁止伪造 SONAME symlink。
 - Confirmed (`2026-07-10_0416-full-project-audit`): 服务以 root 身份监听 `0.0.0.0:8000` 是裸机测试方式；在可信内网单用户前提下，无 authentication scheme 不视为缺陷。容器仍应避免 privileged/Docker socket/host network，并用低成本专用 UID/capability 收缩宿主影响面。
 - Confirmed (`2026-07-10_0416-full-project-audit`): 上述 root/监听状态是裸机测试方式，不能原样判定为目标容器缺陷。容器实施时重新以 UID/capability/volume/published port 评估；TCP ADB 不需要 privileged、host network 或宿主 USB mount。
-- Confirmed (`2026-07-10_0416-full-project-audit`): maintenance update 未声明 runtime resource，可与活跃 MAA run 并发修改 maa-cli/MaaCore/resource。资源模型应支持 shared/exclusive claim。
+- Confirmed (`2026-07-11_1805-consolidate-audits`): runtime 资源模型已支持 shared/exclusive claim。手动与定时 MAA run 通过统一 helper 声明共享 `integration-runtime:maa` + 独占 ADB device；core/resource/cli maintenance update 声明独占且不可抢占的 runtime lease。相同资源仅在至少一方 exclusive 时冲突，不会串行化不同设备上的 MAA run，也不会让高优先级 schedule 中途停止更新。
 - Confirmed (`2026-07-10_0416-full-project-audit`): `select()` 后调用 `TextIOWrapper.readline()` 会被无换行输出阻塞。实测 runtime kill=1s 的 partial-line child 运行 3.01s 后正常退出且 `timed_out=False`。必须改为 non-blocking byte read + incremental decode。
 - Confirmed (`2026-07-10_2207-graceful-shutdown`): lifespan/shutdown/process-group P1 已修复。真实 systemd + SSE 验收为 586ms、`inactive/success`、`ExecMainStatus=0`；live unit `TimeoutStopSec=120`，服务随后恢复 active/idle。
-- Confirmed (`2026-07-10_0416-full-project-audit`): coordinator 同优先级冲突会无限等待；HTTP start 可能占住 worker。API 应 non-blocking 409，或建立显式 queued run。
+- Confirmed (`2026-07-11_1805-consolidate-audits`): 资源申请已纳入完整 run 生命周期。`start()` 先建档/接通日志与 SSE 并返回，worker 完成 on_start/before_run 后申请资源；拒绝/超时形成带 event 的 failed run 且不启动 command，同优先级等待以 live event + 持久化 `metadata.resource_wait` 报告。全局 `framework.run_resources.wait_timeout_seconds`（默认 300s）统一限制等待，stop/shutdown 可唤醒。retry 作为 attempt/log 容器，冲突会有 1 个 failed retry 但无实际进程执行。
 - Confirmed (`2026-07-10_0416-full-project-audit`): `GenericRunManager._runs/_plans` 不清理；run history index 有上限但 history JSON 不删除；长期运行会增长内存和磁盘。
 - Confirmed (`2026-07-10_0416-full-project-audit`): active retry 只在 seal 时持久化；崩溃恢复会丢失当前 retry 的结构化可见日志。建议节流 checkpoint。
 - Confirmed (`2026-07-10_0416-full-project-audit`): game updater 只校验 HTTP/Content-Length/versionCode，没有 APK hash、package identity 或 signing certificate 验证。

@@ -15,6 +15,7 @@ from maa_auto_panel.web.routes import (
     create_history_router,
     create_maa_router,
     create_maintenance_router,
+    create_notifications_router,
     create_run_router,
     create_schedule_router,
     create_settings_router,
@@ -81,6 +82,7 @@ def create_app(repo_root: Path | None = None) -> FastAPI:
     app.include_router(create_history_router(services))
     app.include_router(create_settings_router(services))
     app.include_router(create_maintenance_router(services))
+    app.include_router(create_notifications_router(services))
     app.include_router(create_maa_router(services))
     app.include_router(create_tools_router(services))
     app.include_router(create_schedule_router(services))

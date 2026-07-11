@@ -412,11 +412,43 @@ export type UpdateInfoResponse = {
   errors: string[];
 };
 
+export type NotificationTagSetting = {
+  id: string;
+  title: string;
+  description: string;
+  toast: boolean;
+  external: boolean;
+  important: boolean;
+  replay_toast: boolean;
+};
+
+export type NotificationSettingsResponse = {
+  file: { path: string; exists: boolean };
+  tags: NotificationTagSetting[];
+  external_channels_available: boolean;
+};
+
+export type NotificationEvent = {
+  id: string;
+  sequence: number;
+  tag: string;
+  severity: "info" | "success" | "warning" | "error";
+  title: string;
+  message: string;
+  created_at: string;
+  toast: boolean;
+  important: boolean;
+  replay_toast: boolean;
+  delivery: { replayed: boolean };
+  data: Record<string, unknown>;
+};
+
 export type SettingsResponse = {
   framework: FrameworkSettingsResponse;
   profile: ConfigResponse;
   maa_cli: ConfigResponse;
   maintenance: MaintenanceActionState;
+  notifications: NotificationSettingsResponse;
 };
 
 type ToolField = {
@@ -476,4 +508,5 @@ export type SaveSettingsPayload = {
   framework: Record<string, unknown>;
   profile: Record<string, unknown>;
   maa_cli: Record<string, unknown>;
+  notifications: NotificationSettingsResponse;
 };

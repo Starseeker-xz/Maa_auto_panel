@@ -8,6 +8,7 @@ Current packaged features:
 - WebUI tools: game update (download and install Bilibili Arknights APK) is available as an integrated third-party tool via `python -m maa_auto_panel.tools.game update-game`.
 - WebUI scheduled execution: define per-schedule task/profile bindings, game-day-aware time entries, child-task enable sets, retry limits, generic timeout settings, restart-script hooks, and recent run statistics.
 - WebUI run controls: manual Maa runs, manual-triggered schedules, and tool runs support page-local retry counts, graceful stop, force-stop controls, and ADB-device conflict arbitration.
+- Global notifications: runtime missing/update availability and completed manual or scheduled MAA runs are delivered through a global SSE stream, with per-tag Toast policy and a reserved external-sender interface.
 ## Development
 
 ```bash
@@ -156,7 +157,7 @@ docker compose run --rm panel reinstall-runtime
 The reinstall command removes only `/app/runtime/maa`. Managed MAA config
 under `/app/data/config/maa` is outside that directory and is preserved. Normal
 `docker compose up` never installs or updates the runtime automatically. See
-`CONTAINERIZATION_PLAN.md` for the single-instance rule and switch procedure.
+`BACKEND_AUDIT.md` for the single-instance rule and deployment boundaries.
 
 Default target device:
 

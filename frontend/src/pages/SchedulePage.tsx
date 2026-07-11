@@ -4,6 +4,7 @@ import { useNavigate, useParams } from "react-router-dom";
 
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { DirtyActions } from "@/components/DirtyActions";
+import { SegmentedControl } from "@/components/SegmentedControl";
 import { RunStopButton } from "@/components/RunStopButton";
 import { Button } from "@/components/ui/button";
 import { Card, CardTitle } from "@/components/ui/card";
@@ -401,16 +402,14 @@ export function SchedulePage() {
 
       <Card className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)_auto] gap-3 overflow-hidden p-3">
         <div className="flex items-center justify-between gap-3">
-          <div className="inline-grid grid-cols-2 rounded-md border bg-muted p-0.5">
-            <button type="button" className={tabClass(centerTab === "settings")} onClick={() => setCenterTab("settings")}>
-              <Settings2 className="size-4" />
-              设置
-            </button>
-            <button type="button" className={tabClass(centerTab === "stats")} onClick={() => setCenterTab("stats")}>
-              <BarChart3 className="size-4" />
-              统计
-            </button>
-          </div>
+          <SegmentedControl
+            value={centerTab}
+            items={[
+              { value: "settings", label: "设置", icon: <Settings2 className="size-4" /> },
+              { value: "stats", label: "统计", icon: <BarChart3 className="size-4" /> }
+            ]}
+            onChange={setCenterTab}
+          />
           <span className="min-w-0 whitespace-pre-line text-xs text-muted-foreground">{detail.timeline.message}</span>
         </div>
         <ScrollArea className="min-h-0">
@@ -566,10 +565,6 @@ function sortEntriesByReset(entries: ScheduleEntry[], resetTime: string) {
 function minutes(value: string) {
   const [hour, minute] = value.split(":").map(Number);
   return hour * 60 + minute;
-}
-
-function tabClass(active: boolean) {
-  return cn("inline-flex h-8 items-center justify-center gap-1.5 rounded-sm px-3 text-sm", active ? "bg-background shadow-xs" : "text-muted-foreground");
 }
 
 function readStoredCount(key: string, fallback: number) {

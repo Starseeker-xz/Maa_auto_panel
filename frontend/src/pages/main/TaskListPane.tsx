@@ -3,6 +3,7 @@ import React from "react";
 import { useNavigate } from "react-router-dom";
 
 import { InsertionLine } from "@/components/InsertionLine";
+import { FocusDeleteButton } from "@/components/FocusDeleteButton";
 import { RunStopButton } from "@/components/RunStopButton";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -234,11 +235,8 @@ export function TaskListPane({
                   >
                     <PencilLine className="size-3.5" />
                   </Button>
-                  <Button
+                  <FocusDeleteButton
                     data-row-control
-                    variant="ghost"
-                    size="icon"
-                    className="size-7 text-muted-foreground/70 opacity-0 transition-opacity hover:text-destructive hover:opacity-100 focus-visible:opacity-100 group-hover:opacity-70"
                     aria-label={`${item.name} 删除`}
                     onClick={(event) => {
                       event.preventDefault();
@@ -246,9 +244,7 @@ export function TaskListPane({
                       if (renamingId === item.id) cancelRename();
                       onTaskItemDelete(item.id);
                     }}
-                  >
-                    <Trash2 className="size-3.5" />
-                  </Button>
+                  />
                   <div
                     data-drag-handle
                     data-row-control

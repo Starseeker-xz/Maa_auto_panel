@@ -27,6 +27,9 @@ DEFAULT_FRAMEWORK_SETTINGS: dict[str, Any] = {
         "scheduler": {
             "enabled": False,
         },
+        "run_resources": {
+            "wait_timeout_seconds": 300,
+        },
         "run_timeouts": {
             "no_output_warning_seconds": 1800,
             "no_output_kill_seconds": 0,
@@ -35,10 +38,6 @@ DEFAULT_FRAMEWORK_SETTINGS: dict[str, Any] = {
             "stop_warning_seconds": 60,
             "stop_kill_seconds": 0,
         },
-    },
-    "theme": {
-        "mode": "system",
-        "color": "cyan",
     },
 }
 
@@ -123,6 +122,12 @@ class FrameworkSettingsManager:
             stop_kill_seconds=bounded_int(raw.get("stop_kill_seconds"), default=0, minimum=0, maximum=172800),
         )
 
+    def resource_wait_timeout_seconds(self) -> float:
+        data = self._load()
+        framework = data.get("framework") if isinstance(data.get("framework"), dict) else {}
+        raw = framework.get("run_resources") if isinstance(framework, dict) and isinstance(framework.get("run_resources"), dict) else {}
+        return float(bounded_int(raw.get("wait_timeout_seconds"), default=300, minimum=1, maximum=86400))
+
     def observe_client_timezone(self, value: object, offset_minutes: object = None) -> None:
         timezone_name = str(value or "").strip()
         parsed_offset = _parse_offset_minutes(offset_minutes)
@@ -160,6 +165,7 @@ class FrameworkSettingsManager:
         timezone_settings = framework.get("timezone") if isinstance(framework, dict) else None
         if isinstance(timezone_settings, dict):
             timezone_settings.pop("game_day_offset_hours", None)
+        merged.pop("theme", None)
         return merged
 
 

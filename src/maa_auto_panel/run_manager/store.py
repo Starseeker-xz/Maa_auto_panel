@@ -159,6 +159,11 @@ class RunStateStore:
         self._upsert_run(patch)
         self._sync_run_history(run_id)
 
+    def update_run_metadata(self, run_id: str, metadata_patch: dict[str, Any]) -> None:
+        """Persist live run phase metadata without sealing the run."""
+        self._upsert_run({"id": run_id, "updated_at": _now(), "metadata": metadata_patch})
+        self._sync_run_history(run_id)
+
     def add_retry(
         self,
         *,

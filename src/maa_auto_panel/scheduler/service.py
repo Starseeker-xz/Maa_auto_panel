@@ -17,6 +17,7 @@ from maa_auto_panel.maa.log_templates import register_maa_log_sources
 from maa_auto_panel.maa.results import MaaTaskDescriptor, MaaTaskResultCollector
 from maa_auto_panel.maa.runner import load_task_file, prepare_maa_cli_task, resolve_task_file
 from maa_auto_panel.maa.runtime import MaaRuntime
+from maa_auto_panel.notifications import NotificationService
 from maa_auto_panel.process import StreamingProcessResult
 from maa_auto_panel.run_manager.command import CommandSpec
 from maa_auto_panel.run_manager.coordinator import RunCoordinator
@@ -33,7 +34,7 @@ from maa_auto_panel.run_manager.manager import (
 )
 from maa_auto_panel.run_manager.state import LiveRun, RunTimeouts
 from maa_auto_panel.run_manager.store import RunStateStore, StoredRun
-from maa_auto_panel.run_resources import adb_device_resources_from_profile, schedule_priority
+from maa_auto_panel.run_resources import maa_run_resources_from_profile, schedule_priority
 from maa_auto_panel.scheduler.config import ScheduleConfigManager
 from maa_auto_panel.scheduler.models import DailyTaskStats, ScheduleConfig, ScheduleEntry, TaskPolicy
 from maa_auto_panel.scheduler.policy import initial_task_selection, remaining_enabled_slots, retry_task_ids, task_policies_from_config
@@ -265,6 +266,7 @@ class SchedulerService:
         scheduler_state: SchedulerStateStore | None = None,
         diagnostics: Diagnostics | None = None,
         run_coordinator: RunCoordinator | None = None,
+        notifications: NotificationService | None = None,
     ) -> None:
         self.runtime = runtime
         self.configs = configs
@@ -275,7 +277,14 @@ class SchedulerService:
         self.diagnostics = diagnostics or Diagnostics(runtime)
         self.run_coordinator = run_coordinator or RunCoordinator()
         self.scripts = ScheduleScriptManager(runtime)
-        self.runs = GenericRunManager(runtime, self.store, self.diagnostics, self.run_coordinator)
+        self.runs = GenericRunManager(
+            runtime,
+            self.store,
+            self.diagnostics,
+            self.run_coordinator,
+            on_run_finished=notifications.notify_run_finished if notifications else None,
+            resource_wait_timeout_seconds=self.framework_settings.resource_wait_timeout_seconds,
+        )
         self._shutdown = threading.Event()
         self._lifecycle_lock = threading.Lock()
         self._thread: threading.Thread | None = None
@@ -484,7 +493,7 @@ class SchedulerService:
             log_files.update(self.diagnostics.script_log_files(run_id))
         max_retries = _retry_count(retry_count if retry_count is not None else config.retry.max_retries)
         priority = schedule_priority(trigger)
-        resources = adb_device_resources_from_profile(config.profile_data)
+        resources = maa_run_resources_from_profile(config.profile_data)
         log_profile = _schedule_log_profile(self.diagnostics, include_script=bool(config.restart.script))
         script_log_profile = _schedule_script_log_profile(self.diagnostics)
         callbacks = ScheduledMaaRunCallbacks(

@@ -11,6 +11,8 @@ from maa_auto_panel.run_resources import RunResource, resources_conflict
 logger = get_logger(__name__)
 
 ResourceCallback = Callable[[], None]
+ResourceWaitCallback = Callable[[list["RunLease"]], None]
+ResourceCancelCallback = Callable[[], bool]
 
 
 @dataclass
@@ -25,6 +27,7 @@ class RunLease:
     request_stop: ResourceCallback | None = None
     request_force_stop: ResourceCallback | None = None
     force_after_seconds: float | None = None
+    preemptible: bool = True
     preempt_stop_requested_at: float | None = field(default=None, init=False)
     preempt_force_requested: bool = field(default=False, init=False)
 
@@ -34,18 +37,33 @@ class RunLease:
             "kind": self.kind,
             "title": self.title,
             "priority": self.priority,
+            "preemptible": self.preemptible,
             "resources": [resource.to_dict() for resource in self.resources],
         }
 
 
 class RunConflictError(RuntimeError):
-    """Raised when a new run loses a resource conflict to a higher-priority run."""
+    """Raised when an active lease blocks a resource claim without yielding."""
 
     def __init__(self, lease: RunLease, blockers: list[RunLease]) -> None:
         self.lease = lease
         self.blockers = blockers
         blocker_text = ", ".join(f"{item.title}({item.run_id})" for item in blockers)
-        super().__init__(f"运行资源被更高优先级运行占用: {blocker_text}")
+        super().__init__(f"运行资源被不可让出的运行占用: {blocker_text}")
+
+
+class RunResourceTimeoutError(RunConflictError):
+    """Raised when a resource claim remains queued beyond its global deadline."""
+
+    def __init__(self, lease: RunLease, blockers: list[RunLease], timeout_seconds: float) -> None:
+        self.timeout_seconds = timeout_seconds
+        super().__init__(lease, blockers)
+        blocker_text = ", ".join(f"{item.title}({item.run_id})" for item in blockers)
+        RuntimeError.__init__(self, f"等待运行资源超过 {timeout_seconds:g} 秒: {blocker_text}")
+
+
+class RunResourceCancelledError(RuntimeError):
+    """Raised when the requesting run is stopped while waiting for resources."""
 
 
 class RunCoordinator:
@@ -57,16 +75,28 @@ class RunCoordinator:
         self._leases: dict[str, RunLease] = {}
         self._closing = False
 
-    def acquire(self, lease: RunLease) -> None:
+    def acquire(
+        self,
+        lease: RunLease,
+        *,
+        timeout_seconds: float | None = None,
+        on_wait: ResourceWaitCallback | None = None,
+        should_cancel: ResourceCancelCallback | None = None,
+    ) -> None:
         if not lease.resources:
             return
 
+        reported_blockers: tuple[str, ...] = ()
+        deadline = time.monotonic() + timeout_seconds if timeout_seconds is not None else None
         while True:
             callbacks: list[ResourceCallback] = []
             wait_timeout = 1.0
+            should_report_wait = False
             with self._condition:
                 if self._closing:
                     raise RuntimeError("Application is shutting down")
+                if should_cancel is not None and should_cancel():
+                    raise RunResourceCancelledError("Resource wait cancelled")
                 conflicts = self._conflicts_locked(lease)
                 if not conflicts:
                     self._leases[lease.run_id] = lease
@@ -79,11 +109,26 @@ class RunCoordinator:
                     )
                     return
 
-                blockers = [item for item in conflicts if item.priority > lease.priority]
+                blockers = [
+                    item
+                    for item in conflicts
+                    if item.priority > lease.priority or (item.priority < lease.priority and not item.preemptible)
+                ]
                 if blockers:
                     raise RunConflictError(lease, blockers)
 
                 now = time.monotonic()
+                if deadline is not None:
+                    remaining = deadline - now
+                    if remaining <= 0:
+                        raise RunResourceTimeoutError(lease, conflicts, timeout_seconds or 0)
+                    wait_timeout = min(wait_timeout, remaining)
+
+                blocker_ids = tuple(sorted(item.run_id for item in conflicts))
+                should_report_wait = on_wait is not None and blocker_ids != reported_blockers
+                if should_report_wait:
+                    reported_blockers = blocker_ids
+
                 for item in conflicts:
                     if item.priority < lease.priority:
                         callback = self._preemption_callback_locked(item, now)
@@ -99,12 +144,20 @@ class RunCoordinator:
                 except Exception:
                     logger.exception("run preemption callback failed")
 
+            if should_report_wait and on_wait is not None:
+                on_wait(conflicts)
+
             with self._condition:
                 self._condition.wait(timeout=max(0.05, wait_timeout))
 
     def begin_shutdown(self) -> None:
         with self._condition:
             self._closing = True
+            self._condition.notify_all()
+
+    def notify_waiters(self) -> None:
+        """Wake acquisitions whose run-local cancellation state may have changed."""
+        with self._condition:
             self._condition.notify_all()
 
     def release(self, run_id: str) -> None:

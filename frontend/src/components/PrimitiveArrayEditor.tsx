@@ -1,10 +1,11 @@
 import React from "react";
 import * as SelectPrimitive from "@radix-ui/react-select";
-import { GripVertical, PencilLine, Plus, Trash2 } from "lucide-react";
+import { GripVertical, PencilLine, Plus } from "lucide-react";
 
 import { HelpTooltip } from "@/components/FormFields";
 import { InsertionLine } from "@/components/InsertionLine";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { FocusDeleteButton } from "@/components/FocusDeleteButton";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem } from "@/components/ui/select";
@@ -266,17 +267,12 @@ export function PrimitiveArrayEditor({
                       <PencilLine className="size-3.5" />
                     </Button>
                   )}
-                  <Button
+                  <FocusDeleteButton
                     type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="size-7 text-muted-foreground/70 opacity-0 transition-opacity hover:text-destructive hover:opacity-100 focus-visible:opacity-100 group-hover:opacity-70"
                     aria-label={`${label} 删除`}
                     disabled={!enabled}
                     onClick={() => removeAt(index)}
-                  >
-                    <Trash2 className="size-3.5" />
-                  </Button>
+                  />
                   <div
                     className={buttonVariants({ variant: "ghost", size: "icon", className: "size-7 cursor-grab active:cursor-grabbing" })}
                     role="button"

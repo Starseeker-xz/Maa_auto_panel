@@ -13,6 +13,7 @@ from maa_auto_panel.diagnostics import Diagnostics, get_logger
 from maa_auto_panel.maa.log_templates import register_maa_log_sources
 from maa_auto_panel.maa.results import MaaTaskDescriptor, MaaTaskResultCollector
 from maa_auto_panel.maa.runtime import MaaRuntime
+from maa_auto_panel.notifications import NotificationService
 from maa_auto_panel.process import StreamingProcessResult
 from maa_auto_panel.run_manager.command import CommandSpec
 from maa_auto_panel.run_manager.coordinator import RunCoordinator
@@ -20,7 +21,7 @@ from maa_auto_panel.run_manager.logs import RunLogProfile
 from maa_auto_panel.run_manager.manager import GenericRunManager, RetryDecision, RunAttempt, RunCallbacks, RunStartPlan, RunTextTemplates
 from maa_auto_panel.run_manager.state import LiveRun
 from maa_auto_panel.run_manager.store import RunStateStore
-from maa_auto_panel.run_resources import RUN_PRIORITY_NORMAL, adb_device_resources_from_profile
+from maa_auto_panel.run_resources import RUN_PRIORITY_NORMAL, maa_run_resources_from_profile
 from maa_auto_panel.scheduler.models import TaskPolicy
 from maa_auto_panel.scheduler.policy import enabled_task_ids_from_config, retry_unfinished_task_ids, task_policies_from_config
 from maa_auto_panel.utils import dict_value, relative_path, resolve_existing_named_file, slugify, write_text_atomic
@@ -292,6 +293,7 @@ class MaaRunManager:
         framework_settings: FrameworkSettingsManager | None = None,
         configs: ConfigManager | None = None,
         run_coordinator: RunCoordinator | None = None,
+        notifications: NotificationService | None = None,
     ) -> None:
         self.runtime = runtime
         self.run_state = run_state or RunStateStore(runtime)
@@ -299,11 +301,18 @@ class MaaRunManager:
         self.framework_settings = framework_settings or FrameworkSettingsManager(runtime)
         self.configs = configs or ConfigManager(runtime)
         self.run_coordinator = run_coordinator or RunCoordinator()
-        self.runs = GenericRunManager(runtime, self.run_state, self.diagnostics, self.run_coordinator)
+        self.runs = GenericRunManager(
+            runtime,
+            self.run_state,
+            self.diagnostics,
+            self.run_coordinator,
+            on_run_finished=notifications.notify_run_finished if notifications else None,
+            resource_wait_timeout_seconds=self.framework_settings.resource_wait_timeout_seconds,
+        )
 
     def start(self, request: MaaRunRequest) -> LiveRun:
         profile_data = self._profile_data(request.profile)
-        resources = adb_device_resources_from_profile(profile_data)
+        resources = maa_run_resources_from_profile(profile_data)
         run_id = uuid.uuid4().hex[:12]
         log_files = self.diagnostics.maa_cli_log_files(run_id)
         max_retries = _retry_count(request.retry_count)

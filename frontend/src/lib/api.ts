@@ -6,6 +6,7 @@ import type {
   MaaInfrastPlansResponse,
   MaaStagesResponse,
   MaintenanceActionState,
+  NotificationSettingsResponse,
   RunState,
   RunHistoryResponse,
   ScheduleResponse,
@@ -22,6 +23,7 @@ export const currentRunEventsUrl = "/api/runs/current/events";
 export const currentScheduleRunEventsUrl = "/api/schedules/current/events";
 export const currentToolRunEventsUrl = "/api/tools/current/events";
 export const currentMaintenanceEventsUrl = "/api/maintenance/current/events";
+export const notificationEventsUrl = "/api/notifications/events";
 
 async function readJson<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, withClientTimezone(init));
@@ -187,6 +189,10 @@ export function saveSettings(payload: SaveSettingsPayload) {
     headers: { "content-type": "application/json" },
     body: JSON.stringify(payload)
   });
+}
+
+export function getNotificationSettings() {
+  return readJson<NotificationSettingsResponse>("/api/notifications/settings");
 }
 
 export function getCurrentMaintenanceAction() {

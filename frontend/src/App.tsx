@@ -12,14 +12,16 @@ import {
   SidebarProvider,
   useSidebar
 } from "@/components/ui/sidebar";
+import { NotificationCenter } from "@/components/NotificationCenter";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { APP_TITLE } from "@/lib/branding";
-import { getSettings, listSchedules } from "@/lib/api";
-import { loadStoredTheme, setActiveTheme, syncSystemTheme, themeFromFrameworkSettings } from "@/lib/theme";
+import { listSchedules } from "@/lib/api";
+import { initializeTheme, syncSystemTheme } from "@/lib/theme";
 import type { ScheduleConfigFile } from "@/lib/types";
 import { MainPage } from "@/pages/MainPage";
 import { SchedulePage } from "@/pages/SchedulePage";
 import { SettingsPage } from "@/pages/SettingsPage";
+import { ThemeSettingsPage } from "@/pages/settings/ThemeSettingsPage";
 import { ToolsPage } from "@/pages/ToolsPage";
 
 const LAST_MAIN_PATH_KEY = "maa-auto-panel:last-main-path";
@@ -49,20 +51,11 @@ function AppShell() {
       : "main";
 
   React.useEffect(() => {
-    let cancelled = false;
-    const storedTheme = loadStoredTheme();
-    if (storedTheme) setActiveTheme(storedTheme);
-
-    getSettings()
-      .then((settings) => {
-        if (!cancelled && !storedTheme) setActiveTheme(themeFromFrameworkSettings(settings.framework.data));
-      })
-      .catch(() => undefined);
+    initializeTheme();
 
     const media = window.matchMedia?.("(prefers-color-scheme: dark)");
     media?.addEventListener("change", syncSystemTheme);
     return () => {
-      cancelled = true;
       media?.removeEventListener("change", syncSystemTheme);
     };
   }, []);
@@ -139,9 +132,12 @@ function AppShell() {
               <Route path="/schedule/:scheduleId" element={<SchedulePage />} />
               <Route path="/tools" element={<ToolsPage />} />
               <Route path="/settings" element={<SettingsPage />} />
+              <Route path="/settings/framework" element={<SettingsPage />} />
+              <Route path="/settings/theme" element={<ThemeSettingsPage />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </SidebarInset>
+          <NotificationCenter />
     </div>
   );
 }

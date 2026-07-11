@@ -11,6 +11,7 @@ def create_maintenance_router(services: WebServices) -> APIRouter:
     router = APIRouter(prefix="/api/maintenance", tags=["maintenance"])
     configs = services.configs
     maintenance = services.maintenance
+    notifications = services.notifications
 
     register_run_control_routes(
         router,
@@ -25,7 +26,10 @@ def create_maintenance_router(services: WebServices) -> APIRouter:
     def update_info() -> dict[str, object]:
         try:
             cli_config = configs.read_cli_config().get("data")
-            return maintenance.inspect_update_info(cli_config if isinstance(cli_config, dict) else {})
+            info = maintenance.inspect_update_info(cli_config if isinstance(cli_config, dict) else {})
+            notifications.inspect_runtime_presence()
+            notifications.observe_update_info(info)
+            return info
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 

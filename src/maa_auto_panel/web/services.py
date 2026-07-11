@@ -13,6 +13,7 @@ from maa_auto_panel.maa.maintenance import MaintenanceActionManager
 from maa_auto_panel.maa.runner import MaaRunManager
 from maa_auto_panel.maa.runtime import MaaRuntime, find_repo_root
 from maa_auto_panel.maa.stages import MaaStageService
+from maa_auto_panel.notifications import NotificationService, NotificationSettingsManager
 from maa_auto_panel.run_manager.coordinator import RunCoordinator
 from maa_auto_panel.run_manager.manager import GenericRunManager
 from maa_auto_panel.run_manager.store import RunStateStore
@@ -38,6 +39,8 @@ class WebServices:
     run_coordinator: RunCoordinator
     configs: ConfigManager
     framework_settings: FrameworkSettingsManager
+    notification_settings: NotificationSettingsManager
+    notifications: NotificationService
     runs: MaaRunManager
     maintenance: MaintenanceActionManager
     tools: ToolRunManager
@@ -49,6 +52,7 @@ class WebServices:
     _closed: bool = field(default=False, init=False, repr=False)
 
     def start(self) -> None:
+        self.notifications.inspect_runtime_presence()
         self.scheduler.start()
 
     def close(
@@ -128,6 +132,8 @@ def create_services(
         logger.warning("recovered interrupted run records count=%s", recovered_runs)
     configs = ConfigManager(runtime)
     framework_settings = FrameworkSettingsManager(runtime)
+    notification_settings = NotificationSettingsManager(runtime)
+    notifications = NotificationService(runtime, notification_settings)
     schedule_configs = ScheduleConfigManager(runtime, configs)
     run_coordinator = RunCoordinator()
     return WebServices(
@@ -138,11 +144,23 @@ def create_services(
         run_coordinator=run_coordinator,
         configs=configs,
         framework_settings=framework_settings,
-        runs=MaaRunManager(runtime, run_state, diagnostics, framework_settings, configs, run_coordinator),
+        notification_settings=notification_settings,
+        notifications=notifications,
+        runs=MaaRunManager(runtime, run_state, diagnostics, framework_settings, configs, run_coordinator, notifications),
         maintenance=MaintenanceActionManager(runtime, run_state, diagnostics, framework_settings, run_coordinator),
         tools=ToolRunManager(runtime, configs, run_state, diagnostics, framework_settings, run_coordinator),
         stages=MaaStageService(runtime),
         infrast=MaaInfrastService(runtime),
         schedule_configs=schedule_configs,
-        scheduler=SchedulerService(runtime, configs, framework_settings, schedule_configs, run_state, scheduler_state, diagnostics, run_coordinator),
+        scheduler=SchedulerService(
+            runtime,
+            configs,
+            framework_settings,
+            schedule_configs,
+            run_state,
+            scheduler_state,
+            diagnostics,
+            run_coordinator,
+            notifications,
+        ),
     )

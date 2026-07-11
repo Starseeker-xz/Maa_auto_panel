@@ -1,7 +1,8 @@
-import { ExternalLink, PencilLine, Plus, Trash2 } from "lucide-react";
+import { ExternalLink, PencilLine, Plus } from "lucide-react";
 import React from "react";
 
 import { Button } from "@/components/ui/button";
+import { FocusDeleteButton } from "@/components/FocusDeleteButton";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -234,11 +235,9 @@ export function ScheduleLeftPane({
                     >
                       <PencilLine className="size-3.5" />
                     </Button>
-                    <Button
+                    <FocusDeleteButton
                       data-entry-control
-                      variant="ghost"
-                      size="icon"
-                      className="size-6 text-muted-foreground/70 opacity-0 transition-opacity hover:text-destructive hover:opacity-100 focus-visible:opacity-100 group-hover:opacity-70"
+                      className="size-6"
                       aria-label={`${entry.name} 删除`}
                       onClick={(event) => {
                         event.preventDefault();
@@ -246,9 +245,7 @@ export function ScheduleLeftPane({
                         if (renamingEntryId === entry.id) cancelEntryRename();
                         deleteEntry(entry.id);
                       }}
-                    >
-                      <Trash2 className="size-3.5" />
-                    </Button>
+                    />
                   </div>
                 </div>
                 <div className="grid grid-cols-[20px_minmax(0,1fr)] items-center gap-1">

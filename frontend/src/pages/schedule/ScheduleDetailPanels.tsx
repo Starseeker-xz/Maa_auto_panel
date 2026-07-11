@@ -1,7 +1,8 @@
-import { Eye, Trash2 } from "lucide-react";
+import { Eye } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
+import { FocusDeleteButton } from "@/components/FocusDeleteButton";
 import { CardContent, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -150,11 +151,9 @@ export function ScheduleStats({
                     </Button>
                   ) : null}
                   {onDeleteHistory ? (
-                    <Button
+                    <FocusDeleteButton
                       type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="size-6 text-muted-foreground/70 opacity-0 transition-opacity hover:text-destructive hover:opacity-100 focus-visible:opacity-100 group-hover:opacity-70"
+                      className="size-6"
                       aria-label={`删除 ${stringMetadata(item, "entry_name")} 运行记录`}
                       disabled={loadingHistoryRunId === item.id}
                       onClick={(event) => {
@@ -162,9 +161,7 @@ export function ScheduleStats({
                         event.stopPropagation();
                         onDeleteHistory(item);
                       }}
-                    >
-                      <Trash2 className="size-3.5" />
-                    </Button>
+                    />
                   ) : null}
                 </div>
               </div>

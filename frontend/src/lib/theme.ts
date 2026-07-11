@@ -28,14 +28,6 @@ const DEFAULT_THEME: ThemeSettings = {
 const THEME_STORAGE_KEY = "maa-auto-panel:theme";
 let activeTheme = DEFAULT_THEME;
 
-export function themeFromFrameworkSettings(data: Record<string, unknown> | undefined): ThemeSettings {
-  const theme = objectValue(data?.theme);
-  return normalizeTheme({
-    mode: theme.mode,
-    color: theme.color
-  });
-}
-
 export function setActiveTheme(settings: Partial<Record<keyof ThemeSettings, unknown>>) {
   activeTheme = normalizeTheme(settings);
   applyTheme(activeTheme);
@@ -46,14 +38,18 @@ export function saveActiveTheme(settings: Partial<Record<keyof ThemeSettings, un
   window.localStorage.setItem(THEME_STORAGE_KEY, JSON.stringify(activeTheme));
 }
 
-export function loadStoredTheme(): ThemeSettings | null {
+export function loadStoredTheme(): ThemeSettings {
   try {
     const raw = window.localStorage.getItem(THEME_STORAGE_KEY);
-    if (!raw) return null;
+    if (!raw) return DEFAULT_THEME;
     return normalizeTheme(JSON.parse(raw));
   } catch {
-    return null;
+    return DEFAULT_THEME;
   }
+}
+
+export function initializeTheme() {
+  setActiveTheme(loadStoredTheme());
 }
 
 export function syncSystemTheme() {
@@ -77,8 +73,4 @@ function normalizeTheme(settings: Partial<Record<keyof ThemeSettings, unknown>>)
 function preferredMode(): Exclude<ThemeMode, "system"> {
   if (typeof window === "undefined" || !window.matchMedia) return "light";
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-}
-
-function objectValue(value: unknown): Record<string, unknown> {
-  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
 }

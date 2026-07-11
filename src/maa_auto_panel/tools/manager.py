@@ -98,6 +98,7 @@ class ToolRunManager:
             run_state or RunStateStore(runtime),
             self.diagnostics,
             run_coordinator or RunCoordinator(),
+            resource_wait_timeout_seconds=self.framework_settings.resource_wait_timeout_seconds,
         )
         self._specs = {
             "game-update": ToolSpec(
