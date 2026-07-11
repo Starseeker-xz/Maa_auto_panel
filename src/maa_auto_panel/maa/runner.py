@@ -404,7 +404,7 @@ def _maa_cli_log_profile(diagnostics: Diagnostics) -> RunLogProfile:
 
 
 def _generated_config_dir(runtime: MaaRuntime, run_id: str) -> str:
-    return relative_path(runtime.generated_config_dir / run_id, runtime.data_root)
+    return relative_path(runtime.generated_config_dir / run_id, runtime.repo_root)
 
 
 def _retry_count(value: object) -> int:

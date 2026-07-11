@@ -1,7 +1,7 @@
 # Project-local MAA runtime
 
 This project keeps downloaded `maa-cli`/MaaCore runtime assets under
-`data/runtime/maa/`. The data root is ignored by git because it contains downloaded
+`runtime/maa/`. The runtime root is ignored by git because it contains downloaded
 binaries, MaaCore libraries/resources, caches, logs, generated config, and
 machine-local state.
 
@@ -11,15 +11,15 @@ because they are routinely edited for manual testing.
 
 ## Layout
 
-- `data/runtime/maa/bin/maa`: project-local `maa-cli` binary.
+- `runtime/maa/bin/maa`: project-local `maa-cli` binary.
 - `data/config/maa`: managed editable configuration (`profiles/`, `tasks/`, `infrast/`, etc.).
 - `data/config/framework`: framework settings, schedules, and scripts.
-- `data/runtime/maa/generated-configs`: temporary sanitized config generated for `maa-cli`.
-- `data/runtime/maa/data/maa/lib`: MaaCore shared libraries.
-- `data/runtime/maa/data/maa/resource`: bundled MaaCore resources.
-- `data/runtime/maa/data/maa/MaaResource`: hot-update resource repository.
-- `data/runtime/maa/cache/maa`: downloaded archives and metadata cache.
-- `data/runtime/maa/state/maa/debug`: default log directory.
+- `runtime/maa/generated-configs`: temporary sanitized config generated for `maa-cli`.
+- `runtime/maa/data/maa/lib`: MaaCore shared libraries.
+- `runtime/maa/data/maa/resource`: bundled MaaCore resources.
+- `runtime/maa/data/maa/MaaResource`: hot-update resource repository.
+- `runtime/maa/cache/maa`: downloaded archives and metadata cache.
+- `runtime/maa/state/maa/debug`: default log directory.
 - `data/debug/framework`: registered diagnostic log root. It is safe to delete when
   only diagnostics are needed temporarily. It contains `framework.log`,
   high-level run-event JSONL files, and external maa-cli/MaaCore log captures.
@@ -81,7 +81,7 @@ files contain `[tasks.framework]` fields or `__framework_runtime__:*` values.
 The runner generates sanitized temporary JSON task files under:
 
 ```text
-data/runtime/maa/generated-configs/<run-id>/tasks/
+runtime/maa/generated-configs/<run-id>/tasks/
 ```
 
 It symlinks non-task config directories, such as `profiles/` and `infrast/`,
@@ -149,7 +149,7 @@ maa run <generated-task> --batch --profile <profile> -v
 The frontend currently submits profile `default` and info-level logs for manual
 runs. WebUI runs do not pass `--log-file` to `maa-cli`, because that can move
 info callback logs out of stderr in the observed maa-cli runtime. Low-level
-MaaCore debug logs remain under `data/runtime/maa/state/maa/debug/` for diagnosis and
+MaaCore debug logs remain under `runtime/maa/state/maa/debug/` for diagnosis and
 are not streamed as normal UI output. For Maa-backed manual and scheduled retry
 segments, the framework records the `asst.log` offset before the retry and
 stores that retry's delta under `data/debug/framework/external/maacore/<retry-id>.log`
@@ -408,7 +408,7 @@ The backend now exposes only the list-building half of that GUI behavior through
 `GET /api/maa/stages`. By default it returns currently open, non-hidden stage
 candidates; `include_unavailable=true` also returns stages that are known but not
 currently open. The API accepts `client`, maps `Bilibili` to `Official` like the
-GUI, reads the local `data/runtime/maa/cache/maa/StageActivityV2.json`, and includes
+GUI, reads the local `runtime/maa/cache/maa/StageActivityV2.json`, and includes
 the MaaCore version and source paths in the response.
 
 The same stage service is also used by the runner for managed Fight stage plans:
@@ -434,8 +434,8 @@ plan's `period` against the current local time.
 For Docker, keep this same split:
 
 - image: install `adb`, `maa-cli`, Python app code, and any framework service.
-- volume: mount editable config under `/app/data/config/maa` and runtime state/cache
-  under `/app/data/runtime/maa` or dedicated data volumes.
+- volumes: mount editable framework-managed config under `/app/data/config/maa`
+  and integration installation/state under the independent `/app/runtime/maa` root.
 - entrypoint: run commands through the same environment variables used by
   `scripts/maa-env`.
 

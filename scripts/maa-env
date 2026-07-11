@@ -3,11 +3,12 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 data_root="${MAA_AUTO_PANEL_DATA_DIR:-${repo_root}/data}"
+runtime_root="${MAA_AUTO_PANEL_RUNTIME_DIR:-${repo_root}/runtime}"
 
-export PATH="${data_root}/runtime/maa/bin:${PATH}"
+export PATH="${runtime_root}/maa/bin:${PATH}"
 export MAA_CONFIG_DIR="${data_root}/config/maa"
-export XDG_DATA_HOME="${data_root}/runtime/maa/data"
-export XDG_CACHE_HOME="${data_root}/runtime/maa/cache"
-export XDG_STATE_HOME="${data_root}/runtime/maa/state"
+export XDG_DATA_HOME="${runtime_root}/maa/data"
+export XDG_CACHE_HOME="${runtime_root}/maa/cache"
+export XDG_STATE_HOME="${runtime_root}/maa/state"
 
 exec "$@"

@@ -4,6 +4,7 @@
 
 ## Active sessions
 
+- `2026-07-11_0203-separate-runtime-and-agent-doc`: 将 integration runtime 从 framework data 拆为独立根/容器卷，并新增面向无上下文 agent 的中文项目架构说明。
 - `2026-07-11_0111-audit-container-plan`: 简单审计并提交当前大规模重命名、路径与优雅停机工作；随后复核正式 Docker 构筑前置条件。
 - `2026-07-10_2207-graceful-shutdown`: 容器化优雅关闭已实现；FastAPI lifespan、SSE 主动退出、scheduler/四类 manager 共享 deadline、process group 清理和 status-0 SIGTERM 已通过真实 systemd 验证。
 - `2026-07-10_1752-audit-data-paths`: 容器化前路径审计与实施；框架 data 已收敛到 `data/`，download cache 独立到 `cache/downloads/`，路径对象与本机最终布局已完成；项目未发布，不保留 migration CLI、layout version 或旧路径兼容。

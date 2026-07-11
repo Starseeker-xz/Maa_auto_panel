@@ -215,7 +215,10 @@ class ScheduledMaaRunCallbacks:
             next_attempt_payload={"task_ids": next_task_ids},
             retry_metadata={"task_ids": task_ids, "task_results": task_results},
             retry_artifacts={
-                "generated_config_dir": relative_path(self.runtime.generated_config_dir / f"schedule-{attempt.run_id}", self.runtime.data_root),
+                "generated_config_dir": relative_path(
+                    self.runtime.generated_config_dir / f"schedule-{attempt.run_id}",
+                    self.runtime.repo_root,
+                ),
                 "maacore_log_file": maacore_log_file,
             },
             summary_patch=summary,

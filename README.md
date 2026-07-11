@@ -17,9 +17,10 @@ uv run maa-auto-panel --help
 
 ## MAA runtime
 
-`maa-cli` and MaaCore are installed project-locally under `data/runtime/maa/`.
+`maa-cli` and MaaCore are installed project-locally under `runtime/maa/`.
 Framework-owned persistent files live under the configurable `data/` root;
-disposable APK/patch downloads live separately under `cache/downloads/`.
+integration runtimes use the independent `runtime/` root, and disposable
+APK/patch downloads live separately under `cache/downloads/`.
 
 Managed maa-cli config lives under `data/config/maa/`; framework settings,
 schedules, and scripts live under `data/config/framework/`.
@@ -34,7 +35,7 @@ scripts/maa-env maa list
 Task files under `data/config/maa/tasks/` may contain framework metadata such as
 `[tasks.framework]`, which raw `maa-cli` rejects. Use the framework runner or
 WebUI to run those tasks; it generates a sanitized temporary maa-cli config under
-`data/runtime/maa/generated-configs/`.
+`runtime/maa/generated-configs/`.
 
 The framework wrapper treats `maa-cli` as an unreliable external process;
 use the WebUI for managed runs with logging and diagnostics.
@@ -67,9 +68,10 @@ Start the backend, which serves `frontend/dist` when it exists:
 uv run maa-auto-panel webui --host 0.0.0.0 --port 8000
 ```
 
-Override the two storage roots with `--data-dir`/`MAA_AUTO_PANEL_DATA_DIR`
-and `--cache-dir`/`MAA_AUTO_PANEL_CACHE_DIR`. They are intentionally separate:
-deleting the download cache must not remove framework state.
+Override the three writable roots with `--data-dir`/`MAA_AUTO_PANEL_DATA_DIR`,
+`--runtime-dir`/`MAA_AUTO_PANEL_RUNTIME_DIR`, and
+`--cache-dir`/`MAA_AUTO_PANEL_CACHE_DIR`. Framework data, replaceable integration
+runtimes, and disposable downloads intentionally have separate ownership.
 
 From the LAN, open:
 
@@ -133,12 +135,12 @@ runtime installation tools. It intentionally does not contain maa-cli,
 MaaCore, resources, user config, history, or ADB credentials.
 
 For a future container deployment, create the host directories and grant them
-to container UID/GID `10001`, then set `MAA_PANEL_DATA_PATH` and
-`MAA_PANEL_DOWNLOAD_CACHE_PATH` if the default `/srv/maa-auto-panel` paths are
+to container UID/GID `10001`, then set `MAA_PANEL_DATA_PATH`,
+`MAA_PANEL_RUNTIME_PATH`, and `MAA_PANEL_DOWNLOAD_CACHE_PATH` if the default `/srv/maa-auto-panel` paths are
 not suitable. The default published address is loopback-only; set
 `MAA_PANEL_BIND_ADDRESS` explicitly for trusted-LAN access.
 
-Install an isolated runtime into the mounted data root with the official
+Install an isolated runtime into the mounted runtime root with the official
 maa-cli installer followed by `maa install`:
 
 ```bash
@@ -151,7 +153,7 @@ For a clean runtime reinstall:
 docker compose run --rm panel reinstall-runtime
 ```
 
-The reinstall command removes only `/app/data/runtime/maa`. Managed MAA config
+The reinstall command removes only `/app/runtime/maa`. Managed MAA config
 under `/app/data/config/maa` is outside that directory and is preserved. Normal
 `docker compose up` never installs or updates the runtime automatically. See
 `CONTAINERIZATION_PLAN.md` for the single-instance rule and switch procedure.

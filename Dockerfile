@@ -37,7 +37,8 @@ RUN apt-get update \
 ENV HOME=/home/panel \
     MAA_AUTO_PANEL_CACHE_DIR=/app/cache \
     MAA_AUTO_PANEL_DATA_DIR=/app/data \
-    PATH=/opt/venv/bin:/app/data/runtime/maa/bin:$PATH \
+    MAA_AUTO_PANEL_RUNTIME_DIR=/app/runtime \
+    PATH=/opt/venv/bin:/app/runtime/maa/bin:$PATH \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
@@ -49,7 +50,7 @@ COPY --chmod=0755 scripts/container-entrypoint /usr/local/bin/container-entrypoi
 
 RUN groupadd --gid 10001 panel \
     && useradd --create-home --no-log-init --uid 10001 --gid 10001 panel \
-    && mkdir -p /app/data /app/cache/downloads /home/panel/.android \
+    && mkdir -p /app/data /app/runtime /app/cache/downloads /home/panel/.android \
     && chown -R panel:panel /app /home/panel \
     && maa-auto-panel --help >/dev/null \
     && test -s /app/frontend/dist/index.html \

@@ -9,7 +9,7 @@ from types import FrameType
 
 from maa_auto_panel.branding import APP_WEB_TITLE
 from maa_auto_panel.lifecycle import clear_shutdown_request, request_shutdown
-from maa_auto_panel.paths import CACHE_DIR_ENV, DATA_DIR_ENV
+from maa_auto_panel.paths import CACHE_DIR_ENV, DATA_DIR_ENV, RUNTIME_DIR_ENV
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -22,6 +22,7 @@ def build_parser() -> argparse.ArgumentParser:
     web_parser.add_argument("--port", type=int, default=8000, help="Bind port")
     web_parser.add_argument("--reload", action="store_true", help="Enable uvicorn auto-reload")
     web_parser.add_argument("--data-dir", help=f"Framework data root (or {DATA_DIR_ENV})")
+    web_parser.add_argument("--runtime-dir", help=f"Integration runtime root (or {RUNTIME_DIR_ENV})")
     web_parser.add_argument("--cache-dir", help=f"Disposable cache root (or {CACHE_DIR_ENV})")
 
     return parser
@@ -54,6 +55,8 @@ def main(argv: list[str] | None = None) -> int:
 
         if args.data_dir:
             os.environ[DATA_DIR_ENV] = args.data_dir
+        if args.runtime_dir:
+            os.environ[RUNTIME_DIR_ENV] = args.runtime_dir
         if args.cache_dir:
             os.environ[CACHE_DIR_ENV] = args.cache_dir
 

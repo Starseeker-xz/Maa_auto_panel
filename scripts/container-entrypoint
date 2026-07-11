@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-runtime_root="${MAA_RUNTIME_ROOT:-${MAA_AUTO_PANEL_DATA_DIR:-/app/data}/runtime/maa}"
+runtime_root="${MAA_RUNTIME_ROOT:-${MAA_AUTO_PANEL_RUNTIME_DIR:-/app/runtime}/maa}"
 config_root="${MAA_CONFIG_DIR:-${MAA_AUTO_PANEL_DATA_DIR:-/app/data}/config/maa}"
 
 install_runtime() {

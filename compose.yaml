@@ -11,11 +11,15 @@ services:
     environment:
       TZ: ${TZ:-Asia/Shanghai}
       MAA_AUTO_PANEL_DATA_DIR: /app/data
+      MAA_AUTO_PANEL_RUNTIME_DIR: /app/runtime
       MAA_AUTO_PANEL_CACHE_DIR: /app/cache
     volumes:
       - type: bind
         source: ${MAA_PANEL_DATA_PATH:-/srv/maa-auto-panel/data}
         target: /app/data
+      - type: bind
+        source: ${MAA_PANEL_RUNTIME_PATH:-/srv/maa-auto-panel/runtime}
+        target: /app/runtime
       - type: bind
         source: ${MAA_PANEL_DOWNLOAD_CACHE_PATH:-/srv/maa-auto-panel/cache/downloads}
         target: /app/cache/downloads

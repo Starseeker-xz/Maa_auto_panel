@@ -12,12 +12,13 @@ This directory keeps both mirrored upstream references and project-owned notes/d
 - `maa-reading-notes.md`: first-pass reading notes for the MAA/maa-cli integration model, focused on this project's planned retry/fallback/scheduling wrapper.
 - `architecture-direction.md`: handoff-oriented direction notes for the planned Web UI orchestration framework.
 - `maa-runtime.md`: current project-local `maa-cli`/MaaCore runtime, managed config layout, run/retry history and SSE behavior, and operational notes.
+- `AGENT_PROJECT_GUIDE.md`: Chinese high-level project, architecture, execution-flow, and risk handoff for a context-free agent.
 
 ## Current Project Shape
 
 - Python backend/control plane: `src/maa_auto_panel/`.
 - Managed MAA/framework config: `data/config/maa/`.
-- Ignored local runtime, generated config, logs, and cache: `data/runtime/maa/`.
+- Ignored integration runtime and generated config: `runtime/maa/`.
 - React/Vite frontend: `frontend/`.
 - FastAPI serves `frontend/dist` and exposes config/run APIs under `/api/`.
 

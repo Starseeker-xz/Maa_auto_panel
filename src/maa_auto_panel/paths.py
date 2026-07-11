@@ -6,6 +6,7 @@ from pathlib import Path
 
 
 DATA_DIR_ENV = "MAA_AUTO_PANEL_DATA_DIR"
+RUNTIME_DIR_ENV = "MAA_AUTO_PANEL_RUNTIME_DIR"
 CACHE_DIR_ENV = "MAA_AUTO_PANEL_CACHE_DIR"
 
 
@@ -35,7 +36,7 @@ class ApplicationPaths:
 
 @dataclass(frozen=True)
 class FrameworkPaths:
-    """Framework-owned persistent data and integration runtime dependencies."""
+    """Framework-owned persistent configuration, state, history, and diagnostics."""
 
     root: Path
 
@@ -55,9 +56,6 @@ class FrameworkPaths:
     def debug_dir(self) -> Path:
         return self.root / "debug"
 
-    @property
-    def runtime_dir(self) -> Path:
-        return self.root / "runtime"
 
 @dataclass(frozen=True)
 class CachePaths:
@@ -115,6 +113,7 @@ class PathLayout:
         app_root: Path,
         *,
         data_root: Path | None = None,
+        runtime_root: Path | None = None,
         cache_root: Path | None = None,
     ) -> PathLayout:
         application = ApplicationPaths(app_root.expanduser().resolve())
@@ -125,7 +124,7 @@ class PathLayout:
             _configured_root(cache_root, CACHE_DIR_ENV, application.root / "cache")
         )
         maa = MaaInstallation(
-            root=framework.runtime_dir / "maa",
+            root=_configured_root(runtime_root, RUNTIME_DIR_ENV, application.root / "runtime") / "maa",
             config_dir=framework.config_dir / "maa",
         )
         return cls(application=application, framework=framework, cache=cache, maa=maa)

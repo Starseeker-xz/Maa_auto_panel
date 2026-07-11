@@ -14,9 +14,15 @@ class MaaRuntime:
         repo_root: Path,
         *,
         data_root: Path | None = None,
+        runtime_root: Path | None = None,
         cache_root: Path | None = None,
     ) -> None:
-        self.layout = PathLayout.create(repo_root, data_root=data_root, cache_root=cache_root)
+        self.layout = PathLayout.create(
+            repo_root,
+            data_root=data_root,
+            runtime_root=runtime_root,
+            cache_root=cache_root,
+        )
 
     @property
     def repo_root(self) -> Path:
@@ -29,6 +35,10 @@ class MaaRuntime:
     @property
     def cache_root(self) -> Path:
         return self.layout.cache.root
+
+    @property
+    def runtime_root(self) -> Path:
+        return self.layout.maa.root.parent
 
     @property
     def download_dir(self) -> Path:
