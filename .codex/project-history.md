@@ -33,7 +33,7 @@
 
 ## Active high-priority findings
 
-- Confirmed (`2026-07-11_0111-audit-container-plan`): 当前 `data/runtime/maa` 已处于混合更新状态并无法执行完整 `maa version`：`libMaaCore.so` 依赖 OpenCV `.411`，`libMaaAdbControlUnit.so` 依赖 `.412`，目录仅有 `.411`。正式容器 smoke test 前必须从带版本与 checksum 的完整 artifact 恢复临时已知基线；禁止用伪造 SONAME symlink 掩盖。
+- Confirmed (`2026-07-11_0111-audit-container-plan`): WebUI 手动更新后宿主 `maa version` 可报告 maa-cli 0.7.5 / MaaCore 6.14.0，但官方 stable 安装脚本 + 全新容器卷 `maa install --batch stable` 仍产生混合 Linux runtime：core 依赖 OpenCV `.411`，ADB control plugin 依赖 `.412`，artifact 仅含 `.411`。`maa version` 未加载 ADB plugin，不能作为设备任务可用证明。基础应用镜像不受阻；真实设备 smoke 暂缓，禁止伪造 SONAME symlink。
 - Confirmed (`2026-07-10_0416-full-project-audit`): 服务以 root 身份监听 `0.0.0.0:8000` 是裸机测试方式；在可信内网单用户前提下，无 authentication scheme 不视为缺陷。容器仍应避免 privileged/Docker socket/host network，并用低成本专用 UID/capability 收缩宿主影响面。
 - Confirmed (`2026-07-10_0416-full-project-audit`): 上述 root/监听状态是裸机测试方式，不能原样判定为目标容器缺陷。容器实施时重新以 UID/capability/volume/published port 评估；TCP ADB 不需要 privileged、host network 或宿主 USB mount。
 - Confirmed (`2026-07-10_0416-full-project-audit`): maintenance update 未声明 runtime resource，可与活跃 MAA run 并发修改 maa-cli/MaaCore/resource。资源模型应支持 shared/exclusive claim。
@@ -54,6 +54,7 @@
 
 ## Verification baseline
 
+- Confirmed (`2026-07-11_0111-audit-container-plan`): 基础容器文件已实现并构建 `maa-auto-panel:local`（context 1.80 MB，image 325 MB，UID/GID 10001）。最终镜像 CLI/import/frontend/schema/adb/git/curl 通过；隔离临时卷 Web 首页与 SIGTERM exit 0 通过；测试后 systemd 恢复 active，未启动常驻 panel 容器。
 - Confirmed (`2026-07-10_0416-full-project-audit`): Ruff passed；compileall passed；`.venv/bin/python -m pytest -q` 为 66 passed；Vulture 无发现；frontend build passed；`npm audit` 0 vulnerabilities；`git diff --check` passed。
 - Confirmed (`2026-07-10_0416-full-project-audit`): 运行环境审计时 scheduled run 正在执行，未被审计操作中断；systemd unit 为 `maa-auto-panel-webui.service`，disabled 但 active。
 

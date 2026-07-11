@@ -25,3 +25,12 @@
 - Confirmed current runtime inconsistency: `libMaaCore.so` needs OpenCV `.411`; `libMaaAdbControlUnit.so` needs `.412`; only `.411` is present. A known-good pinned runtime baseline is required before system-library conclusions or end-to-end container smoke tests.
 - User clarified deployment policy: Docker artifacts currently constrain future architecture only. Do not build/up or replace the always-running systemd development service unless explicitly requested. Never run Docker and dev/systemd instances concurrently against the sole redroid/shared state.
 - Verified all four official references already exist as tracked offline mirrors. Added their canonical online URLs to `docs/README.md` and `docs/maa-reading-notes.md`: CLI install, usage, config, and MaaCore integration protocol.
+
+## Container implementation
+
+- Added `.dockerignore`, multi-stage `Dockerfile`, `compose.yaml`, and `scripts/container-entrypoint`.
+- `docker buildx build --check .`: no warnings. `docker compose config --quiet`: passed.
+- `docker compose build --pull panel`: passed; build context 1.80 MB, image `maa-auto-panel:local` sha256 `1e79f47...`, size 325 MB. This local image remains as an active environment effect.
+- Final image verified as UID/GID 10001 with backend CLI/import, frontend, schemas, adb, git, and curl available.
+- Official runtime install was tested in disposable volume `maa-auto-panel-runtime-smoke`: maa-cli download checksum passed and stable MaaCore/resource install completed, but final `maa version` failed in the clean image. The upstream v6.14.0 Linux tarball contains OpenCV `.411` while `libMaaAdbControlUnit.so` needs `.412`.
+- Stopped systemd for an isolated Web smoke using a disposable volume and `127.0.0.1:18000`; homepage passed and SIGTERM produced exit 0. Test container/volume were removed and systemd restored active.

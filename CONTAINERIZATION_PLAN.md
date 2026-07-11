@@ -3,6 +3,8 @@
 状态：用于约束未来部署边界；未经用户明确要求，不构筑、不启动、不切换现有服务
 来源会话：`2026-07-10_0416-full-project-audit`
 
+基础构筑边界已于 `2026-07-11_0111-audit-container-plan` 落地为 `.dockerignore`、`Dockerfile`、`compose.yaml` 和 `scripts/container-entrypoint`。本机已成功构建 `maa-auto-panel:local`；隔离临时卷的 Web 启动、首页访问与 SIGTERM exit 0 已通过。该结果不表示已切换生产服务。
+
 ## 0. 当前开发与构筑政策
 
 容器化是项目方向，但 Dockerfile/Compose 当前首先是**架构与部署边界的可执行说明**，不是立即替换现有常驻服务的发布动作：
@@ -395,7 +397,7 @@ docker compose run --rm panel init-runtime
 
 以下是构筑阶段已知事项，其中只有第 1 项阻断挂载当前损坏 runtime 的集成 smoke test；第 2～4 项可后置：
 
-1. **恢复可复现的 MAA runtime 基线（当前阻断 smoke test）**：当前 `data/runtime/maa` 在宿主和干净 `python:3.12-slim-bookworm` 容器中执行 `maa version` 都失败。已确认 `libMaaCore.so` 需要 `libopencv_world4.so.411`，而 `libMaaAdbControlUnit.so` 需要 `.412`，目录仅有 `.411`。先用完整、带版本和 checksum 的上游 artifact 重建临时 baseline，再判断最终镜像缺少哪些系统库；不要通过伪造 SONAME symlink 掩盖混合更新。
+1. **等待自洽的 MAA runtime 基线（当前阻断设备任务 smoke test）**：WebUI 手动更新后，宿主 `maa version` 已能报告 maa-cli 0.7.5 / MaaCore 6.14.0；但 2026-07-11 在全新容器卷中通过官方 stable 安装脚本和 `maa install --batch stable` 重装，仍得到 `libMaaCore.so` 依赖 OpenCV `.411`、`libMaaAdbControlUnit.so` 依赖 `.412`、目录仅有 `.411` 的上游 Linux artifact。`maa version` 只加载 MaaCore，不证明 ADB control plugin 可加载。因此基础应用镜像已可构建，真实设备任务 smoke test 暂缓；不要通过伪造 SONAME symlink 掩盖。
 2. **后续修复 runtime 更新互斥与原子性**：maintenance 仍未取得 exclusive `runtime:maa` claim。容器化会把 runtime 变成长期持久卷，后续应避免运行中覆盖二进制；该问题不阻断基础构筑文件。
 3. **实现 health/ready 与 preflight**：这是 Compose healthcheck、首次空卷提示和权限诊断的基础。preflight 以非 root 身份运行，只报告 UID/GID、目录权限、runtime 完整性，不尝试静默修复宿主目录。
 4. **确定 bootstrap 供应链**：记录精确 maa-cli/MaaCore/resource 版本、下载 URL、SHA-256 和目标架构；空卷初始化必须显式执行且可重复验证。构建期若未来需要私有 token，使用 BuildKit secret mount，不能放入 `ARG`/`ENV` 或镜像层。

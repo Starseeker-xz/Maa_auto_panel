@@ -1,0 +1,49 @@
+#!/bin/sh
+set -eu
+
+runtime_root="${MAA_RUNTIME_ROOT:-${MAA_AUTO_PANEL_DATA_DIR:-/app/data}/runtime/maa}"
+config_root="${MAA_CONFIG_DIR:-${MAA_AUTO_PANEL_DATA_DIR:-/app/data}/config/maa}"
+
+install_runtime() {
+    mode="$1"
+    channel="${MAA_CHANNEL:-stable}"
+
+    if [ "$mode" = "reinstall" ]; then
+        rm -rf "$runtime_root"
+    elif [ -x "$runtime_root/bin/maa" ]; then
+        printf '%s\n' "maa-cli already exists at $runtime_root/bin/maa" >&2
+        printf '%s\n' "Use reinstall-runtime for a clean reinstall." >&2
+        exit 2
+    fi
+
+    mkdir -p "$runtime_root/bin" "$config_root"
+    installer="$(mktemp)"
+    trap 'rm -f "$installer"' EXIT HUP INT TERM
+    curl -fsSL \
+        https://raw.githubusercontent.com/MaaAssistantArknights/maa-cli/main/install.sh \
+        -o "$installer"
+    MAA_CHANNEL="$channel" MAA_INSTALL_DIR="$runtime_root/bin" bash "$installer"
+
+    export PATH="$runtime_root/bin:$PATH"
+    export MAA_CONFIG_DIR="$config_root"
+    export XDG_DATA_HOME="$runtime_root/data"
+    export XDG_CACHE_HOME="$runtime_root/cache"
+    export XDG_STATE_HOME="$runtime_root/state"
+    export MAA_LOG_PREFIX=Always
+
+    maa install --batch "$channel"
+    maa version
+    maa list
+}
+
+case "${1:-}" in
+    install-runtime)
+        install_runtime install
+        ;;
+    reinstall-runtime)
+        install_runtime reinstall
+        ;;
+    *)
+        exec /usr/bin/tini -- "$@"
+        ;;
+esac

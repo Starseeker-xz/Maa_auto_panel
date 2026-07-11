@@ -1,0 +1,34 @@
+services:
+  panel:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: maa-auto-panel:local
+    platform: linux/amd64
+    restart: unless-stopped
+    ports:
+      - "${MAA_PANEL_BIND_ADDRESS:-127.0.0.1}:${MAA_PANEL_PORT:-8000}:8000"
+    environment:
+      TZ: ${TZ:-Asia/Shanghai}
+      MAA_AUTO_PANEL_DATA_DIR: /app/data
+      MAA_AUTO_PANEL_CACHE_DIR: /app/cache
+    volumes:
+      - type: bind
+        source: ${MAA_PANEL_DATA_PATH:-/srv/maa-auto-panel/data}
+        target: /app/data
+      - type: bind
+        source: ${MAA_PANEL_DOWNLOAD_CACHE_PATH:-/srv/maa-auto-panel/cache/downloads}
+        target: /app/cache/downloads
+      - type: volume
+        source: adb-state
+        target: /home/panel/.android
+    tmpfs:
+      - /tmp:size=256m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    stop_grace_period: 2m
+
+volumes:
+  adb-state:

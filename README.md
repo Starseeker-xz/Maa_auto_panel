@@ -114,6 +114,48 @@ Current WebUI routes:
 
 See [docs/maa-runtime.md](docs/maa-runtime.md) for the current layout and config notes.
 
+## Container build contract
+
+Container files currently define the future deployment boundary; the normal
+development loop continues to use the existing systemd service. Do not run the
+systemd/dev instance and the container instance at the same time against the
+same redroid or data directory. Unless a container test or deployment is being
+performed deliberately, there is no need to build or start the image.
+
+Build the application image without copying local data, caches, or MAA runtime:
+
+```bash
+docker compose build panel
+```
+
+The image contains the backend, built frontend, schemas, ADB client, Git, and
+runtime installation tools. It intentionally does not contain maa-cli,
+MaaCore, resources, user config, history, or ADB credentials.
+
+For a future container deployment, create the host directories and grant them
+to container UID/GID `10001`, then set `MAA_PANEL_DATA_PATH` and
+`MAA_PANEL_DOWNLOAD_CACHE_PATH` if the default `/srv/maa-auto-panel` paths are
+not suitable. The default published address is loopback-only; set
+`MAA_PANEL_BIND_ADDRESS` explicitly for trusted-LAN access.
+
+Install an isolated runtime into the mounted data root with the official
+maa-cli installer followed by `maa install`:
+
+```bash
+docker compose run --rm panel install-runtime
+```
+
+For a clean runtime reinstall:
+
+```bash
+docker compose run --rm panel reinstall-runtime
+```
+
+The reinstall command removes only `/app/data/runtime/maa`. Managed MAA config
+under `/app/data/config/maa` is outside that directory and is preserved. Normal
+`docker compose up` never installs or updates the runtime automatically. See
+`CONTAINERIZATION_PLAN.md` for the single-instance rule and switch procedure.
+
 Default target device:
 
 - ADB serial: `192.168.5.151:5555`
