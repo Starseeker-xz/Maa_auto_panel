@@ -32,6 +32,7 @@
 
 ## Active high-priority findings
 
+- Confirmed (`2026-07-11_0111-audit-container-plan`): 当前 `data/runtime/maa` 已处于混合更新状态并无法执行完整 `maa version`：`libMaaCore.so` 依赖 OpenCV `.411`，`libMaaAdbControlUnit.so` 依赖 `.412`，目录仅有 `.411`。正式容器 smoke test 前必须从带版本与 checksum 的完整 artifact 恢复临时已知基线；禁止用伪造 SONAME symlink 掩盖。
 - Confirmed (`2026-07-10_0416-full-project-audit`): 服务以 root 身份监听 `0.0.0.0:8000` 是裸机测试方式；在可信内网单用户前提下，无 authentication scheme 不视为缺陷。容器仍应避免 privileged/Docker socket/host network，并用低成本专用 UID/capability 收缩宿主影响面。
 - Confirmed (`2026-07-10_0416-full-project-audit`): 上述 root/监听状态是裸机测试方式，不能原样判定为目标容器缺陷。容器实施时重新以 UID/capability/volume/published port 评估；TCP ADB 不需要 privileged、host network 或宿主 USB mount。
 - Confirmed (`2026-07-10_0416-full-project-audit`): maintenance update 未声明 runtime resource，可与活跃 MAA run 并发修改 maa-cli/MaaCore/resource。资源模型应支持 shared/exclusive claim。

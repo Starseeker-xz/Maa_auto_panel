@@ -167,7 +167,7 @@ WORKDIR /build
 COPY pyproject.toml uv.lock README.md ./
 COPY src/ ./src/
 ENV UV_PROJECT_ENVIRONMENT=/opt/venv
-RUN uv sync --frozen --no-dev --no-editable
+RUN uv sync --locked --no-dev --no-editable
 
 FROM python:3.12-slim-bookworm AS runtime
 RUN apt-get update \
@@ -186,7 +186,7 @@ COPY --from=python-builder /opt/venv /opt/venv
 COPY --from=frontend-builder /build/frontend/dist /app/frontend/dist
 COPY pyproject.toml README.md ./
 COPY docs/maa-cli/ ./docs/maa-cli/
-RUN useradd --create-home --uid 10001 panel \
+RUN useradd --create-home --no-log-init --uid 10001 panel \
  && mkdir -p data cache/downloads /home/panel/.android \
  && chown -R panel:panel /app /home/panel
 
@@ -196,7 +196,9 @@ ENTRYPOINT ["/usr/bin/tini", "--"]
 CMD ["maa-auto-panel", "webui", "--host", "0.0.0.0", "--port", "8000"]
 ```
 
-venv 必须在 builder 和 runtime 中保持相同绝对路径；否则 console-script shebang 会再次出现仓库重命名后遇到的旧路径问题。实施时确认 `--no-editable` 确实把项目安装进 `/opt/venv`。另一种可靠方式是先构建 wheel，再按 lock 约束安装到固定 `/opt/venv`。`docs/maa-cli/schemas` 也是运行时依赖，`ConfigSchemaValidator` 会直接读取它，不能被 `.dockerignore` 或精简 COPY 遗漏。
+venv 必须在 builder 和 runtime 中保持相同绝对路径；否则 console-script shebang 会再次出现仓库重命名后遇到的旧路径问题。完整 `pyproject.toml`、lock 和源码都已复制时使用 `--locked`，让构建在 lock 与项目元数据不一致时失败；`--frozen` 只适合依赖缓存的前置 partial sync。实施时确认 `--no-editable` 确实把项目安装进 `/opt/venv`。另一种可靠方式是先构建 wheel，再按 lock 约束安装到固定 `/opt/venv`。若用 BuildKit cache mount 缓存 uv，设置 `UV_LINK_MODE=copy`，避免跨文件系统 hardlink 警告。`docs/maa-cli/schemas` 也是运行时依赖，`ConfigSchemaValidator` 会直接读取它，不能被 `.dockerignore` 或精简 COPY 遗漏。
+
+固定 UID 创建用户时保留 `--no-log-init`，避免 Debian/Ubuntu 系镜像在某些较大 UID 下生成稀疏 `faillog` 并异常放大镜像层。基础镜像和 uv 镜像至少固定到明确版本；正式发布可进一步记录 digest，并用定期重建吸收安全更新。
 
 ## 7. 第一版 Compose 轮廓
 
@@ -234,6 +236,8 @@ volumes:
 首轮 smoke test 可暂时不启用 `read_only: true`。确认所有写路径都在 volume/tmpfs 后，再启用只读 root filesystem。
 
 Dockerfile 已使用 `tini`，Compose 不再同时设置 `init: true`，避免双重 init。若最终去掉 Dockerfile 的 `tini`，再改用 Compose `init: true`，二者保留一个即可。
+
+bind mount 会遮蔽镜像中目标目录原有内容，因此不要把 baseline runtime 先放进 `/app/data` 再指望首次挂载后仍可见。`init-runtime` 应从镜像内只读 seed（例如 `/opt/maa-runtime-seed`）复制，或按固定 URL + checksum 下载到空卷。宿主 bind 目录必须在启动前创建并授予 UID/GID 10001；非 root entrypoint 只能检查权限，不能可靠地替宿主 `chown`。
 
 ## 8. `.dockerignore`
 
@@ -273,6 +277,8 @@ __pycache__
 - `/api/ready`: data/config、data/state、data/history 可写、maa binary 存在、scheduler 初始化完成。
 
 Compose healthcheck 使用 Python stdlib 请求 `/api/health`，避免仅为 healthcheck 安装 curl。
+
+healthcheck 应设置足够的 `start_period`，并让 `/api/health` 只反映进程/event loop；redroid 离线、runtime 未初始化等依赖状态放在 `/api/ready`，不能触发 Compose 对健康进程的无意义重启循环。
 
 ### 9.2 Entry point 检查
 
@@ -375,3 +381,16 @@ docker compose run --rm panel init-runtime
 - healthcheck 不依赖外网和 redroid 在线。
 - 完成至少一次手动最小任务和一次 scheduler 触发 smoke test。
 - 有可执行的备份、升级与回退步骤。
+
+## 15. 2026-07-11 构筑前复核结论
+
+正式写 Dockerfile 前还需先完成或明确以下门槛：
+
+1. **恢复可复现的 MAA runtime 基线（当前阻断 smoke test）**：当前 `data/runtime/maa` 在宿主和干净 `python:3.12-slim-bookworm` 容器中执行 `maa version` 都失败。已确认 `libMaaCore.so` 需要 `libopencv_world4.so.411`，而 `libMaaAdbControlUnit.so` 需要 `.412`，目录仅有 `.411`。先用完整、带版本和 checksum 的上游 artifact 重建临时 baseline，再判断最终镜像缺少哪些系统库；不要通过伪造 SONAME symlink 掩盖混合更新。
+2. **先修 runtime 更新互斥与原子性**：maintenance 仍未取得 exclusive `runtime:maa` claim。容器化会把 runtime 变成长期持久卷，更不能允许运行中覆盖二进制；至少先完成互斥，staging/checksum/rollback 可紧随其后。
+3. **实现 health/ready 与 preflight**：这是 Compose healthcheck、首次空卷提示和权限诊断的基础。preflight 以非 root 身份运行，只报告 UID/GID、目录权限、runtime 完整性，不尝试静默修复宿主目录。
+4. **确定 bootstrap 供应链**：记录精确 maa-cli/MaaCore/resource 版本、下载 URL、SHA-256 和目标架构；空卷初始化必须显式执行且可重复验证。构建期若未来需要私有 token，使用 BuildKit secret mount，不能放入 `ARG`/`ENV` 或镜像层。
+5. **分开验证应用镜像与 runtime**：先用空 data/cache 的应用镜像验证 Python wheel、前端、schema、health、非 root 和只读 rootfs；再挂载修复后的 runtime 做 `maa version/list`、ADB screenshot、最小任务。这样能明确故障属于镜像还是持久化 runtime。
+6. **补一份真实部署配置检查**：运行 `docker compose config`，验证 publish 地址确实存在于宿主、`platform: linux/amd64`、`stop_grace_period: 2m`、唯一 init、单实例和 volume 路径；之后才挂临时数据副本执行 `up`。
+
+其余已确认无需提前扩张：不需要 host network、privileged、Docker socket、USB mount、数据库、认证系统或多容器拆分。第一版保持单 panel 容器、外部 TCP redroid 和单实例即可。
