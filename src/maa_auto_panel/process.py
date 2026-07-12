@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+import codecs
 from contextlib import nullcontext
-import io
 import os
 import select
 import signal
@@ -21,6 +21,10 @@ ProcessCallback = Callable[[subprocess.Popen[str]], None]
 ShouldStopCallback = Callable[[], bool]
 TimeoutCallback = Callable[[str, float], None]
 TickCallback = Callable[[], None]
+
+
+_READ_CHUNK_SIZE = 64 * 1024
+_MAX_PARTIAL_LINE_CHARS = 1024 * 1024
 
 
 @dataclass(frozen=True)
@@ -67,11 +71,11 @@ def run_streaming_process(
 
     assert proc.stdout is not None
     assert proc.stderr is not None
-    stdout = io.TextIOWrapper(proc.stdout, encoding="utf-8", errors="replace", newline="")
-    stderr = io.TextIOWrapper(proc.stderr, encoding="utf-8", errors="replace", newline="")
+    os.set_blocking(proc.stdout.fileno(), False)
+    os.set_blocking(proc.stderr.fileno(), False)
     streams = {
-        stdout: "stdout",
-        stderr: "stderr",
+        proc.stdout.fileno(): _StreamReader("stdout"),
+        proc.stderr.fileno(): _StreamReader("stderr"),
     }
     start = time.monotonic()
     last_output = start
@@ -93,14 +97,19 @@ def run_streaming_process(
             else:
                 time.sleep(0.2)
                 ready = []
-            for pipe in ready:
-                line = pipe.readline()
-                if line:
-                    _emit_output(line, streams[pipe], on_output, on_stream_output, on_raw_line, log_sink)
+            for fd in ready:
+                reader = streams[fd]
+                try:
+                    data = os.read(fd, _READ_CHUNK_SIZE)
+                except BlockingIOError:
+                    continue
+                if data:
+                    reader.feed(data, on_output, on_stream_output, on_raw_line, log_sink)
                     last_output = time.monotonic()
                     no_output_warned = False
                 else:
-                    streams.pop(pipe, None)
+                    reader.finish(on_output, on_stream_output, on_raw_line, log_sink)
+                    streams.pop(fd, None)
             if on_tick is not None:
                 on_tick()
 
@@ -148,37 +157,119 @@ def run_streaming_process(
                     on_timeout("force_kill", time.monotonic() - start)
                 force_kill_process_group(proc)
 
-            if proc.poll() is not None:
-                for pipe, stream in streams.items():
-                    remainder = pipe.read()
-                    if remainder:
-                        _emit_output(remainder, stream, on_output, on_stream_output, on_raw_line, log_sink)
+            if proc.poll() is not None and not streams:
                 break
 
     return StreamingProcessResult(return_code=proc.wait(), timed_out=timed_out, stopped=stopped, forced=forced)
 
 
-def _emit_output(
+class _StreamReader:
+    def __init__(self, stream: str) -> None:
+        self.stream = stream
+        self.decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
+        self.partial_line = ""
+
+    def feed(
+        self,
+        data: bytes,
+        on_output: OutputCallback,
+        on_stream_output: StreamOutputCallback | None,
+        on_raw_line: RawLineCallback | None,
+        log_sink: TextIO | None,
+    ) -> None:
+        self._accept_text(self.decoder.decode(data), on_output, on_stream_output, on_raw_line, log_sink)
+
+    def finish(
+        self,
+        on_output: OutputCallback,
+        on_stream_output: StreamOutputCallback | None,
+        on_raw_line: RawLineCallback | None,
+        log_sink: TextIO | None,
+    ) -> None:
+        self._accept_text(self.decoder.decode(b"", final=True), on_output, on_stream_output, on_raw_line, log_sink)
+        if self.partial_line.endswith("\r"):
+            _emit_record(
+                self.partial_line[:-1], "\r", self.stream, on_output, on_stream_output, on_raw_line, log_sink
+            )
+            self.partial_line = ""
+        if self.partial_line:
+            _emit_record(self.partial_line, "", self.stream, on_output, on_stream_output, on_raw_line, log_sink)
+            self.partial_line = ""
+
+    def _accept_text(
+        self,
+        text: str,
+        on_output: OutputCallback,
+        on_stream_output: StreamOutputCallback | None,
+        on_raw_line: RawLineCallback | None,
+        log_sink: TextIO | None,
+    ) -> None:
+        if not text:
+            return
+        self.partial_line += text
+        while self.partial_line:
+            newline_at = _newline_index(self.partial_line)
+            if newline_at is not None:
+                line_end, delimiter_end = newline_at
+                _emit_record(
+                    self.partial_line[:line_end],
+                    self.partial_line[line_end:delimiter_end],
+                    self.stream,
+                    on_output,
+                    on_stream_output,
+                    on_raw_line,
+                    log_sink,
+                )
+                self.partial_line = self.partial_line[delimiter_end:]
+                continue
+            if len(self.partial_line) > _MAX_PARTIAL_LINE_CHARS:
+                _emit_record(
+                    self.partial_line[:_MAX_PARTIAL_LINE_CHARS],
+                    "\n",
+                    self.stream,
+                    on_output,
+                    on_stream_output,
+                    on_raw_line,
+                    log_sink,
+                )
+                self.partial_line = self.partial_line[_MAX_PARTIAL_LINE_CHARS:]
+                continue
+            break
+
+
+def _newline_index(text: str) -> tuple[int, int] | None:
+    cr = text.find("\r")
+    lf = text.find("\n")
+    indexes = [index for index in (cr, lf) if index >= 0]
+    if not indexes:
+        return None
+    line_end = min(indexes)
+    if text[line_end] == "\r" and line_end + 1 == len(text):
+        return None
+    delimiter_end = line_end + 2 if text.startswith("\r\n", line_end) else line_end + 1
+    return line_end, delimiter_end
+
+
+def _emit_record(
     text: str,
+    ending: str,
     stream: str,
     on_output: OutputCallback,
     on_stream_output: StreamOutputCallback | None,
     on_raw_line: RawLineCallback | None,
     log_sink: TextIO | None = None,
 ) -> None:
-    if not text:
-        return
+    record = text + ending
     if log_sink is not None:
-        log_sink.write(f"[{stream}]\n{text}")
-        if not text.endswith("\n"):
+        log_sink.write(f"[{stream}]\n{record}")
+        if not ending.endswith("\n"):
             log_sink.write("\n")
         log_sink.flush()
     if on_stream_output is not None:
-        on_stream_output(stream, text)
+        on_stream_output(stream, record)
     if on_raw_line is not None:
-        for line in text.splitlines():
-            on_raw_line(stream, line)
-    on_output(text)
+        on_raw_line(stream, text)
+    on_output(record)
 
 
 def _terminate_process(proc: subprocess.Popen[str]) -> None:

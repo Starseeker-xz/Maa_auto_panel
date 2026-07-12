@@ -96,6 +96,10 @@ class WebServices:
     def _run_managers(self) -> tuple[GenericRunManager, ...]:
         return (self.runs.runs, self.scheduler.runs, self.maintenance.runs, self.tools.runs)
 
+    def discard_terminal_run(self, run_id: str) -> None:
+        for manager in self._run_managers():
+            manager.discard_terminal(run_id)
+
 
 def _join_managers_until(
     managers: tuple[GenericRunManager, ...],
@@ -122,12 +126,12 @@ def create_services(
     )
     diagnostics = Diagnostics(runtime)
     diagnostics.configure_logging()
-    diagnostics.enforce_retention()
     run_state = RunStateStore(runtime)
+    recovered_runs = run_state.recover_interrupted_runs()
     run_state.enforce_retention()
+    diagnostics.enforce_retention(protected_paths=run_state.owned_paths())
     scheduler_state = SchedulerStateStore(runtime)
     scheduler_state.enforce_retention()
-    recovered_runs = run_state.recover_interrupted_runs()
     if recovered_runs:
         logger.warning("recovered interrupted run records count=%s", recovered_runs)
     configs = ConfigManager(runtime)

@@ -42,7 +42,6 @@ from maa_auto_panel.scheduler.scripts import ScheduleScriptManager
 from maa_auto_panel.scheduler.state import SchedulerStateStore
 from maa_auto_panel.scheduler.time import effective_timezone, extract_client_type, game_day_info, game_day_key, sort_entries_for_game_day
 from maa_auto_panel.state import idle_response
-from maa_auto_panel.utils import relative_path
 
 
 logger = get_logger(__name__)
@@ -216,9 +215,8 @@ class ScheduledMaaRunCallbacks:
             next_attempt_payload={"task_ids": next_task_ids},
             retry_metadata={"task_ids": task_ids, "task_results": task_results},
             retry_artifacts={
-                "generated_config_dir": relative_path(
-                    self.runtime.generated_config_dir / f"schedule-{attempt.run_id}",
-                    self.runtime.repo_root,
+                "generated_config_dir": self.runtime.path_references.reference(
+                    "runtime", self.runtime.generated_config_dir / f"schedule-{attempt.run_id}"
                 ),
                 "maacore_log_file": maacore_log_file,
             },

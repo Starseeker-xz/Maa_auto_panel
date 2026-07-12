@@ -91,7 +91,7 @@ class Diagnostics:
     def event_log_file(self, run_id: str) -> str:
         path = self._event_path(run_id)
         path.parent.mkdir(parents=True, exist_ok=True)
-        return relative_path(path, self.runtime.data_root)
+        return self.runtime.path_references.reference("framework", path)
 
     def append_run_event(self, run_id: str, kind: str, source: str, text: str, **extra: object) -> None:
         if not text:
@@ -121,7 +121,7 @@ class Diagnostics:
         }
         for path in files.values():
             path.parent.mkdir(parents=True, exist_ok=True)
-        return {key: relative_path(path, self.runtime.data_root) for key, path in files.items()}
+        return {key: self.runtime.path_references.reference("framework", path) for key, path in files.items()}
 
     def append_maa_cli_output(self, run_id: str, stream: str, text: str) -> None:
         if not text:
@@ -140,7 +140,7 @@ class Diagnostics:
         }
         for path in files.values():
             path.parent.mkdir(parents=True, exist_ok=True)
-        return {key: relative_path(path, self.runtime.data_root) for key, path in files.items()}
+        return {key: self.runtime.path_references.reference("framework", path) for key, path in files.items()}
 
     def append_tool_output(self, run_id: str, stream: str, text: str) -> None:
         if not text:
@@ -156,7 +156,7 @@ class Diagnostics:
         }
         for path in files.values():
             path.parent.mkdir(parents=True, exist_ok=True)
-        return {key: relative_path(path, self.runtime.data_root) for key, path in files.items()}
+        return {key: self.runtime.path_references.reference("framework", path) for key, path in files.items()}
 
     def append_script_output(self, run_id: str, stream: str, text: str) -> None:
         if not text:
@@ -187,17 +187,52 @@ class Diagnostics:
         target = self.maacore_log_dir / f"{run_id}.log"
         target.parent.mkdir(parents=True, exist_ok=True)
         write_text_atomic(target, content.decode("utf-8", errors="replace"))
-        return relative_path(target, self.runtime.data_root)
+        return self.runtime.path_references.reference("framework", target)
 
-    def enforce_retention(self) -> None:
+    def enforce_retention(self, *, protected_paths: set[Path] | None = None) -> None:
+        protected = protected_paths or set()
+        # When the run store supplies ownership, every unreferenced run artifact
+        # is an orphan and can be removed immediately. Standalone diagnostics
+        # keeps the legacy age/count policy for callers without a run store.
+        orphan_limit = 0 if protected_paths is not None else None
         with self._lock:
             cutoff = datetime.now() - timedelta(days=max(0, self.retention.max_age_days))
-            _prune_files(self.event_dir, max_count=self.retention.max_event_log_files, cutoff=cutoff)
-            _prune_files(self.maa_cli_log_dir, max_count=self.retention.max_maa_cli_log_files, cutoff=cutoff)
-            _prune_files(self.tool_log_dir, max_count=self.retention.max_tool_log_files, cutoff=cutoff)
-            _prune_files(self.script_log_dir, max_count=self.retention.max_script_log_files, cutoff=cutoff)
-            _prune_files(self.maacore_log_dir, max_count=self.retention.max_maacore_capture_files, cutoff=cutoff)
-            _prune_dirs(self.runtime.generated_config_dir, max_count=self.retention.max_generated_config_dirs, cutoff=cutoff)
+            _prune_files(
+                self.event_dir,
+                max_count=self.retention.max_event_log_files if orphan_limit is None else orphan_limit,
+                cutoff=cutoff,
+                protected=protected,
+            )
+            _prune_files(
+                self.maa_cli_log_dir,
+                max_count=self.retention.max_maa_cli_log_files if orphan_limit is None else orphan_limit,
+                cutoff=cutoff,
+                protected=protected,
+            )
+            _prune_files(
+                self.tool_log_dir,
+                max_count=self.retention.max_tool_log_files if orphan_limit is None else orphan_limit,
+                cutoff=cutoff,
+                protected=protected,
+            )
+            _prune_files(
+                self.script_log_dir,
+                max_count=self.retention.max_script_log_files if orphan_limit is None else orphan_limit,
+                cutoff=cutoff,
+                protected=protected,
+            )
+            _prune_files(
+                self.maacore_log_dir,
+                max_count=self.retention.max_maacore_capture_files if orphan_limit is None else orphan_limit,
+                cutoff=cutoff,
+                protected=protected,
+            )
+            _prune_dirs(
+                self.runtime.generated_config_dir,
+                max_count=self.retention.max_generated_config_dirs if orphan_limit is None else orphan_limit,
+                cutoff=cutoff,
+                protected=protected,
+            )
             _prune_files(self.runtime.run_log_dir, max_count=self.retention.max_legacy_run_log_files, cutoff=cutoff)
             _prune_maacore_debug(self.runtime.state_home / "maa" / "debug", self.retention, cutoff=cutoff)
 
@@ -253,10 +288,11 @@ def get_logger(name: str) -> logging.Logger:
     return logging.getLogger(f"{LOGGER_NAME}.{name}")
 
 
-def _prune_files(directory: Path, *, max_count: int, cutoff: datetime) -> None:
+def _prune_files(directory: Path, *, max_count: int, cutoff: datetime, protected: set[Path] | None = None) -> None:
     if not directory.exists():
         return
-    files = [path for path in directory.rglob("*") if path.is_file()]
+    protected = protected or set()
+    files = [path for path in directory.rglob("*") if path.is_file() and path not in protected]
     expired = {path for path in files if _mtime(path) < cutoff}
     newest = sorted(files, key=_mtime, reverse=True)
     overflow = set(newest[max(0, max_count):]) if max_count > 0 else set(files)
@@ -264,10 +300,11 @@ def _prune_files(directory: Path, *, max_count: int, cutoff: datetime) -> None:
         _unlink(path)
 
 
-def _prune_dirs(directory: Path, *, max_count: int, cutoff: datetime) -> None:
+def _prune_dirs(directory: Path, *, max_count: int, cutoff: datetime, protected: set[Path] | None = None) -> None:
     if not directory.exists():
         return
-    dirs = [path for path in directory.iterdir() if path.is_dir()]
+    protected = protected or set()
+    dirs = [path for path in directory.iterdir() if path.is_dir() and path not in protected]
     expired = {path for path in dirs if _mtime(path) < cutoff}
     newest = sorted(dirs, key=_mtime, reverse=True)
     overflow = set(newest[max(0, max_count):]) if max_count > 0 else set(dirs)

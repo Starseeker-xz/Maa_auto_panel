@@ -2,6 +2,7 @@ import React from "react";
 import { CalendarClock, ChevronDown, ChevronRight, Home, Settings, Wrench } from "lucide-react";
 import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 
+import { LazyBoundary, LazyFallback } from "@/components/LazyBoundary";
 import {
   Sidebar,
   SidebarContent,
@@ -18,11 +19,14 @@ import { APP_TITLE } from "@/lib/branding";
 import { listSchedules } from "@/lib/api";
 import { initializeTheme, syncSystemTheme } from "@/lib/theme";
 import type { ScheduleConfigFile } from "@/lib/types";
-import { MainPage } from "@/pages/MainPage";
-import { SchedulePage } from "@/pages/SchedulePage";
-import { SettingsPage } from "@/pages/SettingsPage";
-import { ThemeSettingsPage } from "@/pages/settings/ThemeSettingsPage";
-import { ToolsPage } from "@/pages/ToolsPage";
+
+const MainPage = React.lazy(() => import("@/pages/MainPage").then((module) => ({ default: module.MainPage })));
+const SchedulePage = React.lazy(() => import("@/pages/SchedulePage").then((module) => ({ default: module.SchedulePage })));
+const SettingsPage = React.lazy(() => import("@/pages/SettingsPage").then((module) => ({ default: module.SettingsPage })));
+const ThemeSettingsPage = React.lazy(() =>
+  import("@/pages/settings/ThemeSettingsPage").then((module) => ({ default: module.ThemeSettingsPage }))
+);
+const ToolsPage = React.lazy(() => import("@/pages/ToolsPage").then((module) => ({ default: module.ToolsPage })));
 
 const LAST_MAIN_PATH_KEY = "maa-auto-panel:last-main-path";
 
@@ -42,6 +46,14 @@ function AppShell() {
   const { expanded } = useSidebar();
   const [scheduleExpanded, setScheduleExpanded] = React.useState(true);
   const [schedules, setSchedules] = React.useState<ScheduleConfigFile[]>([]);
+  const [scheduleDevice, setScheduleDevice] = React.useState<{ scheduleId: string; device: string } | null>(null);
+  const scheduleDetailId = React.useMemo(() => {
+    const match = /^\/schedule\/([^/]+)$/.exec(location.pathname);
+    return match ? decodeURIComponent(match[1]) : "";
+  }, [location.pathname]);
+  const handleScheduleDeviceChange = React.useCallback((value: { scheduleId: string; device: string } | null) => {
+    setScheduleDevice(value);
+  }, []);
   const page = location.pathname.startsWith("/schedule")
     ? "schedule"
     : location.pathname.startsWith("/tools")
@@ -124,20 +136,29 @@ function AppShell() {
           </Sidebar>
 
           <SidebarInset>
-            <Routes>
-              <Route path="/" element={<MainPage />} />
-              <Route path="/tasks/:taskConfig" element={<MainPage />} />
-              <Route path="/tasks/:taskConfig/items/:taskItemId" element={<MainPage />} />
-              <Route path="/schedule" element={<SchedulePage />} />
-              <Route path="/schedule/:scheduleId" element={<SchedulePage />} />
-              <Route path="/tools" element={<ToolsPage />} />
-              <Route path="/settings" element={<SettingsPage />} />
-              <Route path="/settings/framework" element={<SettingsPage />} />
-              <Route path="/settings/theme" element={<ThemeSettingsPage />} />
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
+            <LazyBoundary
+              resetKey={location.pathname}
+              fallback={<LazyFallback className="m-4 h-[calc(100vh-2rem)]" />}
+              className="m-4 h-[calc(100vh-2rem)]"
+            >
+              <Routes>
+                <Route path="/" element={<MainPage />} />
+                <Route path="/tasks/:taskConfig" element={<MainPage />} />
+                <Route path="/tasks/:taskConfig/items/:taskItemId" element={<MainPage />} />
+                <Route path="/schedule" element={<SchedulePage onScrcpyDeviceChange={handleScheduleDeviceChange} />} />
+                <Route path="/schedule/:scheduleId" element={<SchedulePage onScrcpyDeviceChange={handleScheduleDeviceChange} />} />
+                <Route path="/tools" element={<ToolsPage />} />
+                <Route path="/settings" element={<SettingsPage />} />
+                <Route path="/settings/framework" element={<SettingsPage />} />
+                <Route path="/settings/theme" element={<ThemeSettingsPage />} />
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Routes>
+            </LazyBoundary>
           </SidebarInset>
-          <NotificationCenter />
+          <NotificationCenter
+            scheduleDeviceRequired={Boolean(scheduleDetailId)}
+            scheduleDevice={scheduleDevice?.scheduleId === scheduleDetailId ? scheduleDevice.device : undefined}
+          />
     </div>
   );
 }

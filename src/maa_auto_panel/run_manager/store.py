@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import shutil
 import threading
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -78,11 +79,42 @@ class RunStateStore:
         self.runtime.run_state_dir.mkdir(parents=True, exist_ok=True)
         self.runtime.run_history_dir.mkdir(parents=True, exist_ok=True)
 
-    def enforce_retention(self) -> None:
+    def enforce_retention(self) -> list[dict[str, object]]:
+        """Apply run-aware retention and cascade owned data for evicted runs.
+
+        Runs are the retention unit: retry index rows are never pruned independently
+        from their parent run. Running/stopping records are always retained.
+        """
         with self._lock:
-            self._write_runs(self.runs(limit=0))
-            retries = self._retry_items()[-self.retention.max_retry_records :]
-            self._write_retries(retries)
+            runs = self.runs(limit=0)
+            retries = self._retry_items()
+            retry_count_by_run: dict[str, int] = {}
+            for retry in retries:
+                run_id = str(retry.get("run_id") or "")
+                retry_count_by_run[run_id] = retry_count_by_run.get(run_id, 0) + 1
+
+            retained_ids: set[str] = set()
+            retained_retry_count = 0
+            terminal_count = 0
+            evicted: list[StoredRun] = []
+            for run in runs:
+                retry_count = retry_count_by_run.get(run.id, 0)
+                active = run.status in {"running", "stopping"}
+                fits_runs = terminal_count < max(0, self.retention.max_run_records)
+                fits_retries = retained_retry_count + retry_count <= max(0, self.retention.max_retry_records)
+                if active or (fits_runs and fits_retries):
+                    retained_ids.add(run.id)
+                    retained_retry_count += retry_count
+                    if not active:
+                        terminal_count += 1
+                else:
+                    evicted.append(run)
+
+            orphan_retries = [item for item in retries if str(item.get("run_id") or "") not in retained_ids]
+            retained_retries = [item for item in retries if str(item.get("run_id") or "") in retained_ids]
+            self._write_runs([run for run in runs if run.id in retained_ids])
+            self._write_retries(retained_retries)
+            return [self._delete_owned_run_data(run, [item for item in orphan_retries if item.get("run_id") == run.id]) for run in evicted]
 
     def recover_interrupted_runs(self) -> int:
         recovered = 0
@@ -215,7 +247,7 @@ class RunStateStore:
                     "log_files": log_files or {},
                 }
             )
-            self._write_retries(retries[-self.retention.max_retry_records :])
+            self._write_retries(retries)
 
     def runs(self, kind: RunKind | None = None, *, limit: int = 50) -> list[StoredRun]:
         records = [_stored_run_from_data(item) for item in self._run_items()]
@@ -236,20 +268,78 @@ class RunStateStore:
             run = self.run(run_id)
             if run is None:
                 raise KeyError(run_id)
+            if run.status in {"running", "stopping"}:
+                raise RuntimeError(f"Run is still active: {run_id}")
             runs = [_stored_run_from_data(item) for item in self._run_items() if item.get("id") != run_id]
             retries = [item for item in self._retry_items() if item.get("run_id") != run_id]
-            history_path = self._run_history_path(run_id, run)
-            history_deleted = False
-            if history_path.exists():
-                history_path.unlink()
-                history_deleted = True
+            owned_retries = [item for item in self._retry_items() if item.get("run_id") == run_id]
             self._write_runs(runs)
             self._write_retries(retries)
-            return {
-                "id": run_id,
-                "history_deleted": history_deleted,
-                "history_path": relative_path(history_path, self.runtime.data_root),
-            }
+            return self._delete_owned_run_data(run, owned_retries)
+
+    def owned_paths(self) -> set[Path]:
+        """Return paths owned by currently retained run records."""
+        with self._lock:
+            retries_by_run: dict[str, list[dict[str, object]]] = {}
+            for retry in self._retry_items():
+                retries_by_run.setdefault(str(retry.get("run_id") or ""), []).append(retry)
+            paths: set[Path] = set()
+            for run in self.runs(limit=0):
+                for _kind, reference in self._owned_references(run, retries_by_run.get(run.id, [])):
+                    try:
+                        paths.add(self.runtime.path_references.resolve(reference))
+                    except ValueError:
+                        continue
+            return paths
+
+    def _delete_owned_run_data(self, run: StoredRun, retries: list[dict[str, object]]) -> dict[str, object]:
+        history_path = self._run_history_path(run.id, run)
+        references = self._owned_references(run, retries)
+
+        for kind, reference in sorted(references):
+            try:
+                path = self.runtime.path_references.resolve(reference)
+            except ValueError:
+                continue
+            if kind == "dir":
+                if path.is_dir() and not path.is_symlink():
+                    shutil.rmtree(path)
+            elif path.is_file() or path.is_symlink():
+                path.unlink()
+
+        history_deleted = False
+        if history_path.exists():
+            history_path.unlink()
+            history_deleted = True
+        return {
+            "id": run.id,
+            "history_deleted": history_deleted,
+            "history_path": relative_path(history_path, self.runtime.data_root),
+        }
+
+    def _owned_references(self, run: StoredRun, retries: list[dict[str, object]]) -> set[tuple[str, str]]:
+        references: set[tuple[str, str]] = set()
+        if run.event_log_file:
+            references.add(("file", run.event_log_file))
+        references.update(("file", value) for value in run.log_files.values())
+        self._collect_owned_artifacts(references, run.artifacts)
+        for retry in retries:
+            log_files = retry.get("log_files")
+            if isinstance(log_files, dict):
+                references.update(("file", str(value)) for value in log_files.values() if isinstance(value, str))
+            artifacts = retry.get("artifacts")
+            if isinstance(artifacts, dict):
+                self._collect_owned_artifacts(references, artifacts)
+        return references
+
+    @staticmethod
+    def _collect_owned_artifacts(references: set[tuple[str, str]], artifacts: dict[str, Any]) -> None:
+        # Ownership is explicit by artifact role. Unknown/shared/external values
+        # remain untouched even if they happen to contain a local path.
+        for key, kind in (("generated_config_dir", "dir"), ("maacore_log_file", "file")):
+            value = artifacts.get(key)
+            if isinstance(value, str) and value:
+                references.add((kind, value))
 
     def retries(self, run_id: str) -> list[dict[str, object]]:
         rows = [item for item in self._retry_items() if item.get("run_id") == run_id]
@@ -262,7 +352,7 @@ class RunStateStore:
             if not run_id:
                 raise ValueError("run id is required")
             by_id = {str(item.get("id") or ""): item for item in self._run_items() if item.get("id")}
-            data = dict(by_id.get(run_id) or {})
+            data = dict(by_id.pop(run_id, None) or {})
             if isinstance(patch.get("metadata"), dict) and isinstance(data.get("metadata"), dict):
                 patch_metadata = patch["metadata"]
                 data_metadata = data["metadata"]
@@ -281,8 +371,11 @@ class RunStateStore:
             data.setdefault("metadata", {})
             data.setdefault("artifacts", {})
             data.setdefault("history_scope", [])
-            by_id[run_id] = data
-            self._write_runs([_stored_run_from_data(item) for item in by_id.values()])
+            # Put the touched record first so second-resolution timestamp ties do
+            # not cause a newly-created run to be treated as the oldest one.
+            self._write_runs(
+                [_stored_run_from_data(data), *(_stored_run_from_data(item) for item in by_id.values())]
+            )
 
     def _run_items(self) -> list[dict[str, object]]:
         data = read_json_object(self.run_records_path)
@@ -342,7 +435,7 @@ class RunStateStore:
             "retries": retries,
         }
         write_json_object(path, data)
-        return relative_path(path, self.runtime.data_root)
+        return self.runtime.path_references.reference("framework", path)
 
     def _sync_run_history(self, run_id: str) -> None:
         run = self.run(run_id)
@@ -365,7 +458,11 @@ class RunStateStore:
         if not isinstance(history_file, str) or not history_file:
             output["log_entries"] = []
             return output
-        path = self.runtime.data_root / history_file
+        try:
+            path = self.runtime.path_references.resolve(history_file, expected_root="framework")
+        except ValueError:
+            output["log_entries"] = []
+            return output
         data = read_json_object(path)
         retry_id = output.get("id")
         for item in data.get("retries", []):
@@ -387,7 +484,7 @@ class RunStateStore:
         data = {
             "description": "Recent WebUI, scheduled, maintenance, and tool run records. The WebUI derives recent runs from this file.",
             "updated_at": _now(),
-            "runs": [run.to_dict() for run in records[: self.retention.max_run_records]],
+            "runs": [run.to_dict() for run in records],
         }
         write_json_object(self.run_records_path, data)
 

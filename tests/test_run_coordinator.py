@@ -160,11 +160,14 @@ def test_global_resource_wait_timeout_setting_round_trips(tmp_path) -> None:
     assert settings.resource_wait_timeout_seconds() == 300
 
     data = settings.read()["data"]
+    assert data["framework"]["scrcpy"] == {"video_bit_rate_mbps": 100, "max_fps": 60}
     data["framework"]["run_resources"]["wait_timeout_seconds"] = 45
+    data["framework"]["scrcpy"]["max_fps"] = 90
     data["theme"] = {"mode": "dark", "color": "rose"}
     settings.write(data)
 
     assert settings.resource_wait_timeout_seconds() == 45
+    assert settings.read()["data"]["framework"]["scrcpy"]["max_fps"] == 90
     assert "theme" not in settings.read()["data"]
 
 

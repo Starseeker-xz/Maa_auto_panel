@@ -24,7 +24,7 @@ from maa_auto_panel.run_manager.store import RunStateStore
 from maa_auto_panel.run_resources import RUN_PRIORITY_NORMAL, maa_run_resources_from_profile
 from maa_auto_panel.scheduler.models import TaskPolicy
 from maa_auto_panel.scheduler.policy import enabled_task_ids_from_config, retry_unfinished_task_ids, task_policies_from_config
-from maa_auto_panel.utils import dict_value, relative_path, resolve_existing_named_file, slugify, write_text_atomic
+from maa_auto_panel.utils import dict_value, resolve_existing_named_file, slugify, write_text_atomic
 
 
 logger = get_logger(__name__)
@@ -413,7 +413,7 @@ def _maa_cli_log_profile(diagnostics: Diagnostics) -> RunLogProfile:
 
 
 def _generated_config_dir(runtime: MaaRuntime, run_id: str) -> str:
-    return relative_path(runtime.generated_config_dir / run_id, runtime.repo_root)
+    return runtime.path_references.reference("runtime", runtime.generated_config_dir / run_id)
 
 
 def _retry_count(value: object) -> int:

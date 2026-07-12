@@ -100,6 +100,36 @@ export function DeviceSettingsPanel({
   );
 }
 
+export function ScrcpySettingsPanel({
+  settings,
+  onChange
+}: {
+  settings: Record<string, unknown>;
+  onChange: (path: string[], value: number) => void;
+}) {
+  return (
+    <SettingsPanel title="Scrcpy">
+      <div className="grid grid-cols-2 gap-2 max-sm:grid-cols-1">
+        <NumberField
+          label="视频码率（Mbps）"
+          value={optionalNumberAt(settings, ["framework", "scrcpy", "video_bit_rate_mbps"]) ?? 100}
+          min={1}
+          max={1000}
+          onChange={(value) => onChange(["framework", "scrcpy", "video_bit_rate_mbps"], value === "" ? 100 : value)}
+        />
+        <NumberField
+          label="最大帧率"
+          value={optionalNumberAt(settings, ["framework", "scrcpy", "max_fps"]) ?? 60}
+          min={1}
+          max={240}
+          onChange={(value) => onChange(["framework", "scrcpy", "max_fps"], value === "" ? 60 : value)}
+        />
+      </div>
+      <div className="text-xs leading-5 text-muted-foreground">所有页面共用；定时执行详情页只替换连接设备。</div>
+    </SettingsPanel>
+  );
+}
+
 function ValidationList({ validation }: { validation?: ConfigValidation }) {
   if (!validation || validation.valid) return null;
   return (

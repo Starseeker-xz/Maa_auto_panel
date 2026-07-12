@@ -1,7 +1,7 @@
 import { BellRing, MonitorCog, Palette } from "lucide-react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { NavLink } from "react-router-dom";
 
-import { SegmentedControl } from "@/components/SegmentedControl";
+import { cn } from "@/lib/utils";
 
 const ITEMS = [
   { path: "/settings", label: "基础设置", icon: MonitorCog },
@@ -10,16 +10,24 @@ const ITEMS = [
 ] as const;
 
 export function SettingsNavigation() {
-  const location = useLocation();
-  const navigate = useNavigate();
-  const current = ITEMS.some((item) => item.path === location.pathname) ? location.pathname : "/settings";
   return (
-    <nav aria-label="设置分类">
-      <SegmentedControl
-        value={current}
-        items={ITEMS.map((item) => ({ value: item.path, label: item.label, icon: <item.icon className="size-4" /> }))}
-        onChange={navigate}
-      />
+    <nav className="inline-flex w-fit max-w-full gap-1 overflow-x-auto rounded-xl border bg-muted p-1" aria-label="设置分类">
+      {ITEMS.map((item) => (
+        <NavLink
+          key={item.path}
+          to={item.path}
+          end
+          className={({ isActive }) =>
+            cn(
+              "inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-lg px-3 text-sm text-muted-foreground transition-all hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              isActive && "bg-background text-foreground shadow-sm"
+            )
+          }
+        >
+          <item.icon className="size-4" />
+          {item.label}
+        </NavLink>
+      ))}
     </nav>
   );
 }

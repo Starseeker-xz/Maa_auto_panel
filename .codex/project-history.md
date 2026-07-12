@@ -21,6 +21,8 @@
 
 ## Current architecture
 
+- Confirmed (`2026-07-12_0125-toolbar-scrcpy-notifications`): Toolbar 高度已收紧，设备工具与通知之间增加竖线；共享 `FocusDeleteButton` 使用 accent hover/focus 背景。通知 Sheet 打开时聚焦容器而非首条删除按钮，避免 Radix 自动聚焦导致无 hover 时误显示。独立项目 scrcpy-tool 拥有的通用 URL 协议草案位于 `docs/scrcpy-url-protocol.md`，入口为 `scrcpy-tool://launch/v1`；Maa Auto Panel 仅为调用方。
+- Confirmed (`2026-07-12_0125-toolbar-scrcpy-notifications`): Toolbar Scrcpy 入口已接通 `scrcpy-tool://launch/v1`。普通页面点击时即时读取 default profile 的连接地址；定时详情页由 SchedulePage 上送当前 draft profile 地址，因此未保存地址修改也生效。通用 Scrcpy 设置保存于 `framework.scrcpy`，默认视频码率 100 Mbps、最大帧率 60，并生成官方参数 `--video-bit-rate=<n>M`、`--max-fps=<n>`。
 - Confirmed (`2026-07-11_0203-separate-runtime-and-agent-doc`): 全局通知子系统位于 `notifications/`，固定五类 tag：runtime 缺失、runtime 更新、手动 MAA 完成、自动定时 MAA 完成、手动触发定时 MAA 完成。成功/失败使用 severity/status 区分，用户停止不通知；Toast 走独立 `/api/notifications/events` SSE，外部发送保留 `ExternalNotificationSender` protocol + 空实现。
 - Confirmed (`2026-07-11_0203-separate-runtime-and-agent-doc`): 通知策略独立保存于 `data/config/framework/notifications.toml`，每个 tag 可配置 `toast`/`external`。runtime 缺失在服务启动检查，更新可用复用 maintenance update-info 结果，MAA run 通知由 `GenericRunManager` 持久化终态后的 listener 统一触发。事件缓存有界且持续条件按组件集合去重。
 - Confirmed (`2026-07-11_0203-separate-runtime-and-agent-doc`): 前端 App 根挂载 `NotificationCenter`；Settings 的 panel 组件开始收敛到 `frontend/src/pages/settings/panels.tsx`，当前设备配置与通知配置已从页面编排中拆出。通知展示位置与离线语义以后续 `2026-07-11_1805-consolidate-audits` 结论为准。
@@ -36,6 +38,11 @@
 - Confirmed (`2026-07-10_0416-full-project-audit`): 当前“通用层”仍接收 `MaaRuntime`。应拆成 `FrameworkPaths`、`ProcessContext`、`MaaInstallation`，使 process/run manager/store/diagnostics 不再依赖 `maa.*`。
 - Confirmed (`2026-07-10_1752-audit-data-paths`): 已新增 `ApplicationPaths`、`FrameworkPaths`、`CachePaths`、`MaaInstallation`、`PathLayout`；`MaaRuntime` 是组合这些路径的 runtime aggregate。路径所有权已拆开，但 process/run manager/store/diagnostics 的类型依赖仍可在后续进一步收窄。
 - Confirmed (`2026-07-11_0203-separate-runtime-and-agent-doc`): `FrameworkPaths` 不再包含 runtime；新增 `MAA_AUTO_PANEL_RUNTIME_DIR`/`--runtime-dir`，`MaaInstallation` 从独立 runtime root 派生。容器对应 `/app/runtime` 和 `MAA_PANEL_RUNTIME_PATH` bind mount。本机已一次性迁移为 `runtime/maa`，systemd 恢复 active，API idle 与 `maa version` 验证通过。
+- Confirmed (`2026-07-11_2113-fix-persistent-paths`): 持久路径统一采用带逻辑根的字符串引用：`framework:...`、`runtime:...`、`downloads:...`。`PathReferenceResolver` 集中负责生成、重定位解析与路径逃逸校验；history/diagnostics/trash/MAA artifact/download manifest 不再依赖 repo root 或宿主绝对部署位置。项目未发布，不保留旧引用格式兼容层。
+- Confirmed (`2026-07-11_2105-audit-stream-no-newline`): 统一进程执行器已改为 non-blocking binary read + 每流 UTF-8 incremental decoder/有界分行。任意 bytes 会刷新静默计时，完整输出仍按旧逻辑行边界进入 diagnostics/可见日志/raw callback；partial-output timeout、stop escalation、跨 chunk UTF-8 与 CR/LF/EOF 分块测试通过。
+- Confirmed (`2026-07-12_0055-fix-retention-frontend-split`): run retention 已以 run ownership 闭环：终态释放 plan/callback，manager 仅保留 active 或最近终态 snapshot；run/retry 联合上限按整 run 淘汰，先原子移除索引再级联 history、diagnostics 与白名单 owned artifacts，未知/shared artifact 保留。手动删除同步 manager，active delete 返回 409。
+- Confirmed (`2026-07-12_0055-fix-retention-frontend-split`): 前端已按 route lazy 分离 Main/Schedule/Tools/Settings/Theme，并仅在选中 task item 时 lazy 加载 JSON Forms editor；共享 LazyBoundary 处理 fallback/chunk error。构筑入口 413.62 kB gzip 132.00 kB，editor 289.90 kB gzip 94.29 kB，各 route 1.58–27.37 kB，不再有 >500 kB warning。
+- Confirmed (`2026-07-12_0055-fix-retention-frontend-split`): ConfirmDialog 已迁移 Radix AlertDialog；设置分类为 NavLink，配置/定时同页切换为 Radix Tabs，旧 SegmentedControl 删除；三类列表的 rename 生命周期复用 `useInlineRename`，Toolbar 图标说明复用 Tooltip。浏览器 smoke 验证 route chunk、非编辑器首屏不加载 editor、Escape dialog 与方向键 Tabs。
 - Confirmed (`2026-07-10_2207-graceful-shutdown`): FastAPI lifespan 现在拥有 scheduler/WebServices 生命周期。SIGTERM 先结束 SSE，再停止 scheduler、关闭 coordinator、并行通知四类 manager；正常/强停共享 60s/15s absolute deadline，最后 flush diagnostics 和 join 非 daemon 线程。
 - Confirmed (`2026-07-10_2207-graceful-shutdown`): 所有外部 command 使用独立 POSIX session；stop/force-stop 分别向完整 process group 发送 SIGTERM/SIGKILL，测试确认 SIGTERM-ignoring descendant 会被清理。
 - Confirmed (`2026-07-10_0416-full-project-audit`): 自定义脚本当前只有 schedule restart hook；工具 registry 仅在 `ToolRunManager` 中硬编码 `game-update`。未来以本地可信 manifest + ActionSpec 扩展，不应先开放 Web 任意脚本上传。
@@ -46,10 +53,10 @@
 - Confirmed (`2026-07-10_0416-full-project-audit`): 服务以 root 身份监听 `0.0.0.0:8000` 是裸机测试方式；在可信内网单用户前提下，无 authentication scheme 不视为缺陷。容器仍应避免 privileged/Docker socket/host network，并用低成本专用 UID/capability 收缩宿主影响面。
 - Confirmed (`2026-07-10_0416-full-project-audit`): 上述 root/监听状态是裸机测试方式，不能原样判定为目标容器缺陷。容器实施时重新以 UID/capability/volume/published port 评估；TCP ADB 不需要 privileged、host network 或宿主 USB mount。
 - Confirmed (`2026-07-11_1805-consolidate-audits`): runtime 资源模型已支持 shared/exclusive claim。手动与定时 MAA run 通过统一 helper 声明共享 `integration-runtime:maa` + 独占 ADB device；core/resource/cli maintenance update 声明独占且不可抢占的 runtime lease。相同资源仅在至少一方 exclusive 时冲突，不会串行化不同设备上的 MAA run，也不会让高优先级 schedule 中途停止更新。
-- Confirmed (`2026-07-10_0416-full-project-audit`): `select()` 后调用 `TextIOWrapper.readline()` 会被无换行输出阻塞。实测 runtime kill=1s 的 partial-line child 运行 3.01s 后正常退出且 `timed_out=False`。必须改为 non-blocking byte read + incremental decode。
+- Confirmed (`2026-07-11_2105-audit-stream-no-newline`): 无换行 reader P0 已修复。修复前 runtime kill=1s 的 partial-line child 会运行 3.01s 后自然退出且未标记 timeout；修复后按阈值终止，并保持既有日志逻辑行分块。
 - Confirmed (`2026-07-10_2207-graceful-shutdown`): lifespan/shutdown/process-group P1 已修复。真实 systemd + SSE 验收为 586ms、`inactive/success`、`ExecMainStatus=0`；live unit `TimeoutStopSec=120`，服务随后恢复 active/idle。
 - Confirmed (`2026-07-11_1805-consolidate-audits`): 资源申请已纳入完整 run 生命周期。`start()` 先建档/接通日志与 SSE 并返回，worker 完成 on_start/before_run 后申请资源；拒绝/超时形成带 event 的 failed run 且不启动 command，同优先级等待以 live event + 持久化 `metadata.resource_wait` 报告。全局 `framework.run_resources.wait_timeout_seconds`（默认 300s）统一限制等待，stop/shutdown 可唤醒。retry 作为 attempt/log 容器，冲突会有 1 个 failed retry 但无实际进程执行。
-- Confirmed (`2026-07-10_0416-full-project-audit`): `GenericRunManager._runs/_plans` 不清理；run history index 有上限但 history JSON 不删除；长期运行会增长内存和磁盘。
+- Confirmed (`2026-07-12_0055-fix-retention-frontend-split`): manager 内存与 history retention P1 已修复；淘汰/手动删除以整 run ownership 单元级联，diagnostics orphan cleanup 会保护仍被 retained run 引用的路径。
 - Confirmed (`2026-07-10_0416-full-project-audit`): active retry 只在 seal 时持久化；崩溃恢复会丢失当前 retry 的结构化可见日志。建议节流 checkpoint。
 - Confirmed (`2026-07-10_0416-full-project-audit`): game updater 只校验 HTTP/Content-Length/versionCode，没有 APK hash、package identity 或 signing certificate 验证。
 
@@ -58,7 +65,7 @@
 - Confirmed (`2026-07-02_2144-manual-stop-delay`): MaaCore 冷 ADB server 路径曾出现约 60 秒 `adb devices` 延迟。保持本地 adb server、`kill_adb_on_exit=false` 可规避；详细复现仍保留为活跃会话。
 - Confirmed (`2026-06-30_2318-gpu-ocr-research`): 当时的 MaaCore build 只有 CPU ONNX Runtime provider。升级 MaaCore 后需重新验证 GPU OCR，旧会话已归档。
 - Confirmed (`2026-07-10_1752-audit-data-paths`): `.venv/bin/maa-auto-panel` shebang 已指向当前 `/root/Maa_auto_panel/.venv/bin/python3`，systemd 的 `uv run maa-auto-panel` 可重启；当前环境没有 Ruff executable/module，pytest 使用 `.venv/bin/python -m pytest`。
-- Confirmed (`2026-07-10_0416-full-project-audit`): 前端无自动测试；单 JS bundle 768.47 kB。应先补高风险 state/hook 测试，再做 route lazy loading。
+- Confirmed (`2026-07-12_0055-fix-retention-frontend-split`): 前端仍无正式自动测试套件；route/editor lazy 与组件语义已有一次性 Playwright smoke，但 SSE reconnect、editor managed metadata、schedule 状态和通知恢复仍应补正式测试。
 - Confirmed (`2026-07-10_0416-full-project-audit`): 当前 lock 中 `idna`、`lxml`、`requests`、`soupsieve`、`urllib3` 有 pip-audit 公告；多项实际调用面较低，但 urllib streaming download 更相关。刷新 lock 后需跑 game update smoke test。
 
 ## Verification baseline
@@ -72,6 +79,7 @@
 - Confirmed (`2026-07-10_0416-full-project-audit`): `.codex/conversations/` 只保留当前审计、当前命名状态和仍未解决的 ADB 延迟会话。其余 39 个完成/被覆盖会话统一归档到 `~/.codex/archived_sessions/maa-auto-panel/`。
 - Confirmed (`2026-07-10_0416-full-project-audit`): 架构/运行/路径/API 变化时检查 `README.md`、`docs/README.md`、`docs/maa-runtime.md`、`docs/architecture-direction.md` 和本文件。
 - Confirmed (`2026-07-11_0203-separate-runtime-and-agent-doc`): 路径布局区分四类所有权：`data_root` 只保存框架拥有的 config/state/history/debug；`runtime_root` 保存 integration 安装与自身 XDG 状态；downloads 是独立可重建 cache；ADB 客户端密钥使用独立 `adb-state` volume。
-- Confirmed (`2026-07-11_0203-separate-runtime-and-agent-doc`): `docs/AGENT_PROJECT_GUIDE.md` 是面向无上下文 agent 的中文高层交接，覆盖产品边界、技术栈、模块地图、骨干运行链路、状态分层和当前风险；执行规则仍以根 `AGENTS.md` 与 `.codex` 状态为准。
+- Confirmed (`2026-07-11_0203-separate-runtime-and-agent-doc`): `docs/BACKEND_AUDIT.md`、`docs/FRONTEND_AUDIT.md` 是审计专用文档，在进行审计时，应始终只对这两个文件进行修改，在定位已有问题时，可以一定程度上参考其内容，但不应完全信任，因为其大概率已一定程度上过时。
 - Confirmed (`2026-07-10_1752-audit-data-paths`): 本机目录已一次性调整到最终 `data/` 与 `cache/downloads/` 布局；服务已恢复 active。config API、历史详情、两个 APK cache path、maa-cli/MaaCore version 均验证通过。项目未发布，不保留迁移 CLI、layout version 或旧布局兼容逻辑。
+- Confirmed (`2026-07-11_2105-audit-stream-no-newline`): 本机 68 个 state/history/config/manifest JSON 已在停服后一次性原子改写为逻辑根引用，旧格式扫描为 0；备份位于本会话 scratch。systemd 已恢复 active，历史详情可读取 12 个结构化日志块和 3 个事件，两个 APK manifest 路径可解析。
 - Confirmed (`2026-07-10_1752-audit-data-paths`): 即使 `/api/runs/current` 为 idle，systemd stop 仍在 20 秒后 SIGKILL。journal 直接停在 Uvicorn `Waiting for connections to close`，很可能有 WebUI SSE/EventSource 长连接未及时结束；idle 只表示没有 MAA run，不代表没有 HTTP 长连接或后台线程。迁移在 unit 完全停止后才开始。

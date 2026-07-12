@@ -304,6 +304,7 @@ class GenericRunManager:
         with self._lock:
             if self._closing:
                 raise RuntimeError("Application is shutting down")
+            self._discard_terminal_runs_locked()
             current = self._runs.get(self._current_run_id or "")
             if current and current.status in {"running", "stopping"}:
                 raise RuntimeError(f"Run already active: {current.id}")
@@ -343,6 +344,20 @@ class GenericRunManager:
     def get(self, run_id: str) -> LiveRun | None:
         with self._lock:
             return self._runs.get(run_id)
+
+    def discard_terminal(self, run_id: str) -> None:
+        """Forget a deleted terminal snapshot without affecting active work."""
+        with self._lock:
+            state = self._runs.get(run_id)
+            if state is None:
+                return
+            if state.status not in TERMINAL_STATUSES:
+                raise RuntimeError(f"Run is still active: {run_id}")
+            self._runs.pop(run_id, None)
+            self._plans.pop(run_id, None)
+            if self._current_run_id == run_id:
+                self._current_run_id = None
+            self._notify_locked()
 
     def current_response(self, *, include_logs: bool = True) -> dict[str, object]:
         with self._lock:
@@ -868,7 +883,7 @@ class GenericRunManager:
                 artifacts=completion.artifacts,
             )
             self.store.enforce_retention()
-            self.diagnostics.enforce_retention()
+            self.diagnostics.enforce_retention(protected_paths=self.store.owned_paths())
             logger.info("generic run finished run_id=%s kind=%s status=%s return_code=%s", state.id, state.kind, completion.status, completion.return_code)
             if self.on_run_finished is not None:
                 try:
@@ -878,6 +893,11 @@ class GenericRunManager:
         finally:
             if should_persist:
                 self.coordinator.release(state.id)
+            # Plans contain domain callbacks and captured service objects. They are
+            # only needed while a run is mutable, so release them at terminal state.
+            with self._lock:
+                if state.status in TERMINAL_STATUSES:
+                    self._plans.pop(state.id, None)
 
     def _completion_from_decision(self, decision: RetryDecision, *, fallback_status: str) -> RunCompletion:
         return RunCompletion(
@@ -965,6 +985,15 @@ class GenericRunManager:
     def _notify_locked(self) -> None:
         self._version += 1
         self._condition.notify_all()
+
+    def _discard_terminal_runs_locked(self) -> None:
+        """Keep only active state plus the latest terminal snapshot until next run."""
+        terminal_ids = [run_id for run_id, run in self._runs.items() if run.status in TERMINAL_STATUSES]
+        for run_id in terminal_ids:
+            self._runs.pop(run_id, None)
+            self._plans.pop(run_id, None)
+        if self._current_run_id in terminal_ids:
+            self._current_run_id = None
 
 
 def _script_profile(plan: RunStartPlan, script: RunScriptSpec, hook: str) -> RunLogProfile:

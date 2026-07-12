@@ -16,6 +16,7 @@
 
 ## State and diagnostics
 
+- `2026-07-12_0055-fix-retention-frontend-split`: retention 必须以 run 作为 ownership 单元；索引应先原子移除，再删除可重建 orphan，避免崩溃后留下仍引用已删文件的记录。artifact 只能按显式角色白名单级联，不能看到本地路径就删除 unknown/shared/external artifact。
 - `2026-07-04_1047-audit-log-pipeline-audit`: 不要用有界日志列表长度当持久 cursor；裁剪后会错位。retry/history 使用独立持久结构或单调序号。
 - `2026-07-01_2153-manage-service-history`: 保持状态、结构化 history、外部诊断日志和 Python framework logging 分离；不要重新合成一个大而含糊的 history/log service。
 - `2026-07-10_0416-full-project-audit`: recent index retention 不等于 history retention。淘汰 index 时必须同步处理 history/artifacts；完成 run 后释放 manager plan/callback 引用。
@@ -25,6 +26,7 @@
 
 - `2026-07-11_1805-consolidate-audits`: 实现前端交互前先检查现有 shadcn/Radix/Sonner 通用组件；缺失时优先按项目 `components.json` 引入官方组件到 `components/ui`，不要手搓 Toast 生命周期、动画、Dialog/Drawer/Tabs 等基础设施。业务组件应主要组合通用 primitives，只保留领域状态与薄样式封装。
 - `2026-07-10_1752-audit-data-paths`: 项目尚未发布时不设计旧布局、旧 API 或旧数据的前向/向后兼容，不添加 migration CLI、layout version、兼容读取或过渡 facade。直接修改为最终结构，并对本机开发数据做一次性调整；只有用户明确提出发布兼容需求后才增加兼容层。
+- `2026-07-12_0216-fix-scrcpy-url`: 需要协议校验的 request_id 必须始终生成规范 UUID v4；`crypto.randomUUID()` 的降级路径也要输出 canonical UUID 字符串，不能用时间戳+随机片段替代。
 - `2026-07-10_0004-complete-rename-maa-auto-panel`: 重命名不能无上下文全局替换 `maa_auto_panel`；包名、metadata namespace、placeholder、schema key、运行目录必须分别核对。
 - `2026-07-04_1115-review-cleanup`: 删除 re-export 时搜索所有 helper/包级间接导入，并把调用方改到真实定义模块。
 - `2026-07-02_1933-config-sync-ui-schema`: 删除 task editor schema 字段时同步模板 general/advanced keys，避免悬挂 JSON Forms 控件。

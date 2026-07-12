@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import gc
 import os
 import sys
 import time
+import weakref
 
 from maa_auto_panel.diagnostics import Diagnostics
 from maa_auto_panel.maa.runtime import MaaRuntime
@@ -232,6 +234,47 @@ def test_stopping_resource_wait_finishes_without_starting_command(tmp_path) -> N
         assert not marker.exists()
     finally:
         coordinator.release("blocker")
+
+
+def test_terminal_run_releases_plan_callbacks_and_bounds_live_state(tmp_path) -> None:
+    runtime = MaaRuntime(tmp_path)
+    manager = GenericRunManager(runtime, RunStateStore(runtime), Diagnostics(runtime), RunCoordinator())
+
+    class CallbackOwner:
+        def on_start(self, _attempt: RunAttempt) -> None:
+            return None
+
+    owner = CallbackOwner()
+    owner_ref = weakref.ref(owner)
+    plan = RunStartPlan(
+        kind="tool",
+        title="first",
+        command=CommandSpec([sys.executable, "-c", "pass"], env=os.environ.copy()),
+        callbacks=RunCallbacks(on_start=owner.on_start),
+    )
+    first = manager.start(plan, run_id="first")
+    assert first.thread is not None
+    first.thread.join(timeout=2)
+    assert first.status == "succeeded"
+    assert "first" not in manager._plans
+
+    del plan
+    del owner
+    gc.collect()
+    assert owner_ref() is None
+
+    second = manager.start(
+        RunStartPlan(
+            kind="tool",
+            title="second",
+            command=CommandSpec([sys.executable, "-c", "pass"], env=os.environ.copy()),
+        ),
+        run_id="second",
+    )
+    assert second.thread is not None
+    second.thread.join(timeout=2)
+    assert set(manager._runs) == {"second"}
+    assert manager.current_response()["run"]["id"] == "second"  # type: ignore[index]
 
 
 def _wait_until(predicate, *, timeout: float = 2) -> bool:

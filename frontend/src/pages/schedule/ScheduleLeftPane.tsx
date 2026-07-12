@@ -3,6 +3,7 @@ import React from "react";
 
 import { Button } from "@/components/ui/button";
 import { FocusDeleteButton } from "@/components/FocusDeleteButton";
+import { useInlineRename } from "@/components/useInlineRename";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -32,10 +33,7 @@ export function ScheduleLeftPane({
   onTaskConfigChange: (taskConfig: string) => void;
   onOpenTaskConfig: () => void;
 }) {
-  const [renamingEntryId, setRenamingEntryId] = React.useState("");
-  const [renameDraft, setRenameDraft] = React.useState("");
   const [entryPaneHeight, setEntryPaneHeight] = React.useState<number | null>(null);
-  const skipRenameBlurCommit = React.useRef(false);
   const cardRef = React.useRef<HTMLDivElement>(null);
   const entryPaneRef = React.useRef<HTMLElement>(null);
 
@@ -45,29 +43,7 @@ export function ScheduleLeftPane({
       entries: schedule.entries.map((entry) => (entry.id === entryId ? { ...entry, ...patch } : entry))
     });
   }
-
-  function startEntryRename(entry: ScheduleEntry) {
-    skipRenameBlurCommit.current = false;
-    setRenamingEntryId(entry.id);
-    setRenameDraft(entry.name);
-  }
-
-  function commitEntryRename() {
-    if (skipRenameBlurCommit.current) {
-      skipRenameBlurCommit.current = false;
-      return;
-    }
-    if (!renamingEntryId) return;
-    updateEntry(renamingEntryId, { name: renameDraft.trim() || "未命名时间点" });
-    setRenamingEntryId("");
-    setRenameDraft("");
-  }
-
-  function cancelEntryRename() {
-    skipRenameBlurCommit.current = true;
-    setRenamingEntryId("");
-    setRenameDraft("");
-  }
+  const rename = useInlineRename<string>((entryId, draft) => updateEntry(entryId, { name: draft.trim() || "未命名时间点" }));
 
   function toggleTask(taskId: string, enabled: boolean) {
     if (!selectedEntry) return;
@@ -203,17 +179,17 @@ export function ScheduleLeftPane({
               >
                 <div className="grid grid-cols-[20px_minmax(0,1fr)_52px] items-center gap-1">
                   <Checkbox data-entry-control checked={entry.enabled} aria-label={`${entry.name} 启用`} onCheckedChange={(value) => updateEntry(entry.id, { enabled: value === true })} />
-                  {renamingEntryId === entry.id ? (
+                  {rename.renamingKey === entry.id ? (
                     <Input
                       data-entry-control
                       className="h-7 min-w-0 px-2"
-                      value={renameDraft}
-                      onChange={(event) => setRenameDraft(event.target.value)}
-                      onBlur={commitEntryRename}
+                      value={rename.renameDraft}
+                      onChange={(event) => rename.setRenameDraft(event.target.value)}
+                      onBlur={rename.commitRename}
                       onClick={(event) => event.stopPropagation()}
                       onKeyDown={(event) => {
-                        if (event.key === "Enter") commitEntryRename();
-                        if (event.key === "Escape") cancelEntryRename();
+                        if (event.key === "Enter") rename.commitRename();
+                        if (event.key === "Escape") rename.cancelRename();
                       }}
                       autoFocus
                     />
@@ -230,7 +206,7 @@ export function ScheduleLeftPane({
                       onClick={(event) => {
                         event.preventDefault();
                         event.stopPropagation();
-                        startEntryRename(entry);
+                        rename.startRename(entry.id, entry.name);
                       }}
                     >
                       <PencilLine className="size-3.5" />
@@ -242,7 +218,7 @@ export function ScheduleLeftPane({
                       onClick={(event) => {
                         event.preventDefault();
                         event.stopPropagation();
-                        if (renamingEntryId === entry.id) cancelEntryRename();
+                        if (rename.renamingKey === entry.id) rename.cancelRename();
                         deleteEntry(entry.id);
                       }}
                     />

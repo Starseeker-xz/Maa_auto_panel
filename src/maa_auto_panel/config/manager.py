@@ -48,7 +48,7 @@ class ConfigManager:
     def __init__(self, runtime: MaaRuntime) -> None:
         self.runtime = runtime
         self.schema_validator = ConfigSchemaValidator(runtime)
-        self.trash = TrashManager(runtime.config_dir / ".trash", repo_root=runtime.data_root)
+        self.trash = TrashManager(runtime.config_dir / ".trash", logical_root=runtime.data_root)
 
     def ensure_dirs(self) -> None:
         for dirname in CONFIG_KINDS.values():

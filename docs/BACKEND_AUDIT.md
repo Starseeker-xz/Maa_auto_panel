@@ -38,11 +38,11 @@
 
 冲突只在 kind、identifier 相同且至少一方为 exclusive 时成立，因此不同设备上的 MAA run 不会因共享 runtime 被串行化。手动与定时运行通过同一 helper 组装 claims，maintenance 的 core/resource/cli update 均声明独占 runtime，并标记为不可抢占，避免高优先级 schedule 中途停止更新。协调器、manager、shutdown 相关测试通过。
 
-### P0：流读取可能被无换行输出阻塞
+### 已解决：无换行输出阻塞流读取
 
-历史复现显示，`select()` 后调用文本 `readline()` 仍可能等待换行或 EOF，使 timeout、stop、force-stop 和 tick 检查失效。健康实现应使用 non-blocking byte read、增量解码和自行分行，并覆盖 partial line、超长无换行输出及强停测试。实施前须确认进程执行器是否已改造。
+`2026-07-11` 已将统一进程执行器从 `TextIOWrapper.readline()` 改为 non-blocking binary fd + 有界 `os.read`，stdout/stderr 分别使用 UTF-8 incremental decoder 和独立分行缓冲。收到任意 bytes 即刷新静默计时，timeout、stop escalation、force-stop 与 tick 不再等待换行；完整日志仍按原有 `\n`/`\r`/`\r\n` 或 EOF partial 边界提交，保持 diagnostics、可见日志、raw-line callback 与合并日志的旧分块行为。异常超长无换行单行在 1 MiB 处有界切段，避免内存无界增长。
 
-2026-07-11 的 Core 更新现场再次观察到约 67 秒内没有进程输出，结束前仅收到 MaaResource git fetch；raw stdout/stderr 没有 Core 安装文本，但正确 runtime 环境确认 MaaCore 已从 6.14.0 更新到 6.14.1，用户 smoke 任务可运行。因此“无 Core 可见日志”不等于更新失败，仍需在修复 byte reader 时区分上游 batch 静默/缓冲与本地读取阻塞。
+回归覆盖 partial-output runtime timeout、忽略 SIGTERM 后的 stop→SIGKILL、跨 read UTF-8、CR/LF 边界和 EOF partial；修复前 1 秒 timeout 会被拖到 child 3 秒自然退出且 `timed_out=False`，修复后按阈值终止。历史 Core 更新约 67 秒无可见日志仍只能说明上游静默/缓冲，不能反推本地 reader 阻塞或更新失败。
 
 ### 已解决：资源申请纳入完整运行生命周期
 
@@ -57,9 +57,13 @@
 
 当前 retry 仍兼作 attempt 生命周期与可见日志容器，因此资源冲突会留下一个 failed retry 记录，但其中没有实际 command/process 执行。这避免新增第二套 run-level 日志和 SSE 协议。
 
-### P1：运行内存与历史保留策略未闭环
+### 已解决：运行内存与历史保留策略闭环
 
-需核对完成 run 后 `_plans`、callbacks 和内存快照是否释放，以及 recent index 淘汰时是否同步处理 history、artifacts 与 diagnostics。保留策略必须同时约束内存和磁盘，不得只有索引上限。
+`2026-07-12` 已将运行记录作为统一 retention 单元：终态立即释放 `RunStartPlan` 及 callbacks，manager 只保留当前 active 或最近一次终态 live snapshot；开始下一次运行时丢弃旧 snapshot，手动删除也同步清除对应 manager snapshot。
+
+持久化不再分别截断 run/retry index。`RunStateStore` 按最新 run 顺序同时应用 run/retry 上限，active run 永不淘汰，某个终态 run 淘汰时一次删除其 run/retry index、history JSON、事件与 stdout/stderr diagnostics，以及明确声明为 run-owned 的 generated config 和 MaaCore capture。artifact ownership 采用角色白名单，未知、共享或外部 artifact 不级联删除。diagnostics 独立清理只处理未被现存 run 引用的 orphan，避免按年龄/分类数量提前删除仍被历史引用的数据。
+
+回归覆盖 callbacks 可被 GC、连续运行时 live state 有界、retry 上限触发的整 run 淘汰、自动与手动级联、保留 run 的 diagnostics 保护，以及未知共享 artifact 保留。
 
 ### P1：active retry 的崩溃恢复粒度不足
 
@@ -79,9 +83,9 @@
 
 不要为了形式立即引入动态插件系统。先用内部 `ActionSpec`/`IntegrationSpec` registry 验证第二个 integration。
 
-### P2：持久路径应表达逻辑根而非部署位置
+### 已解决：持久路径表达逻辑根而非部署位置
 
-历史、diagnostics、trash、artifact 和 download manifest 不应保存宿主绝对路径或依赖 repo root 的字符串。优先保存 `{root, path}` 或明确的 root-relative reference，由单一 resolver 做路径逃逸校验。修改相关代码前应抽样现有数据，避免只改新写入而破坏旧读取；项目未发布时只需对本机数据做一次性调整，不增加通用迁移框架。
+`2026-07-11` 抽样确认旧数据虽多为相对字符串，但没有声明所属根；MAA generated-config artifact 还以 `repo_root` 求相对路径，data/runtime/cache 使用外置挂载时会回退成宿主绝对路径。现已统一使用可解析的 `framework:...`、`runtime:...` 与 `downloads:...` 引用：history index、diagnostics、trash、MAA artifact 和 download manifest 均不再依赖 repo/deploy 路径。单一 `PathReferenceResolver` 负责编码、逻辑根校验、重定位解析和 `..`/绝对路径逃逸拒绝。项目未发布，不保留旧格式兼容读取；本机旧 JSON 在服务切换新版时做一次性原子改写。
 
 ### P2：解析失败不应静默等价为空状态
 

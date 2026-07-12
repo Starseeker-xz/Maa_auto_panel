@@ -6,7 +6,7 @@ from pathlib import Path
 
 from maa_auto_panel.diagnostics import Diagnostics, LogRetentionPolicy
 from maa_auto_panel.maa.runtime import MaaRuntime
-from maa_auto_panel.run_manager.store import RunStateStore
+from maa_auto_panel.run_manager.store import RunStateStore, StateRetentionPolicy
 from maa_auto_panel.scheduler.state import SchedulerStateStore
 
 
@@ -47,7 +47,7 @@ def test_run_state_store_writes_readable_state_outside_debug(tmp_path: Path) -> 
         ended_at="2026-07-01T04:01:00",
         return_code=0,
         metadata={"task_ids": ["startup"], "task_results": [{"task_id": "startup", "status": "succeeded"}]},
-        artifacts={"generated_config_dir": "runtime/maa/generated-configs/schedule-run-1"},
+        artifacts={"generated_config_dir": "runtime:maa/generated-configs/schedule-run-1"},
         log_entries=[{"type": "block", "id": "log-1", "source": "framework:event", "kind": "event", "messages": [{"text": "开始运行"}], "lines": ["开始运行"]}],
         log_files=log_files,
     )
@@ -63,14 +63,14 @@ def test_run_state_store_writes_readable_state_outside_debug(tmp_path: Path) -> 
     assert run.status == "succeeded"
     assert run.metadata["schedule_id"] == "daily"
     assert run.log_files == {
-        "stdout": "debug/framework/external/maa-cli/run-1.stdout.log",
-        "stderr": "debug/framework/external/maa-cli/run-1.stderr.log",
+        "stdout": "framework:debug/framework/external/maa-cli/run-1.stdout.log",
+        "stderr": "framework:debug/framework/external/maa-cli/run-1.stderr.log",
     }
-    assert run.event_log_file == "debug/framework/events/run-1.jsonl"
+    assert run.event_log_file == "framework:debug/framework/events/run-1.jsonl"
     assert store.retries(run_id)[0]["log_entries"][0]["kind"] == "event"
     assert store.retries(run_id)[0]["metadata"]["task_results"] == [{"task_id": "startup", "status": "succeeded"}]
-    assert store.retries(run_id)[0]["artifacts"]["generated_config_dir"] == "runtime/maa/generated-configs/schedule-run-1"
-    assert store.retries(run_id)[0]["log_entries_file"] == "history/framework/runs/schedules/daily/run-1.json"
+    assert store.retries(run_id)[0]["artifacts"]["generated_config_dir"] == "runtime:maa/generated-configs/schedule-run-1"
+    assert store.retries(run_id)[0]["log_entries_file"] == "framework:history/framework/runs/schedules/daily/run-1.json"
 
     recent_runs = (tmp_path / "data/state/framework/run-history/recent-run-records.json").read_text(encoding="utf-8")
     retries = (tmp_path / "data/state/framework/run-history/run-retries.json").read_text(encoding="utf-8")
@@ -132,8 +132,8 @@ def test_diagnostics_writes_framework_and_external_logs(tmp_path: Path) -> None:
     diagnostics.append_tool_output("tool-1", "stdout", "tool stdout\n")
     diagnostics.append_tool_output("tool-1", "stderr", "tool stderr\n")
     assert tool_log_files == {
-        "stdout": "debug/framework/external/tools/tool-1.stdout.log",
-        "stderr": "debug/framework/external/tools/tool-1.stderr.log",
+        "stdout": "framework:debug/framework/external/tools/tool-1.stdout.log",
+        "stderr": "framework:debug/framework/external/tools/tool-1.stderr.log",
     }
     assert (tmp_path / "data/debug/framework/external/tools/tool-1.stdout.log").read_text(encoding="utf-8") == "tool stdout\n"
     assert (tmp_path / "data/debug/framework/external/tools/tool-1.stderr.log").read_text(encoding="utf-8") == "tool stderr\n"
@@ -155,9 +155,9 @@ def test_run_state_store_records_single_attempt_for_generic_runs(tmp_path: Path)
         ended_at="2026-07-04T01:01:00",
         return_code=1,
         metadata={"task_results": [{"type": "task", "name": "Mall", "status": "unknown"}]},
-        artifacts={"generated_config_dir": "runtime/maa/generated-configs/manual-1"},
+        artifacts={"generated_config_dir": "runtime:maa/generated-configs/manual-1"},
         log_entries=[{"type": "block", "id": "log-1", "source": "maa-cli:stdout", "kind": "summary", "messages": [], "lines": ["Summary"]}],
-        log_files={"stdout": "debug/framework/external/maa-cli/manual-1.stdout.log"},
+        log_files={"stdout": "framework:debug/framework/external/maa-cli/manual-1.stdout.log"},
     )
     store.finish_run(
         "manual-1",
@@ -165,20 +165,20 @@ def test_run_state_store_records_single_attempt_for_generic_runs(tmp_path: Path)
         return_code=1,
         retry_count=1,
         retry_group_count=1,
-        metadata={"summary": {"generated_config_dir": "runtime/maa/generated-configs/manual-1"}},
+        metadata={"summary": {"generated_config_dir": "runtime:maa/generated-configs/manual-1"}},
     )
 
     retry = store.retries("manual-1")[0]
     assert retry["retry_index"] == 1
     assert retry["retry_group"] == 1
     assert retry["log_entries"][0]["kind"] == "summary"
-    assert retry["log_entries_file"] == "history/framework/runs/manual/manual-1.json"
+    assert retry["log_entries_file"] == "framework:history/framework/runs/manual/manual-1.json"
     history_path = tmp_path / "data/history/framework/runs/manual/manual-1.json"
     assert history_path.is_file()
     history = json.loads(history_path.read_text(encoding="utf-8"))
     assert history["run"]["status"] == "stopped"
-    assert history["run"]["metadata"]["summary"] == {"generated_config_dir": "runtime/maa/generated-configs/manual-1"}
-    assert store.run("manual-1").metadata["summary"] == {"generated_config_dir": "runtime/maa/generated-configs/manual-1"}  # type: ignore[union-attr]
+    assert history["run"]["metadata"]["summary"] == {"generated_config_dir": "runtime:maa/generated-configs/manual-1"}
+    assert store.run("manual-1").metadata["summary"] == {"generated_config_dir": "runtime:maa/generated-configs/manual-1"}  # type: ignore[union-attr]
 
 
 def test_diagnostics_retention_prunes_debug_artifacts(tmp_path: Path) -> None:
@@ -235,3 +235,105 @@ def test_diagnostics_retention_prunes_debug_artifacts(tmp_path: Path) -> None:
     assert new_legacy.exists()
     assert not old_debug.exists()
     assert new_debug.exists()
+
+
+def test_run_aware_retention_cascades_only_owned_run_data(tmp_path: Path) -> None:
+    runtime = MaaRuntime(tmp_path)
+    store = RunStateStore(runtime, StateRetentionPolicy(max_run_records=10, max_retry_records=1))
+    diagnostics = Diagnostics(runtime)
+
+    def add_run(run_id: str, generated_name: str) -> tuple[Path, Path, Path]:
+        event_ref = diagnostics.event_log_file(run_id)
+        log_refs = diagnostics.maa_cli_log_files(run_id)
+        diagnostics.append_run_event(run_id, "manual", "framework", "event")
+        diagnostics.append_maa_cli_output(run_id, "stdout", "output")
+        generated = runtime.generated_config_dir / generated_name
+        generated.mkdir(parents=True)
+        (generated / "task.json").write_text("{}", encoding="utf-8")
+        shared = tmp_path / f"{run_id}-shared.txt"
+        shared.write_text("shared", encoding="utf-8")
+        store.create_run(
+            run_id=run_id,
+            kind="manual",
+            title=run_id,
+            event_log_file=event_ref,
+            log_files=log_refs,
+            artifacts={
+                "generated_config_dir": runtime.path_references.reference("runtime", generated),
+                "shared_report": str(shared),
+            },
+            history_scope=("manual",),
+        )
+        store.add_retry(
+            retry_id=f"{run_id}-1",
+            run_id=run_id,
+            retry_index=1,
+            retry_group=1,
+            status="succeeded",
+            started_at="2026-01-01T00:00:00Z",
+            updated_at="2026-01-01T00:00:01Z",
+            ended_at="2026-01-01T00:00:01Z",
+            return_code=0,
+            metadata={},
+            artifacts={},
+            log_entries=[],
+            log_files=log_refs,
+        )
+        store.finish_run(run_id, status="succeeded", retry_count=1)
+        return runtime.path_references.resolve(event_ref), runtime.path_references.resolve(log_refs["stdout"]), shared
+
+    old_event, old_log, old_shared = add_run("old-run", "old-run")
+    old_history = runtime.run_history_dir / "manual" / "old-run.json"
+    add_run("new-run", "new-run")
+
+    deleted = store.enforce_retention()
+    orphan = runtime.framework_event_log_dir / "orphan.jsonl"
+    orphan.write_text("orphan", encoding="utf-8")
+    diagnostics.enforce_retention(protected_paths=store.owned_paths())
+
+    assert [item["id"] for item in deleted] == ["old-run"]
+    assert store.run("old-run") is None
+    assert store.run("new-run") is not None
+    assert not old_event.exists()
+    assert not old_log.exists()
+    assert not old_history.exists()
+    assert not (runtime.generated_config_dir / "old-run").exists()
+    assert old_shared.exists()
+    assert not orphan.exists()
+    assert runtime.path_references.resolve(diagnostics.event_log_file("new-run")).exists()
+    assert [retry["id"] for retry in store.retries("new-run")] == ["new-run-1"]
+
+
+def test_manual_run_delete_cascades_diagnostics_history_and_owned_artifacts(tmp_path: Path) -> None:
+    runtime = MaaRuntime(tmp_path)
+    store = RunStateStore(runtime)
+    diagnostics = Diagnostics(runtime)
+    event_ref = diagnostics.event_log_file("delete-me")
+    log_refs = diagnostics.tool_log_files("delete-me")
+    diagnostics.append_run_event("delete-me", "tool", "framework", "event")
+    diagnostics.append_tool_output("delete-me", "stderr", "failure")
+    generated = runtime.generated_config_dir / "delete-me"
+    generated.mkdir(parents=True)
+    store.create_run(
+        run_id="delete-me",
+        kind="tool",
+        title="delete-me",
+        event_log_file=event_ref,
+        log_files=log_refs,
+        artifacts={"generated_config_dir": runtime.path_references.reference("runtime", generated)},
+        history_scope=("tools",),
+    )
+    store.add_retry(
+        retry_id="delete-me-1", run_id="delete-me", retry_index=1, retry_group=1,
+        status="failed", started_at="a", updated_at="b", ended_at="b", return_code=1,
+        metadata={}, artifacts={}, log_entries=[], log_files=log_refs,
+    )
+    store.finish_run("delete-me", status="failed", retry_count=1)
+
+    result = store.delete_run("delete-me")
+
+    assert result["history_deleted"] is True
+    assert not runtime.path_references.resolve(event_ref).exists()
+    assert not runtime.path_references.resolve(log_refs["stderr"]).exists()
+    assert not generated.exists()
+    assert store.retries("delete-me") == []

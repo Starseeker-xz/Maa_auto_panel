@@ -30,16 +30,13 @@
 
 ## 活跃问题
 
-### P1：系统性检查通用组件复用
+### 已解决：通用组件复用边界
 
-当前仍需对前端做一次组件层审计：逐项检查 Toast、Dialog/Confirm、Drawer/Sheet、Tabs/segmented control、Tooltip、Select、表单输入、ScrollArea、列表 focus actions 等是否能由 shadcn/Radix/Sonner 通用组件实现。原则：
+`2026-07-12` 已按基础设施语义完成收敛：手写 `ConfirmDialog` 保留领域 API，但内部改用 Radix/shadcn AlertDialog，获得 Portal、modal focus trap、Escape、焦点恢复和背景隔离；busy 时禁止关闭。设置分类不再伪装 tab，改为真实 `NavLink` navigation；配置编辑器与定时详情改用 Radix Tabs，具备 roving tabindex、方向键与 tabpanel 关联，旧 `SegmentedControl` 已删除。
 
-- 先查 `components/ui` 与 shadcn registry，再决定新增业务组件。
-- 缺少基础组件时按 `components.json` 引入官方实现，避免复制一套生命周期、动画、focus/aria 和 portal 逻辑。
-- 业务组件只组合 primitives 并承载领域状态；相同视觉/交互不得散落页面内重复实现。
-- 迁移一次聚焦一个组件边界并回归高风险页面，避免无界视觉重写。
+任务子项、定时时间点与 primitive array 的 inline rename 生命周期统一到无 UI 的 `useInlineRename`，共享 Enter/blur 提交、Escape 取消及 blur 防重复提交；领域列表仍各自拥有选择、字段、删除与排序，避免形成覆盖所有领域的巨型 row component。任务与 array 的原生拖拽仍缺完整键盘排序；若后续补可访问排序，应集中选择成熟 sortable primitive，再统一迁移，不能继续堆按键分支。
 
-`2026-07-11` 通知 Toast 已从手写 DOM/计时/动画改为 Sonner，通知抽屉改为 shadcn Sheet；segmented control 与 focus-delete 已收敛为共享组件，并迁移设置、任务编辑、定时页及多个列表操作。仍需继续盘点现有 ConfirmDialog 和其他页面内自制交互。
+App Toolbar 的原生 `title` 已改为 Tooltip + `aria-label`，包括 disabled 预留按钮。`FormFields`、`ScrollArea`、LogPane 原生 overflow、Sonner、Sheet、Select 和 Checkbox 等现有边界继续保留，不增加无领域价值的 wrapper。侧栏 schedule 子项和 Tool list 虽仍有领域内按钮样式，但数量少且行为不同，目前不值得抽象。
 
 ### P1：缺少自动化测试
 
@@ -52,9 +49,11 @@
 
 EventSource 页面测试不要等待 `networkidle`；使用 `domcontentloaded` 和目标 DOM/状态断言。
 
-### P1：单 bundle 可能过大
+### 已解决：页面与编辑器 bundle 分块
 
-旧基线曾出现约 768 kB 的单 JS bundle，但该数字不可继续当作当前事实。下一次相关修改应重新构筑测量。若仍有明显 warning，优先按 route/page 做 lazy loading，并检查 schema editor、图表或大型组件库是否被首屏静态引入。
+`2026-07-12` 已建立两级动态边界：Main、Schedule、Tools、Settings、Theme 五类页面由 `App` 按 route lazy load，App shell、Sidebar、NotificationCenter 和主题初始化留在入口；Main 仅在选中 task item 时 lazy load `ConfigEditorPane`，因此 JSON Forms、vanilla renderers、PrimitiveArrayEditor 和七份 schema 不再进入普通 Main/Settings/Tools 首屏。共享 `LazyBoundary` 提供稳定尺寸 fallback、按 route/item reset 和 chunk 失败后整页重试，不会让整个 App 白屏。
+
+实施前单 JS 为 830.30 kB（gzip 260.46 kB）；实施后入口为 413.34 kB（gzip 131.93 kB），ConfigEditorPane 为 289.90 kB（gzip 94.30 kB），各 route chunk 为 1.58–27.37 kB。当前最大 chunk 均低于 Vite 500 kB warning，不配置脆弱的 manualChunks。七份 schema 继续留在 editor chunk：现有 editor 已形成清晰隔离，再按 task type lazy 只会增加异步竞态和缓存状态，缺乏足够收益证据。
 
 ### P1：页面组件职责可能继续膨胀
 

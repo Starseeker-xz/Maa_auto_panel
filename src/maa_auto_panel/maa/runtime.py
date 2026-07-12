@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 
 from maa_auto_panel.paths import PathLayout
+from maa_auto_panel.storage.path_references import PathReferenceResolver
 
 
 class MaaRuntime:
@@ -22,6 +23,13 @@ class MaaRuntime:
             data_root=data_root,
             runtime_root=runtime_root,
             cache_root=cache_root,
+        )
+        self.path_references = PathReferenceResolver(
+            {
+                "framework": self.layout.framework.root,
+                "runtime": self.layout.maa.root.parent,
+                "cache": self.layout.cache.root,
+            }
         )
 
     @property

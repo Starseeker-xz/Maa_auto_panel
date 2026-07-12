@@ -30,6 +30,10 @@ DEFAULT_FRAMEWORK_SETTINGS: dict[str, Any] = {
         "run_resources": {
             "wait_timeout_seconds": 300,
         },
+        "scrcpy": {
+            "video_bit_rate_mbps": 100,
+            "max_fps": 60,
+        },
         "run_timeouts": {
             "no_output_warning_seconds": 1800,
             "no_output_kill_seconds": 0,

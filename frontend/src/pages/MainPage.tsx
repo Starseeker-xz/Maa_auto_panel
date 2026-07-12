@@ -3,6 +3,8 @@ import { useNavigate, useParams } from "react-router-dom";
 
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { DirtyActions } from "@/components/DirtyActions";
+import { LazyBoundary, LazyFallback } from "@/components/LazyBoundary";
+import { Card } from "@/components/ui/card";
 import { currentRunEventsUrl, deleteConfig, forceStopRun, getCurrentRun, listConfigs, readTaskConfig, saveTaskConfig, startRun, stopRun } from "@/lib/api";
 import { applyRunStateEvent, runEventsUrl } from "@/lib/runStream";
 import { createTaskItem } from "@/lib/taskItemDefaults";
@@ -19,9 +21,12 @@ import {
   withTaskItemIndexes
 } from "@/lib/taskWorkspace";
 import type { ConfigFile, ConfigResponse, ConfigsResponse, RunState, TaskItem } from "@/lib/types";
-import { ConfigEditorPane } from "@/pages/main/ConfigEditorPane";
 import { LogPane } from "@/pages/main/LogPane";
 import { TaskListPane } from "@/pages/main/TaskListPane";
+
+const ConfigEditorPane = React.lazy(() =>
+  import("@/pages/main/ConfigEditorPane").then((module) => ({ default: module.ConfigEditorPane }))
+);
 
 type TaskConfigDraft = {
   file: ConfigFile;
@@ -390,12 +395,27 @@ export function MainPage() {
           window.localStorage.setItem(MAIN_RETRY_COUNT_KEY, String(value));
         }}
       />
-      <ConfigEditorPane
-        taskConfig={taskConfig}
-        selectedTaskItem={selectedTaskItem}
-        validation={currentConfig?.validation}
-        onTaskItemUpdate={handleTaskItemUpdate}
-      />
+      {selectedTaskItem ? (
+        <LazyBoundary
+          resetKey={selectedTaskItem.id}
+          fallback={<LazyFallback className="h-full min-h-0" label="正在加载配置编辑器..." />}
+          className="h-full min-h-0"
+        >
+          <ConfigEditorPane
+            taskConfig={taskConfig}
+            selectedTaskItem={selectedTaskItem}
+            validation={currentConfig?.validation}
+            onTaskItemUpdate={handleTaskItemUpdate}
+          />
+        </LazyBoundary>
+      ) : (
+        <Card className="grid h-full min-h-0 place-items-center gap-3 p-3">
+          <div className="grid gap-1 text-center">
+            <div className="font-semibold">{taskConfig || "未选择任务配置"}</div>
+            <div className="text-sm text-muted-foreground">从左侧选择一个子任务进入配置编辑</div>
+          </div>
+        </Card>
+      )}
       <LogPane run={run} error={error} />
       <DirtyActions
         dirty={Boolean(currentDraft)}

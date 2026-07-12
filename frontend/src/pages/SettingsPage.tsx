@@ -14,7 +14,7 @@ import { formatDateTime } from "@/lib/time";
 import type { ConfigValidation, MaintenanceActionState, SaveSettingsPayload, SettingsResponse, UpdateInfoResponse } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { LogPane } from "@/pages/main/LogPane";
-import { DeviceSettingsPanel, NotificationSettingsPanel, SettingsPanel } from "@/pages/settings/panels";
+import { DeviceSettingsPanel, NotificationSettingsPanel, ScrcpySettingsPanel, SettingsPanel } from "@/pages/settings/panels";
 import { SettingsNavigation } from "@/pages/settings/SettingsNavigation";
 
 type SettingsDraft = SaveSettingsPayload;
@@ -152,8 +152,21 @@ export function SettingsPage() {
       setDraft((current) => {
         if (!current) return current;
         return section === "basic"
-          ? { ...current, profile: cloneRecord(savedDraft.profile), maa_cli: cloneRecord(savedDraft.maa_cli) }
-          : { ...current, framework: cloneRecord(savedDraft.framework), notifications: cloneNotifications(savedDraft.notifications) };
+          ? {
+              ...current,
+              framework: setNestedValue(current.framework, ["framework", "scrcpy"], cloneValue(valueAt(savedDraft.framework, ["framework", "scrcpy"]))),
+              profile: cloneRecord(savedDraft.profile),
+              maa_cli: cloneRecord(savedDraft.maa_cli)
+            }
+          : {
+              ...current,
+              framework: setNestedValue(
+                cloneRecord(savedDraft.framework),
+                ["framework", "scrcpy"],
+                cloneValue(valueAt(current.framework, ["framework", "scrcpy"]))
+              ),
+              notifications: cloneNotifications(savedDraft.notifications)
+            };
       });
     } catch (exc) {
       setError(String(exc));
@@ -331,6 +344,8 @@ export function SettingsPage() {
           path={settings?.profile.file.path || "config/maa/profiles/default.toml"}
           onChange={(path, value) => updateDraft("profile", path, value)}
         />
+
+        <ScrcpySettingsPanel settings={framework} onChange={(path, value) => updateDraft("framework", path, value)} />
 
         <SettingsPanel title="更新与资源">
           <div className="grid grid-cols-2 gap-2 max-sm:grid-cols-1">
@@ -561,8 +576,14 @@ function offsetLabel(offsetMinutes: number) {
 
 function draftSectionForDirty(value: SettingsDraft, section: "basic" | "framework") {
   return section === "basic"
-    ? { profile: cloneRecord(value.profile), maa_cli: cloneRecord(value.maa_cli) }
-    : { framework: cloneRecord(value.framework), notifications: cloneNotifications(value.notifications) };
+    ? { profile: cloneRecord(value.profile), maa_cli: cloneRecord(value.maa_cli), scrcpy: valueAt(value.framework, ["framework", "scrcpy"]) }
+    : { framework: frameworkWithoutScrcpy(value.framework), notifications: cloneNotifications(value.notifications) };
+}
+
+function frameworkWithoutScrcpy(value: Record<string, unknown>) {
+  const framework = cloneRecord(value);
+  if (isRecord(framework.framework)) delete framework.framework.scrcpy;
+  return framework;
 }
 
 function resourceLabel(value: unknown) {
@@ -617,6 +638,10 @@ function cloneDraft(value: SettingsDraft): SettingsDraft {
 
 function cloneRecord(value: Record<string, unknown>): Record<string, unknown> {
   return JSON.parse(JSON.stringify(value)) as Record<string, unknown>;
+}
+
+function cloneValue<T>(value: T): T {
+  return value === undefined ? value : JSON.parse(JSON.stringify(value)) as T;
 }
 
 function cloneNotifications(value: SettingsDraft["notifications"]): SettingsDraft["notifications"] {

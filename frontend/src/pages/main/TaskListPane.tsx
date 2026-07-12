@@ -5,6 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { InsertionLine } from "@/components/InsertionLine";
 import { FocusDeleteButton } from "@/components/FocusDeleteButton";
 import { RunStopButton } from "@/components/RunStopButton";
+import { useInlineRename } from "@/components/useInlineRename";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -61,9 +62,7 @@ export function TaskListPane({
   const [dropIndex, setDropIndex] = React.useState<number | null>(null);
   const [creatingConfig, setCreatingConfig] = React.useState(false);
   const [newConfigName, setNewConfigName] = React.useState("");
-  const [renamingId, setRenamingId] = React.useState("");
-  const [renameDraft, setRenameDraft] = React.useState("");
-  const skipRenameBlurCommit = React.useRef(false);
+  const rename = useInlineRename<string>(onTaskItemRename);
 
   function handleCreateConfig() {
     const name = newConfigName.trim();
@@ -88,29 +87,6 @@ export function TaskListPane({
     setDraggingId("");
     setDropIndex(null);
     if (sourceId && targetIndex !== null) onTaskItemsReorder(sourceId, targetIndex);
-  }
-
-  function startRename(item: TaskItem) {
-    skipRenameBlurCommit.current = false;
-    setRenamingId(item.id);
-    setRenameDraft(item.name);
-  }
-
-  function commitRename() {
-    if (skipRenameBlurCommit.current) {
-      skipRenameBlurCommit.current = false;
-      return;
-    }
-    if (!renamingId) return;
-    onTaskItemRename(renamingId, renameDraft);
-    setRenamingId("");
-    setRenameDraft("");
-  }
-
-  function cancelRename() {
-    skipRenameBlurCommit.current = true;
-    setRenamingId("");
-    setRenameDraft("");
   }
 
   function openTaskItem(itemId: string) {
@@ -201,17 +177,17 @@ export function TaskListPane({
                   aria-label={`${item.name} 启用`}
                   onCheckedChange={(checked) => onTaskItemEnabledChange(item.id, checked === true)}
                 />
-                {renamingId === item.id ? (
+                {rename.renamingKey === item.id ? (
                   <Input
                     data-row-control
                     className="h-7 min-w-0 px-2"
-                    value={renameDraft}
-                    onChange={(event) => setRenameDraft(event.target.value)}
-                    onBlur={commitRename}
+                    value={rename.renameDraft}
+                    onChange={(event) => rename.setRenameDraft(event.target.value)}
+                    onBlur={rename.commitRename}
                     onClick={(event) => event.stopPropagation()}
                     onKeyDown={(event) => {
-                      if (event.key === "Enter") commitRename();
-                      if (event.key === "Escape") cancelRename();
+                      if (event.key === "Enter") rename.commitRename();
+                      if (event.key === "Escape") rename.cancelRename();
                     }}
                     autoFocus
                   />
@@ -230,7 +206,7 @@ export function TaskListPane({
                     onClick={(event) => {
                       event.preventDefault();
                       event.stopPropagation();
-                      startRename(item);
+                      rename.startRename(item.id, item.name);
                     }}
                   >
                     <PencilLine className="size-3.5" />
@@ -241,7 +217,7 @@ export function TaskListPane({
                     onClick={(event) => {
                       event.preventDefault();
                       event.stopPropagation();
-                      if (renamingId === item.id) cancelRename();
+                      if (rename.renamingKey === item.id) rename.cancelRename();
                       onTaskItemDelete(item.id);
                     }}
                   />

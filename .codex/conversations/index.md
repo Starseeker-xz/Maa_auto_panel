@@ -4,6 +4,14 @@
 
 ## Active sessions
 
+- `2026-07-12_0216-fix-scrcpy-url`: 修正 scrcpy URL 协议中 request_id 的 UUID 生成与文档约定。
+- `2026-07-12_0125-toolbar-scrcpy-notifications`: 审计并调整 Toolbar 尺寸/分隔、通知删除按钮 focus 行为，并设计本地 scrcpy URL 协议。
+- `2026-07-12_0055-fix-retention-frontend-split`: 修复后端 run-aware retention；前端迁移 AlertDialog/NavLink/Tabs/rename hook/Tooltip，并完成 route + editor lazy 分块、构筑与浏览器 smoke。
+- `2026-07-11_2113-audit-frontend-reuse-bundle`: 完整盘点前端通用组件复用与静态 import graph；确认 AlertDialog、segmented 语义与三类 sortable list 是主要复用缺口，bundle 建议按 route lazy → Main editor lazy → 按测量决定 schema lazy 拆分。
+- `2026-07-11_2113-audit-retention`: 只读确认 run retention P1：manager 内存与 history JSON 无界，diagnostics/generated configs 已有独立 retention 但未与 run-aware deletion 协调。
+- `2026-07-11_2113-fix-persistent-paths`: 并行审计并处理后端持久路径逻辑根问题，范围为 store、diagnostics、trash、artifact 与 download manifest。
+- `2026-07-11_2105-audit-stream-no-newline`: 无换行 reader P0 已修复，并保持历史日志逻辑行分块；同轮完成持久路径 P2 本机迁移、完整验证与 systemd 切换。
+- `2026-07-11_2059-audit-stream-no-newline`: 复核后端统一进程执行器的无换行阻塞 P0；当前实现仍可复现 1 秒 timeout 被拖到子进程 3 秒自然退出且未标记超时，修复应采用 non-blocking bytes + incremental decode/line buffering。
 - `2026-07-11_1805-consolidate-audits`: 将全项目、路径与容器三份根目录审计整理为 `BACKEND_AUDIT.md`、`FRONTEND_AUDIT.md`；以后只维护这两份，代码修改仅将其作为需重新核对的参考。
 - `2026-07-11_0203-separate-runtime-and-agent-doc`: 将 integration runtime 从 framework data 拆为独立根/容器卷，新增中文 Agent 项目说明；随后实现五类全局通知、通知设置/Toast/外部接口并拆分 Settings panels。
 - `2026-07-11_0111-audit-container-plan`: 简单审计并提交当前大规模重命名、路径与优雅停机工作；随后复核正式 Docker 构筑前置条件。

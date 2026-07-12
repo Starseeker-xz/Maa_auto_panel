@@ -7,7 +7,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 
 from maa_auto_panel.time_utils import server_now, server_now_iso
-from maa_auto_panel.utils import relative_path
+from maa_auto_panel.storage.path_references import PathReferenceResolver
 
 
 @dataclass(frozen=True)
@@ -26,9 +26,10 @@ class TrashRecord:
 class TrashManager:
     """Move files into a structured recycle folder with lightweight metadata."""
 
-    def __init__(self, trash_root: Path, *, repo_root: Path | None = None) -> None:
+    def __init__(self, trash_root: Path, *, logical_root: Path, root_name: str = "framework") -> None:
         self.trash_root = trash_root
-        self.repo_root = repo_root
+        self.root_name = root_name
+        self.references = PathReferenceResolver({root_name: logical_root})
 
     def move(self, source: Path, *, label: str = "") -> TrashRecord:
         source = source.resolve()
@@ -51,8 +52,8 @@ class TrashManager:
         shutil.move(str(source), str(target))
 
         record = TrashRecord(
-            original_path=self._display_path(source),
-            trash_path=self._display_path(target),
+            original_path=self.references.reference(self.root_name, source),
+            trash_path=self.references.reference(self.root_name, target),
             deleted_at=deleted_at,
             size=size,
             label=label,
@@ -64,14 +65,7 @@ class TrashManager:
         return record
 
     def _relative_source_path(self, source: Path) -> Path:
-        if self.repo_root is None:
-            return Path(source.name)
         try:
-            return source.relative_to(self.repo_root.resolve())
+            return source.relative_to(self.references.resolve(f"{self.root_name}:.", expected_root=self.root_name))
         except ValueError:
             return Path(source.name)
-
-    def _display_path(self, path: Path) -> str:
-        if self.repo_root is None:
-            return str(path)
-        return relative_path(path, self.repo_root.resolve())

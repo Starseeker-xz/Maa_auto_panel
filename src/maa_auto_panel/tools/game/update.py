@@ -18,6 +18,7 @@ from maa_auto_panel.settings import (
     DESKTOP_USER_AGENT,
     MOBILE_USER_AGENT,
 )
+from maa_auto_panel.storage.path_references import PathReferenceResolver
 from maa_auto_panel.utils import write_text_atomic
 
 try:
@@ -42,6 +43,7 @@ class PackageManager:
     def __init__(self, download_dir: str | Path = "downloads", manifest_file: str = "manifest.json", max_cache_versions: int = 3) -> None:
         """Initialize download directory, load/create manifest, clean stale patch caches."""
         self.download_dir = Path(download_dir).expanduser().resolve()
+        self.path_references = PathReferenceResolver({"downloads": self.download_dir})
         self.manifest_file = self.download_dir / manifest_file
         self.max_cache_versions = max_cache_versions
         self.download_dir.mkdir(parents=True, exist_ok=True)
@@ -107,18 +109,15 @@ class PackageManager:
             path = self.download_dir / path
         path = path.resolve()
         try:
-            return str(path.relative_to(self.download_dir))
+            return self.path_references.reference("downloads", path)
         except ValueError as exc:
             raise ValueError(f"Package cache path escapes download directory: {path}") from exc
 
     def _resolved_path(self, value: object) -> Path:
-        path = Path(str(value or ""))
-        resolved = path.resolve() if path.is_absolute() else (self.download_dir / path).resolve()
         try:
-            resolved.relative_to(self.download_dir)
+            return self.path_references.resolve(str(value or ""), expected_root="downloads")
         except ValueError:
             return self.download_dir / ".invalid-manifest-path"
-        return resolved
 
     def _cleanup_patch_cache(self) -> None:
         for path in self.download_dir.glob("patch_*.diff"):

@@ -34,8 +34,13 @@ def create_history_router(services: WebServices) -> APIRouter:
     @router.delete("/runs/{run_id}")
     def delete_run(run_id: str) -> dict[str, object]:
         try:
-            return {"deleted": run_state.delete_run(run_id)}
+            deleted = run_state.delete_run(run_id)
+            services.discard_terminal_run(run_id)
+            diagnostics.enforce_retention(protected_paths=run_state.owned_paths())
+            return {"deleted": deleted}
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="Run not found") from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     return router

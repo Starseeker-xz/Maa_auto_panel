@@ -8,18 +8,27 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Toaster } from "@/components/ui/sonner";
-import { notificationEventsUrl } from "@/lib/api";
+import { getSettings, notificationEventsUrl } from "@/lib/api";
+import { buildScrcpyUrl, connectionAddress, scrcpyOptions } from "@/lib/scrcpy";
 import type { NotificationEvent } from "@/lib/types";
 
 const MAX_RECENT = 100;
 const READ_IDS_KEY = "maa-auto-panel:notifications:read-ids";
 const DELETED_IDS_KEY = "maa-auto-panel:notifications:deleted-ids";
 
-export function NotificationCenter() {
+export function NotificationCenter({
+  scheduleDevice,
+  scheduleDeviceRequired = false
+}: {
+  scheduleDevice?: string;
+  scheduleDeviceRequired?: boolean;
+}) {
+  const panelRef = React.useRef<HTMLDivElement>(null);
   const [recent, setRecent] = React.useState<NotificationEvent[]>([]);
   const [open, setOpen] = React.useState(false);
   const [readIds, setReadIds] = React.useState(() => readStoredIds(READ_IDS_KEY));
   const [deletedIds, setDeletedIds] = React.useState(() => readStoredIds(DELETED_IDS_KEY));
+  const [scrcpyBusy, setScrcpyBusy] = React.useState(false);
   const deletedIdsRef = React.useRef(deletedIds);
   const toastedIds = React.useRef(new Set<string>());
 
@@ -66,6 +75,22 @@ export function NotificationCenter() {
     markRead(recent.map((event) => event.id));
   }
 
+  async function launchScrcpy() {
+    if (scrcpyBusy) return;
+    setScrcpyBusy(true);
+    try {
+      const settings = await getSettings();
+      const device = scheduleDeviceRequired
+        ? scheduleDevice || ""
+        : connectionAddress(settings.profile.data || {});
+      window.location.href = buildScrcpyUrl(device, scrcpyOptions(settings.framework.data));
+    } catch (exc) {
+      toast.error("无法启动 Scrcpy", { description: exc instanceof Error ? exc.message : String(exc) });
+    } finally {
+      setScrcpyBusy(false);
+    }
+  }
+
   function deleteEvent(event: NotificationEvent) {
     setRecent((current) => current.filter((item) => item.id !== event.id));
     toast.dismiss(event.id);
@@ -89,11 +114,27 @@ export function NotificationCenter() {
 
   return (
     <>
-      <AppToolbar unreadCount={unread.length} importantUnread={importantUnread} onNotifications={showPanel} />
+      <AppToolbar
+        unreadCount={unread.length}
+        importantUnread={importantUnread}
+        scrcpyBusy={scrcpyBusy}
+        scrcpyDisabledReason={scheduleDeviceRequired && !scheduleDevice ? "当前定时配置未设置连接地址" : undefined}
+        onScrcpy={() => void launchScrcpy()}
+        onNotifications={showPanel}
+      />
       <Toaster position="top-right" duration={8000} visibleToasts={4} />
 
       <Sheet open={open} onOpenChange={setOpen}>
-        <SheetContent className="w-[min(22.5rem,calc(100vw-1rem))] gap-0 sm:max-w-[22.5rem]" side="right">
+        <SheetContent
+          ref={panelRef}
+          tabIndex={-1}
+          className="w-[min(22.5rem,calc(100vw-1rem))] gap-0 outline-none sm:max-w-[22.5rem]"
+          side="right"
+          onOpenAutoFocus={(event) => {
+            event.preventDefault();
+            panelRef.current?.focus();
+          }}
+        >
           <SheetHeader className="border-b">
             <SheetTitle>通知</SheetTitle>
             <SheetDescription className="sr-only">近期通知列表</SheetDescription>

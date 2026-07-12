@@ -6,6 +6,7 @@ import { HelpTooltip } from "@/components/FormFields";
 import { InsertionLine } from "@/components/InsertionLine";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { FocusDeleteButton } from "@/components/FocusDeleteButton";
+import { useInlineRename } from "@/components/useInlineRename";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem } from "@/components/ui/select";
@@ -56,9 +57,6 @@ export function PrimitiveArrayEditor({
   const rows = React.useMemo<PrimitiveArrayItem[]>(() => items ?? values.map((value) => ({ value, enabled: true })), [items, values]);
   const [draggingIndex, setDraggingIndex] = React.useState<number | null>(null);
   const [dropIndex, setDropIndex] = React.useState<number | null>(null);
-  const [renamingIndex, setRenamingIndex] = React.useState<number | null>(null);
-  const [renameDraft, setRenameDraft] = React.useState("");
-  const skipRenameBlurCommit = React.useRef(false);
   const selectedKeys = React.useMemo(() => rows.map((row) => valueKey(row.value)), [rows]);
   const availableAddOptions = constrained && unique ? options.filter((option) => !selectedKeys.includes(valueKey(option.value))) : options;
 
@@ -66,6 +64,15 @@ export function PrimitiveArrayEditor({
     onItemsChange?.(nextRows);
     onChange(nextRows.map((row) => row.value));
   }
+
+  const rename = useInlineRename<number>((index, draft) => {
+    if (!enabled) return;
+    const nextValue = parseEditedValue(draft, valueKind);
+    if (unique && rows.some((row, rowIndex) => rowIndex !== index && valueKey(row.value) === valueKey(nextValue))) return;
+    const next = [...rows];
+    next[index] = { ...next[index], value: nextValue };
+    emitRows(next);
+  });
 
   function updateDropIndex(event: React.DragEvent<HTMLElement>, index: number) {
     if (!enabled) return;
@@ -99,8 +106,7 @@ export function PrimitiveArrayEditor({
     if (!enabled) return;
     const nextValue = nextFreeValue(rows.map((row) => row.value), valueKind, unique);
     emitRows([...rows, { value: nextValue, enabled: true }]);
-    setRenamingIndex(rows.length);
-    setRenameDraft(displayValue(nextValue));
+    rename.startRename(rows.length, displayValue(nextValue));
   }
 
   function appendOption(rawValue: string) {
@@ -111,38 +117,8 @@ export function PrimitiveArrayEditor({
 
   function removeAt(index: number) {
     if (!enabled) return;
-    if (renamingIndex === index) cancelRename();
+    if (rename.renamingKey === index) rename.cancelRename();
     emitRows(rows.filter((_, itemIndex) => itemIndex !== index));
-  }
-
-  function startRename(index: number) {
-    skipRenameBlurCommit.current = false;
-    setRenamingIndex(index);
-    setRenameDraft(displayValue(rows[index]?.value ?? ""));
-  }
-
-  function commitRename() {
-    if (skipRenameBlurCommit.current) {
-      skipRenameBlurCommit.current = false;
-      return;
-    }
-    if (renamingIndex === null || !enabled) return;
-    const nextValue = parseEditedValue(renameDraft, valueKind);
-    if (unique && rows.some((row, index) => index !== renamingIndex && valueKey(row.value) === valueKey(nextValue))) {
-      cancelRename();
-      return;
-    }
-    const next = [...rows];
-    next[renamingIndex] = { ...next[renamingIndex], value: nextValue };
-    emitRows(next);
-    setRenamingIndex(null);
-    setRenameDraft("");
-  }
-
-  function cancelRename() {
-    skipRenameBlurCommit.current = true;
-    setRenamingIndex(null);
-    setRenameDraft("");
   }
 
   function changeOption(index: number, rawValue: string) {
@@ -223,15 +199,15 @@ export function PrimitiveArrayEditor({
                 {checkable ? (
                   <Checkbox checked={row.enabled !== false} disabled={!enabled} aria-label={`${label} 启用`} onCheckedChange={(checked) => setItemEnabled(index, checked === true)} />
                 ) : null}
-                {renamingIndex === index && !constrained ? (
+                {rename.renamingKey === index && !constrained ? (
                   <Input
                     className="h-7 min-w-0 px-2"
-                    value={renameDraft}
-                    onChange={(event) => setRenameDraft(event.target.value)}
-                    onBlur={commitRename}
+                    value={rename.renameDraft}
+                    onChange={(event) => rename.setRenameDraft(event.target.value)}
+                    onBlur={rename.commitRename}
                     onKeyDown={(event) => {
-                      if (event.key === "Enter") commitRename();
-                      if (event.key === "Escape") cancelRename();
+                      if (event.key === "Enter") rename.commitRename();
+                      if (event.key === "Escape") rename.cancelRename();
                     }}
                     autoFocus
                   />
@@ -262,7 +238,7 @@ export function PrimitiveArrayEditor({
                       className="size-7 text-muted-foreground/70 opacity-0 transition-opacity hover:text-foreground hover:opacity-100 focus-visible:opacity-100 group-hover:opacity-70"
                       aria-label={`${label} 重命名`}
                       disabled={!enabled}
-                      onClick={() => startRename(index)}
+                      onClick={() => rename.startRename(index, displayValue(rows[index]?.value ?? ""))}
                     >
                       <PencilLine className="size-3.5" />
                     </Button>

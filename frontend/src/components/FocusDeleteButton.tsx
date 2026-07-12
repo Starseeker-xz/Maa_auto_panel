@@ -11,7 +11,7 @@ export function FocusDeleteButton({ className, floating = false, ...props }: Omi
       variant="ghost"
       size="icon"
       className={cn(
-        "size-7 text-muted-foreground/70 opacity-0 transition-all hover:bg-background/90 hover:text-destructive hover:opacity-100 focus:opacity-100 focus-visible:bg-background/90 focus-visible:text-destructive focus-visible:opacity-100 group-hover:opacity-70",
+        "size-7 text-muted-foreground/70 opacity-0 transition-all hover:bg-accent hover:text-destructive hover:opacity-100 focus:opacity-100 focus-visible:bg-accent focus-visible:text-destructive focus-visible:opacity-100 group-hover:opacity-70",
         floating && "absolute bottom-1.5 right-1.5 z-10",
         className
       )}

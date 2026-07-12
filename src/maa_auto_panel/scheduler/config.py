@@ -50,7 +50,7 @@ class ScheduleConfigManager:
     def __init__(self, runtime: MaaRuntime, configs: ConfigManager) -> None:
         self.runtime = runtime
         self.configs = configs
-        self.trash = TrashManager(runtime.framework_config_dir / ".trash", repo_root=runtime.data_root)
+        self.trash = TrashManager(runtime.framework_config_dir / ".trash", logical_root=runtime.data_root)
 
     def ensure_dirs(self) -> None:
         self.runtime.schedule_config_dir.mkdir(parents=True, exist_ok=True)

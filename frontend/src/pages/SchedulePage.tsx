@@ -4,12 +4,12 @@ import { useNavigate, useParams } from "react-router-dom";
 
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { DirtyActions } from "@/components/DirtyActions";
-import { SegmentedControl } from "@/components/SegmentedControl";
 import { RunStopButton } from "@/components/RunStopButton";
 import { Button } from "@/components/ui/button";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   createSchedule,
   currentScheduleRunEventsUrl,
@@ -31,6 +31,7 @@ import { applyRunStateEvent, runEventsUrl } from "@/lib/runStream";
 import { formatDateTime } from "@/lib/time";
 import type { ConfigFile, ConfigResponse, RunHistoryResponse, RunState, ScheduleConfig, ScheduleEntry, ScheduleResponse, SchedulesResponse, ScheduledRunSummary } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { connectionAddress } from "@/lib/scrcpy";
 import { LogPane } from "@/pages/main/LogPane";
 import { ScheduleSettings, ScheduleStats } from "@/pages/schedule/ScheduleDetailPanels";
 import { ScheduleLeftPane } from "@/pages/schedule/ScheduleLeftPane";
@@ -39,7 +40,7 @@ type CenterTab = "settings" | "stats";
 const SCHEDULE_RUN_EVENTS_ERROR = "定时运行日志事件流连接中断，正在重连...";
 const SCHEDULE_RETRY_COUNT_KEY = "maa-auto-panel:schedule-retry-count";
 
-export function SchedulePage() {
+export function SchedulePage({ onScrcpyDeviceChange }: { onScrcpyDeviceChange?: (value: { scheduleId: string; device: string } | null) => void }) {
   const { scheduleId } = useParams();
   const navigate = useNavigate();
   const [overview, setOverview] = React.useState<SchedulesResponse | null>(null);
@@ -61,6 +62,15 @@ export function SchedulePage() {
   const [error, setError] = React.useState("");
   const previousGlobalRunRef = React.useRef<RunState | null>(null);
   const refreshedRunIdRef = React.useRef("");
+  const scrcpyDevice = draft ? connectionAddress(draft.profile) : "";
+
+  React.useEffect(() => {
+    if (scheduleId && draft) onScrcpyDeviceChange?.({ scheduleId, device: scrcpyDevice });
+  }, [draft, onScrcpyDeviceChange, scheduleId, scrcpyDevice]);
+
+  React.useEffect(() => {
+    return () => onScrcpyDeviceChange?.(null);
+  }, [onScrcpyDeviceChange]);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -400,62 +410,65 @@ export function SchedulePage() {
         onOpenTaskConfig={() => navigate(`/tasks/${encodeURIComponent(draft.task_config)}`)}
       />
 
-      <Card className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)_auto] gap-3 overflow-hidden p-3">
-        <div className="flex items-center justify-between gap-3">
-          <SegmentedControl
-            value={centerTab}
-            items={[
-              { value: "settings", label: "设置", icon: <Settings2 className="size-4" /> },
-              { value: "stats", label: "统计", icon: <BarChart3 className="size-4" /> }
-            ]}
-            onChange={setCenterTab}
-          />
-          <span className="min-w-0 whitespace-pre-line text-xs text-muted-foreground">{detail.timeline.message}</span>
-        </div>
-        <ScrollArea className="min-h-0">
-          {centerTab === "settings" ? (
-            <ScheduleSettings
-              schedule={draft}
-              detail={detail}
-              onChange={setDraft}
-            />
-          ) : (
-            <ScheduleStats
-              detail={detail}
-              selectedHistoryRunId={historyRun?.id}
-              loadingHistoryRunId={loadingHistoryRunId}
-              onViewHistory={handleViewHistory}
-              onDeleteHistory={handleDeleteHistory}
-            />
-          )}
-        </ScrollArea>
-        <div className="grid grid-cols-[1fr_1fr_auto_auto] gap-2">
-          <Button onClick={handleStart} disabled={runBusy || Boolean(startDisabledReason)} title={startDisabledReason || undefined}>
-            <Play className="size-4" />
-            运行当前时间点
-          </Button>
-          <RunStopButton run={run} busy={runBusy} onStop={handleStop} onForceStop={handleForceStop} />
-          <label className="flex items-center justify-end gap-2">
-            <span className="shrink-0 text-right text-[11px] leading-3 text-muted-foreground">重试<br />次数</span>
-            <Input
-              className="w-14 px-1 text-center text-sm"
-              type="number"
-              min={1}
-              max={50}
-              aria-label="重试次数"
-              value={retryCount}
-              onChange={(event) => {
-                const next = clampRetryCount(event.target.value);
-                setRetryCount(next);
-                window.localStorage.setItem(SCHEDULE_RETRY_COUNT_KEY, String(next));
-              }}
-            />
-          </label>
-          <Button variant="outline" size="icon" aria-label="删除定时配置" onClick={() => setDeleteOpen(true)}>
-            <Trash2 className="size-4" />
-          </Button>
-        </div>
-      </Card>
+      <Tabs value={centerTab} onValueChange={(value) => setCenterTab(value as CenterTab)} className="h-full min-h-0">
+        <Card className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)_auto] gap-3 overflow-hidden p-3">
+          <div className="flex items-center justify-between gap-3">
+            <TabsList aria-label="定时配置视图">
+              <TabsTrigger value="settings">
+                <Settings2 className="size-4" />
+                设置
+              </TabsTrigger>
+              <TabsTrigger value="stats">
+                <BarChart3 className="size-4" />
+                统计
+              </TabsTrigger>
+            </TabsList>
+            <span className="min-w-0 whitespace-pre-line text-xs text-muted-foreground">{detail.timeline.message}</span>
+          </div>
+          <TabsContent value="settings" className="min-h-0">
+            <ScrollArea className="h-full min-h-0">
+              <ScheduleSettings schedule={draft} detail={detail} onChange={setDraft} />
+            </ScrollArea>
+          </TabsContent>
+          <TabsContent value="stats" className="min-h-0">
+            <ScrollArea className="h-full min-h-0">
+              <ScheduleStats
+                detail={detail}
+                selectedHistoryRunId={historyRun?.id}
+                loadingHistoryRunId={loadingHistoryRunId}
+                onViewHistory={handleViewHistory}
+                onDeleteHistory={handleDeleteHistory}
+              />
+            </ScrollArea>
+          </TabsContent>
+          <div className="grid grid-cols-[1fr_1fr_auto_auto] gap-2">
+            <Button onClick={handleStart} disabled={runBusy || Boolean(startDisabledReason)} title={startDisabledReason || undefined}>
+              <Play className="size-4" />
+              运行当前时间点
+            </Button>
+            <RunStopButton run={run} busy={runBusy} onStop={handleStop} onForceStop={handleForceStop} />
+            <label className="flex items-center justify-end gap-2">
+              <span className="shrink-0 text-right text-[11px] leading-3 text-muted-foreground">重试<br />次数</span>
+              <Input
+                className="w-14 px-1 text-center text-sm"
+                type="number"
+                min={1}
+                max={50}
+                aria-label="重试次数"
+                value={retryCount}
+                onChange={(event) => {
+                  const next = clampRetryCount(event.target.value);
+                  setRetryCount(next);
+                  window.localStorage.setItem(SCHEDULE_RETRY_COUNT_KEY, String(next));
+                }}
+              />
+            </label>
+            <Button variant="outline" size="icon" aria-label="删除定时配置" onClick={() => setDeleteOpen(true)}>
+              <Trash2 className="size-4" />
+            </Button>
+          </div>
+        </Card>
+      </Tabs>
 
       <LogPane
         run={run}
