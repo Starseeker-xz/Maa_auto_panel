@@ -7,6 +7,7 @@ import pytest
 
 from maa_auto_panel.config.app_settings import FrameworkSettingsManager
 from maa_auto_panel.config.manager import ConfigManager
+from maa_auto_panel.diagnostics import Diagnostics
 from maa_auto_panel.maa.maintenance import MaintenanceActionManager
 from maa_auto_panel.maa.runtime import MaaRuntime
 from maa_auto_panel.run_manager.coordinator import (
@@ -14,6 +15,7 @@ from maa_auto_panel.run_manager.coordinator import (
     RunCoordinator,
     RunLease,
 )
+from maa_auto_panel.run_manager.store import RunStateStore
 from maa_auto_panel.run_resources import (
     RUN_PRIORITY_NORMAL,
     RUN_PRIORITY_SCHEDULE_MANUAL,
@@ -201,7 +203,14 @@ def test_different_runtime_identifiers_do_not_conflict() -> None:
 
 
 def test_maintenance_update_claims_runtime_exclusively(tmp_path, monkeypatch) -> None:
-    manager = MaintenanceActionManager(MaaRuntime(tmp_path))
+    runtime = MaaRuntime(tmp_path)
+    manager = MaintenanceActionManager(
+        runtime,
+        RunStateStore(runtime.layout.framework, runtime.path_references),
+        Diagnostics(runtime.layout.framework, runtime.path_references),
+        FrameworkSettingsManager(runtime),
+        RunCoordinator(),
+    )
     captured = {}
 
     def capture_start(plan, *, run_id=None):
@@ -221,7 +230,14 @@ def test_tool_start_records_higher_priority_resource_conflict_as_failed_run(tmp_
     runtime = MaaRuntime(tmp_path)
     coordinator = RunCoordinator()
     coordinator.acquire(_lease("schedule-1", RUN_PRIORITY_SCHEDULED, address="127.0.0.1:5555"))
-    manager = ToolRunManager(runtime, ConfigManager(runtime), run_coordinator=coordinator)
+    manager = ToolRunManager(
+        runtime,
+        ConfigManager(runtime),
+        RunStateStore(runtime.layout.framework, runtime.path_references),
+        Diagnostics(runtime.layout.framework, runtime.path_references),
+        FrameworkSettingsManager(runtime),
+        coordinator,
+    )
 
     state = manager.start("game-update", {"address": "127.0.0.1:5555"})
     assert state.thread is not None

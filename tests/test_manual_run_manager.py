@@ -1,7 +1,11 @@
 from pathlib import Path
 
+from maa_auto_panel.config.app_settings import FrameworkSettingsManager
+from maa_auto_panel.config.manager import ConfigManager
+from maa_auto_panel.diagnostics import Diagnostics
 from maa_auto_panel.maa.runner import MaaRunManager, MaaRunRequest
 from maa_auto_panel.maa.runtime import MaaRuntime
+from maa_auto_panel.run_manager.coordinator import RunCoordinator
 from maa_auto_panel.run_manager.store import RunStateStore
 
 
@@ -20,8 +24,15 @@ enable = false
 """.lstrip(),
         encoding="utf-8",
     )
-    store = RunStateStore(runtime)
-    manager = MaaRunManager(runtime, run_state=store)
+    store = RunStateStore(runtime.layout.framework, runtime.path_references)
+    manager = MaaRunManager(
+        runtime,
+        store,
+        Diagnostics(runtime.layout.framework, runtime.path_references),
+        FrameworkSettingsManager(runtime),
+        ConfigManager(runtime),
+        RunCoordinator(),
+    )
 
     state = manager.start(MaaRunRequest(task="daily", retry_count=3))
     assert state.thread is not None

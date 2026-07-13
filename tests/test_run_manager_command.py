@@ -8,9 +8,10 @@ import time
 from maa_auto_panel.diagnostics import Diagnostics
 from maa_auto_panel.maa.runtime import MaaRuntime
 from maa_auto_panel.run_manager.command import CommandSpec
+from maa_auto_panel.run_manager.contracts import RunCallbacks, RunStartPlan
 from maa_auto_panel.run_manager.coordinator import RunCoordinator
 from maa_auto_panel.run_manager.logs import plain_stream_log_profile
-from maa_auto_panel.run_manager.manager import GenericRunManager, RunCallbacks, RunStartPlan
+from maa_auto_panel.run_manager.manager import GenericRunManager
 from maa_auto_panel.run_manager.state import RunTimeouts
 from maa_auto_panel.run_manager.store import RunStateStore
 
@@ -18,7 +19,7 @@ from maa_auto_panel.run_manager.store import RunStateStore
 def test_command_run_driver_streams_logs_and_raw_lines(tmp_path: Path) -> None:
     _runtime, diagnostics, manager = _manager(tmp_path)
     raw_lines: list[tuple[str, str]] = []
-    profile = plain_stream_log_profile("tool", diagnostic_sink=diagnostics.append_tool_output)
+    profile = plain_stream_log_profile("tool", diagnostic_sink=diagnostics.stream_sink("tools"))
     run_id = "cmd-run"
 
     state = manager.start(
@@ -27,11 +28,12 @@ def test_command_run_driver_streams_logs_and_raw_lines(tmp_path: Path) -> None:
             title="Command tool",
             command=CommandSpec(
                 [sys.executable, "-c", "import sys; print('hello'); print('warn', file=sys.stderr)"],
+                cwd=tmp_path,
                 env=os.environ.copy(),
             ),
             callbacks=RunCallbacks(on_raw_line=lambda attempt, stream, line: raw_lines.append((stream, line))),
             log_profile=profile,
-            log_files=diagnostics.tool_log_files(run_id),
+            log_files=diagnostics.stream_log_files("tools", run_id),
             event_log_file=diagnostics.event_log_file(run_id),
         ),
         run_id=run_id,
@@ -49,7 +51,7 @@ def test_command_run_driver_streams_logs_and_raw_lines(tmp_path: Path) -> None:
 def test_command_run_driver_retries_until_command_succeeds(tmp_path: Path) -> None:
     _runtime, diagnostics, manager = _manager(tmp_path)
     counter = tmp_path / "counter.txt"
-    profile = plain_stream_log_profile("tool", diagnostic_sink=diagnostics.append_tool_output)
+    profile = plain_stream_log_profile("tool", diagnostic_sink=diagnostics.stream_sink("tools"))
 
     code = (
         "from pathlib import Path; import sys; "
@@ -63,10 +65,10 @@ def test_command_run_driver_retries_until_command_succeeds(tmp_path: Path) -> No
         RunStartPlan(
             kind="tool",
             title="Retry command",
-            command=CommandSpec([sys.executable, "-c", code, str(counter)], env=os.environ.copy()),
+            command=CommandSpec([sys.executable, "-c", code, str(counter)], cwd=tmp_path, env=os.environ.copy()),
             max_retries=2,
             log_profile=profile,
-            log_files=diagnostics.tool_log_files("retry-run"),
+            log_files=diagnostics.stream_log_files("tools", "retry-run"),
             event_log_file=diagnostics.event_log_file("retry-run"),
         ),
         run_id="retry-run",
@@ -82,18 +84,19 @@ def test_command_run_driver_retries_until_command_succeeds(tmp_path: Path) -> No
 
 def test_command_run_driver_stops_running_process(tmp_path: Path) -> None:
     _runtime, diagnostics, manager = _manager(tmp_path)
-    profile = plain_stream_log_profile("tool", diagnostic_sink=diagnostics.append_tool_output)
+    profile = plain_stream_log_profile("tool", diagnostic_sink=diagnostics.stream_sink("tools"))
     state = manager.start(
         RunStartPlan(
             kind="tool",
             title="Stop command",
             command=CommandSpec(
                 [sys.executable, "-u", "-c", "import time; print('ready', flush=True); time.sleep(30)"],
+                cwd=tmp_path,
                 env=os.environ.copy(),
             ),
             log_profile=profile,
             timeouts=RunTimeouts(stop_kill_seconds=2),
-            log_files=diagnostics.tool_log_files("stop-command"),
+            log_files=diagnostics.stream_log_files("tools", "stop-command"),
             event_log_file=diagnostics.event_log_file("stop-command"),
         ),
         run_id="stop-command",
@@ -110,15 +113,19 @@ def test_command_run_driver_stops_running_process(tmp_path: Path) -> None:
 
 def test_command_run_driver_records_runtime_timeout(tmp_path: Path) -> None:
     _runtime, diagnostics, manager = _manager(tmp_path)
-    profile = plain_stream_log_profile("tool", diagnostic_sink=diagnostics.append_tool_output)
+    profile = plain_stream_log_profile("tool", diagnostic_sink=diagnostics.stream_sink("tools"))
     state = manager.start(
         RunStartPlan(
             kind="tool",
             title="Timeout command",
-            command=CommandSpec([sys.executable, "-c", "import time; time.sleep(30)"], env=os.environ.copy()),
+            command=CommandSpec(
+                [sys.executable, "-c", "import time; time.sleep(30)"],
+                cwd=tmp_path,
+                env=os.environ.copy(),
+            ),
             log_profile=profile,
             timeouts=RunTimeouts(runtime_kill_seconds=1),
-            log_files=diagnostics.tool_log_files("timeout-command"),
+            log_files=diagnostics.stream_log_files("tools", "timeout-command"),
             event_log_file=diagnostics.event_log_file("timeout-command"),
         ),
         run_id="timeout-command",
@@ -133,8 +140,9 @@ def test_command_run_driver_records_runtime_timeout(tmp_path: Path) -> None:
 
 def _manager(tmp_path: Path) -> tuple[MaaRuntime, Diagnostics, GenericRunManager]:
     runtime = MaaRuntime(tmp_path)
-    diagnostics = Diagnostics(runtime)
-    return runtime, diagnostics, GenericRunManager(runtime, RunStateStore(runtime), diagnostics, RunCoordinator())
+    diagnostics = Diagnostics(runtime.layout.framework, runtime.path_references)
+    store = RunStateStore(runtime.layout.framework, runtime.path_references)
+    return runtime, diagnostics, GenericRunManager(store, diagnostics, RunCoordinator())
 
 
 def _join(state, *, timeout: float = 3) -> None:

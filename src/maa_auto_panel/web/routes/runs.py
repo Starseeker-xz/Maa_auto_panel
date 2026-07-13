@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
 from maa_auto_panel.maa.runner import MaaRunRequest
@@ -24,23 +24,16 @@ def create_run_router(services: WebServices) -> APIRouter:
 
     @router.post("")
     def start_run(payload: StartRunPayload) -> dict[str, object]:
-        try:
-            configs.resolve("tasks", payload.task)
-            configs.resolve("profiles", payload.profile)
-            state = runs.start(
-                MaaRunRequest(
-                    task=payload.task,
-                    profile=payload.profile,
-                    log_level=payload.log_level,
-                    retry_count=payload.retry_count,
-                )
+        configs.resolve("tasks", payload.task)
+        configs.resolve("profiles", payload.profile)
+        state = runs.start(
+            MaaRunRequest(
+                task=payload.task,
+                profile=payload.profile,
+                log_level=payload.log_level,
+                retry_count=payload.retry_count,
             )
-        except FileNotFoundError as exc:
-            raise HTTPException(status_code=404, detail="Selected task/profile not found") from exc
-        except RuntimeError as exc:
-            raise HTTPException(status_code=409, detail=str(exc)) from exc
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        )
         return state.to_dict()
 
     register_run_control_routes(

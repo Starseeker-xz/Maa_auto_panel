@@ -3,8 +3,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal, Protocol
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Request
 
+from maa_auto_panel.errors import ResourceNotFound
 from maa_auto_panel.run_manager.state import LiveRun
 from maa_auto_panel.web.sse import state_event_stream
 
@@ -55,8 +56,8 @@ def register_run_control_routes(router: APIRouter, options: RunControlRoutes) ->
         def stop_current_run() -> dict[str, object]:
             try:
                 return manager.stop_current().to_dict()
-            except KeyError as exc:
-                raise HTTPException(status_code=404, detail=options.current_not_found_detail) from exc
+            except ResourceNotFound as exc:
+                raise ResourceNotFound(options.current_not_found_detail) from exc
 
     if options.expose_force_stop and options.stop_target in {"current", "both"}:
 
@@ -64,8 +65,8 @@ def register_run_control_routes(router: APIRouter, options: RunControlRoutes) ->
         def force_stop_current_run() -> dict[str, object]:
             try:
                 return manager.force_stop_current().to_dict()
-            except KeyError as exc:
-                raise HTTPException(status_code=404, detail=options.current_not_found_detail) from exc
+            except ResourceNotFound as exc:
+                raise ResourceNotFound(options.current_not_found_detail) from exc
 
     if options.include_get_by_id:
 
@@ -73,7 +74,7 @@ def register_run_control_routes(router: APIRouter, options: RunControlRoutes) ->
         def get_run(run_id: str) -> dict[str, object]:
             state = manager.get(run_id)
             if state is None:
-                raise HTTPException(status_code=404, detail=options.run_not_found_detail)
+                raise ResourceNotFound(options.run_not_found_detail)
             return state.to_dict()
 
     if options.expose_stop and options.stop_target in {"run_id", "both"}:
@@ -82,8 +83,8 @@ def register_run_control_routes(router: APIRouter, options: RunControlRoutes) ->
         def stop_run(run_id: str) -> dict[str, object]:
             try:
                 return manager.stop(run_id).to_dict()
-            except KeyError as exc:
-                raise HTTPException(status_code=404, detail=options.run_not_found_detail) from exc
+            except ResourceNotFound as exc:
+                raise ResourceNotFound(options.run_not_found_detail) from exc
 
     if options.expose_force_stop and options.stop_target in {"run_id", "both"}:
 
@@ -91,5 +92,5 @@ def register_run_control_routes(router: APIRouter, options: RunControlRoutes) ->
         def force_stop_run(run_id: str) -> dict[str, object]:
             try:
                 return manager.force_stop(run_id).to_dict()
-            except KeyError as exc:
-                raise HTTPException(status_code=404, detail=options.run_not_found_detail) from exc
+            except ResourceNotFound as exc:
+                raise ResourceNotFound(options.run_not_found_detail) from exc

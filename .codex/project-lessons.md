@@ -4,6 +4,10 @@
 
 ## Runtime and process control
 
+- `2026-07-13_1541-review-incomplete-session`: durable run state 是恢复权威；终态必须先持久化成功再发布 live/SSE。短暂写失败可幂等有限重试，持续失败应 fail-closed 保持 durable/live 非终态与资源 lease，不能先展示 succeeded 再留下磁盘 running。retention/notification 等 post-finish maintenance 必须与核心终态提交隔离。
+- `2026-07-13_1500-audit-run-architecture`: `GenericRunManager` 必须继续独占 live state、retry loop 与锁；实现协作者只能接收不可变输入/回调，不能直接突变 `LiveRun`。避免在 manager 锁内写 store/diagnostics，并确保 thread 已绑定后才把 run 发布给 shutdown/join 观察者。
+- `2026-07-13_1500-audit-run-architecture`: 通用 run manager 不得按 manual/schedule/maintenance/tool/MAA 等分类分支，也不得依赖某 integration 的 log capture/cleanup。专项逻辑留在领域 plan builder/callback；manager 只处理 opaque kind、command、decision、metadata 与 artifacts。
+
 - `2026-07-10_2207-graceful-shutdown`: Uvicorn 0.49 的 graceful timeout 会取消未退出 SSE 并记录 traceback；只设置 timeout 不算干净关闭。SIGTERM 到达时先广播应用 shutdown token，SSE 用短轮询主动结束，timeout 仅作兜底。
 - `2026-07-10_2207-graceful-shutdown`: Uvicorn 0.49 清理后会重新 raise 捕获的 SIGTERM；经 `uv run` 会成为 status 143，并让 systemd 记录 failed。容器入口需要 shutdown-aware Server：保留信号捕获和清理，但成功后不重新 raise SIGTERM。
 - `2026-07-10_2207-graceful-shutdown`: 容器关闭预算必须使用共享 absolute deadline；先同时通知所有 manager，再按同一 deadline join，不能给每个 manager 顺序分配完整 timeout。
@@ -15,6 +19,10 @@
 - `2026-07-04_1003-audit-log-pipeline`: 不要在持有非重入锁时调用会再次通知状态的 helper；scheduler 曾因此死锁。保持相关路径可重入或把 callback 移到锁外。
 
 ## State and diagnostics
+
+- `2026-07-13_1500-audit-run-architecture`: 通用增量日志捕捉应原样保存 bytes，以实际读取后的 `tell()` 作为 next offset；source 缺失返回 offset 0，size 小于旧 offset 时按截断从头捕捉。若未来必须识别“替换后新文件仍大于旧 offset”，需由领域层额外记录 file identity，单一数值 offset 不足。
+- `2026-07-13_1500-audit-run-architecture`: 日志目标位于 framework tree 不代表日志源/retention 也属于 framework；MAACore source、generated configs 与 MAA legacy logs 必须留在 MAA installation 边界，不能靠窄类型 facade 隐藏真实依赖。
+- `2026-07-13_1500-audit-run-architecture`: HTTP 状态必须由语义异常决定，绝不能全局把 `ValueError`/`KeyError`/`FileNotFoundError`/`RuntimeError` 映射为 400/404/409；同一 builtin 可能分别表示用户输入、runtime 缺失、corrupt state 或程序缺陷。
 
 - `2026-07-12_0055-fix-retention-frontend-split`: retention 必须以 run 作为 ownership 单元；索引应先原子移除，再删除可重建 orphan，避免崩溃后留下仍引用已删文件的记录。artifact 只能按显式角色白名单级联，不能看到本地路径就删除 unknown/shared/external artifact。
 - `2026-07-04_1047-audit-log-pipeline-audit`: 不要用有界日志列表长度当持久 cursor；裁剪后会错位。retry/history 使用独立持久结构或单调序号。

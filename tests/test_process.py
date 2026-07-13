@@ -6,8 +6,23 @@ import signal
 import sys
 import time
 
-from maa_auto_panel.maa.runtime import MaaRuntime
 from maa_auto_panel.process import run_streaming_process
+
+
+def test_streaming_process_uses_explicit_working_directory(tmp_path: Path) -> None:
+    working_directory = tmp_path / "work"
+    working_directory.mkdir()
+    output: list[str] = []
+
+    result = run_streaming_process(
+        [sys.executable, "-c", "from pathlib import Path; print(Path.cwd())"],
+        cwd=working_directory,
+        env=os.environ.copy(),
+        on_output=output.append,
+    )
+
+    assert result.return_code == 0
+    assert "".join(output).strip() == str(working_directory)
 
 
 def test_partial_output_does_not_block_runtime_timeout(tmp_path: Path) -> None:
@@ -16,13 +31,13 @@ def test_partial_output_does_not_block_runtime_timeout(tmp_path: Path) -> None:
     started = time.monotonic()
 
     result = run_streaming_process(
-        MaaRuntime(tmp_path),
         [
             sys.executable,
             "-u",
             "-c",
             "import sys, time; sys.stdout.write('partial'); sys.stdout.flush(); time.sleep(30)",
         ],
+        cwd=tmp_path,
         env=os.environ.copy(),
         on_output=output.append,
         on_raw_line=lambda stream, line: raw_lines.append((stream, line)),
@@ -45,8 +60,8 @@ def test_partial_output_does_not_block_stop_escalation(tmp_path: Path) -> None:
     )
 
     result = run_streaming_process(
-        MaaRuntime(tmp_path),
         [sys.executable, "-u", "-c", child_code],
+        cwd=tmp_path,
         env=os.environ.copy(),
         on_output=lambda text: None,
         should_stop=lambda: time.monotonic() - stop_requested_at >= 0.25,
@@ -73,8 +88,8 @@ def test_stream_reader_decodes_split_utf8_and_line_endings(tmp_path: Path) -> No
     )
 
     result = run_streaming_process(
-        MaaRuntime(tmp_path),
         [sys.executable, "-u", "-c", child_code],
+        cwd=tmp_path,
         env=os.environ.copy(),
         on_output=chunks.append,
         on_raw_line=lambda stream, line: raw_lines.append((stream, line)),
@@ -100,8 +115,8 @@ def test_oversized_partial_line_is_split_at_bounded_boundary(tmp_path: Path) -> 
     child_code = f"import sys; sys.stdout.write('x' * ({line_size} + 1))"
 
     result = run_streaming_process(
-        MaaRuntime(tmp_path),
         [sys.executable, "-u", "-c", child_code],
+        cwd=tmp_path,
         env=os.environ.copy(),
         on_output=chunks.append,
     )

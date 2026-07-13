@@ -10,27 +10,37 @@ from typing import Any
 from maa_auto_panel.config.app_settings import FrameworkSettingsManager
 from maa_auto_panel.config.manager import ConfigManager
 from maa_auto_panel.diagnostics import Diagnostics, get_logger
+from maa_auto_panel.errors import InvalidRequest, RuntimeUnavailable
 from maa_auto_panel.logs.pipeline import LogSourceSpec, plain_translate_line
 from maa_auto_panel.logs.pipeline import default_tone_for_source
 from maa_auto_panel.logs.state import RunLogBuffer
+from maa_auto_panel.maa.cleanup import enforce_maa_debug_retention
 from maa_auto_panel.maa.log_templates import register_maa_log_sources
 from maa_auto_panel.maa.results import MaaTaskDescriptor, MaaTaskResultCollector
-from maa_auto_panel.maa.runner import load_task_file, prepare_maa_cli_task, resolve_task_file
+from maa_auto_panel.maa.runner import (
+    current_log_offset,
+    load_task_file,
+    maacore_log_source,
+    prepare_maa_cli_task,
+    resolve_task_file,
+)
 from maa_auto_panel.maa.runtime import MaaRuntime
 from maa_auto_panel.notifications import NotificationService
 from maa_auto_panel.process import StreamingProcessResult
 from maa_auto_panel.run_manager.command import CommandSpec
-from maa_auto_panel.run_manager.coordinator import RunCoordinator
-from maa_auto_panel.run_manager.logs import RunLogProfile
-from maa_auto_panel.run_manager.manager import (
-    GenericRunManager,
+from maa_auto_panel.run_manager.contracts import (
     RetryDecision,
-    RunAttempt,
     RunCallbacks,
     RunScriptHooks,
     RunScriptSpec,
     RunStartPlan,
     RunTextTemplates,
+)
+from maa_auto_panel.run_manager.coordinator import RunCoordinator
+from maa_auto_panel.run_manager.logs import RunLogProfile
+from maa_auto_panel.run_manager.manager import (
+    GenericRunManager,
+    RunAttempt,
 )
 from maa_auto_panel.run_manager.state import LiveRun, RunTimeouts
 from maa_auto_panel.run_manager.store import RunStateStore, StoredRun
@@ -70,7 +80,7 @@ class ScheduledMaaRunCallbacks:
         self.policy_by_id = {policy.id: policy for policy in self.policies}
         self.run_successful_task_ids: set[str] = set()
         self.collectors: dict[str, MaaTaskResultCollector] = {}
-        self.maacore_offsets: dict[str, int] = {}
+        self.maacore_log_offsets: dict[str, int] = {}
 
     def to_callbacks(self) -> RunCallbacks:
         return RunCallbacks(
@@ -143,8 +153,8 @@ class ScheduledMaaRunCallbacks:
         task_descriptors = _task_descriptors(self.policy_by_id, task_ids)
         attempt.configure_log(lambda log: log.begin_task_sequence(_task_descriptor_dicts(task_descriptors)))
         self.collectors[attempt.retry_id] = MaaTaskResultCollector(task_descriptors)
-        self.maacore_offsets[attempt.retry_id] = self.diagnostics.maacore_log_offset()
-        return CommandSpec(cmd, env=run_env)
+        self.maacore_log_offsets[attempt.retry_id] = current_log_offset(maacore_log_source(self.runtime))
+        return CommandSpec(cmd, cwd=self.runtime.repo_root, env=run_env)
 
     def on_raw_line(self, attempt: RunAttempt, stream: str, line: str) -> None:
         collector = self.collectors.get(attempt.retry_id)
@@ -163,7 +173,12 @@ class ScheduledMaaRunCallbacks:
             attempt_status = "stopped"
         if result.timed_out:
             attempt_status = "failed"
-        maacore_log_file = self.diagnostics.capture_maacore_log(attempt.retry_id, self.maacore_offsets.pop(attempt.retry_id, 0))
+        maacore_capture = self.diagnostics.capture_file_increment(
+            maacore_log_source(self.runtime),
+            self.maacore_log_offsets.pop(attempt.retry_id, 0),
+            capture_id=attempt.retry_id,
+        )
+        enforce_maa_debug_retention(self.runtime.layout.maa)
         current_game_day = game_day_key(datetime.now(local_tz), client=self.client)
         counted_statuses = {task_id: status for task_id, status in status_by_task_id.items() if status != "missing"}
         self.run_successful_task_ids.update(task_id for task_id, status in counted_statuses.items() if status == "succeeded")
@@ -218,7 +233,7 @@ class ScheduledMaaRunCallbacks:
                 "generated_config_dir": self.runtime.path_references.reference(
                     "runtime", self.runtime.generated_config_dir / f"schedule-{attempt.run_id}"
                 ),
-                "maacore_log_file": maacore_log_file,
+                "diagnostic_log_file": maacore_capture.log_file,
             },
             summary_patch=summary,
         )
@@ -260,23 +275,22 @@ class SchedulerService:
         configs: ConfigManager,
         framework_settings: FrameworkSettingsManager,
         schedules: ScheduleConfigManager,
-        run_state: RunStateStore | None = None,
-        scheduler_state: SchedulerStateStore | None = None,
-        diagnostics: Diagnostics | None = None,
-        run_coordinator: RunCoordinator | None = None,
+        run_state: RunStateStore,
+        scheduler_state: SchedulerStateStore,
+        diagnostics: Diagnostics,
+        run_coordinator: RunCoordinator,
         notifications: NotificationService | None = None,
     ) -> None:
         self.runtime = runtime
         self.configs = configs
         self.framework_settings = framework_settings
         self.schedules = schedules
-        self.store = run_state or RunStateStore(runtime)
-        self.scheduler_state = scheduler_state or SchedulerStateStore(runtime)
-        self.diagnostics = diagnostics or Diagnostics(runtime)
-        self.run_coordinator = run_coordinator or RunCoordinator()
+        self.store = run_state
+        self.scheduler_state = scheduler_state
+        self.diagnostics = diagnostics
+        self.run_coordinator = run_coordinator
         self.scripts = ScheduleScriptManager(runtime)
         self.runs = GenericRunManager(
-            runtime,
             self.store,
             self.diagnostics,
             self.run_coordinator,
@@ -290,7 +304,7 @@ class SchedulerService:
     def start(self) -> None:
         with self._lifecycle_lock:
             if self._shutdown.is_set():
-                raise RuntimeError("Scheduler is shutting down")
+                raise RuntimeUnavailable("Scheduler is shutting down")
             if self._thread is not None and self._thread.is_alive():
                 return
             self._thread = threading.Thread(target=self._loop, name="maa-scheduler", daemon=False)
@@ -345,7 +359,7 @@ class SchedulerService:
         configs = self.configs.list_kind("tasks")
         selected_task_config = task_config or (configs[0].name if configs else "")
         if not selected_task_config:
-            raise ValueError("No task config available")
+            raise InvalidRequest("No task config available")
         task_response = self.configs.read_task_config(selected_task_config)
         task_ids = [str(item.get("id")) for item in task_response.get("task_items", []) if isinstance(item, dict) and item.get("id")]
         profile = self.configs.read_profile_config("default")
@@ -486,9 +500,9 @@ class SchedulerService:
         stats = self.scheduler_state.daily_stats(config.id, game_day)
         selection = initial_task_selection(policies, entry, stats)
         run_id = uuid.uuid4().hex[:12]
-        log_files = self.diagnostics.maa_cli_log_files(run_id)
+        log_files = self.diagnostics.stream_log_files("maa-cli", run_id)
         if config.restart.script:
-            log_files.update(self.diagnostics.script_log_files(run_id))
+            log_files.update(self.diagnostics.stream_log_files("scripts", run_id, key_prefix="script_"))
         max_retries = _retry_count(retry_count if retry_count is not None else config.retry.max_retries)
         priority = schedule_priority(trigger)
         resources = maa_run_resources_from_profile(config.profile_data)
@@ -568,7 +582,7 @@ def _restart_script_hooks(
 
     def command(_attempt: RunAttempt) -> CommandSpec:
         script_command = scripts.command(config.restart.script, config.restart.variables)
-        return CommandSpec(script_command.cmd, env=script_command.env)
+        return CommandSpec(script_command.cmd, cwd=scripts.runtime.repo_root, env=script_command.env)
 
     spec = RunScriptSpec(
         command=command,
@@ -635,7 +649,7 @@ def _schedule_log_profile(diagnostics: Diagnostics, *, include_script: bool) -> 
         max_output_chunks=3000,
         register_sources=lambda log: _register_schedule_log_sources(log, include_script=include_script),
         source_for_stream=lambda stream: f"maa-cli:{stream}",
-        diagnostic_sink=diagnostics.append_maa_cli_output,
+        diagnostic_sink=diagnostics.stream_sink("maa-cli"),
     )
 
 
@@ -643,7 +657,7 @@ def _schedule_script_log_profile(diagnostics: Diagnostics) -> RunLogProfile:
     return RunLogProfile(
         max_output_chunks=3000,
         source_for_stream=lambda stream: f"script:{stream}",
-        diagnostic_sink=diagnostics.append_script_output,
+        diagnostic_sink=diagnostics.stream_sink("scripts"),
     )
 
 

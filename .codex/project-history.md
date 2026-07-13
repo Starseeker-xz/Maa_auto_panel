@@ -16,6 +16,7 @@
 - Confirmed (`2026-07-10_0416-full-project-audit`): 当前功能闭环已基本完成，主要工作转为架构重整、长期运行可靠性与通用扩展。
 - Confirmed (`2026-07-10_0416-full-project-audit`): 目标是让 MAA/maa-cli 成为自动化框架的一个 integration，并支持未来其他 maa-cli 类工具及正式自定义脚本接口。
 - Confirmed (`2026-07-10_0416-full-project-audit`): 当前不需要数据库、微服务或动态第三方插件加载器。优先顺序是运行/安全基线 → 框架上下文解耦 → 内部 Action/Integration registry → 第二 integration 验证。
+- Confirmed (`2026-07-13_1500-audit-run-architecture`): 用户明确 `GenericRunManager` 不得包含任何运行分类的专项语义。MAACore log capture、MAA installation cleanup 等必须留在 `maa/` 领域 callbacks/协作者中，不能注入或泄漏到通用 manager；manager 只观察 opaque plan/command/result/artifact 数据。
 - Confirmed (`2026-07-11_0203-separate-runtime-and-agent-doc`): 容器化目标为单 panel 容器、外部 TCP redroid、普通 bridge 网络、非 privileged、单实例；框架 `data`、integration `runtime`、download cache、ADB credential 使用四个独立持久化边界；`runtime/maa` 与框架 data 和应用镜像版本解耦。
 - Confirmed (`2026-07-10_0416-full-project-audit`): 用户明确产品威胁模型为“可信内网、单用户”，不需要为公网/多租户假设引入登录、token、session、RBAC、用户数据库或认证反代。网络边界由 LAN/防火墙和 Compose publish 地址承担；若产品前提未来改变再单独评估认证。
 
@@ -32,6 +33,11 @@
 - Confirmed (`2026-07-11_1805-consolidate-audits`): 设置 UI 已分为 `/settings` 基础设置（设备/更新）、`/settings/framework`（框架/通知）、`/settings/theme`。主题只使用前端 localStorage，不再由 framework settings 默认值、API payload 或 App 启动回读后端；后端写设置时删除遗留 theme key。
 - Confirmed (`2026-07-11_1805-consolidate-audits`): maintenance 从 running/stopping 进入终态后，设置页自动重新请求 update-info，避免更新成功后继续显示旧的“可更新”。2026-07-11 core-update `0ff39d6eb688` raw 输出仅有 MaaResource fetch，但 `scripts/maa-env maa version` 确认 MaaCore v6.14.1，用户确认 smoke 任务可运行。
 - Confirmed (`2026-07-09_1512-run-manager-generalize`): 手动、定时、工具、维护运行统一使用 `GenericRunManager` 与 `LiveRun`/`LiveRetry`；通用 payload 为基础字段 + `metadata` + `artifacts`，live/history 均为 `{run, retries}`。
+- Confirmed (`2026-07-13_1500-audit-run-architecture`): 通用 run contracts 已移至 `run_manager/contracts.py`；`CommandSpec` 显式携带 cwd/env，process executor 与 `GenericRunManager` 均不依赖 `MaaRuntime`。manager 继续唯一拥有 live state、锁/condition、retry loop、资源申请时序和 stop/finalize；源码无 MAA/manual/schedule/maintenance/tool 分类分支。thread 在 run 可见前已启动，stop/force-stop diagnostics 文件 I/O 已移到 manager 锁外。
+- Confirmed (`2026-07-13_1500-audit-run-architecture`): `RunStateStore` 与 `Diagnostics` 现仅依赖 `FrameworkPaths + PathReferenceResolver`。Diagnostics 新增通用 raw-byte `capture_file_increment(source, start_offset, capture_id)`，返回 logical log reference、next offset、captured bytes；MAA manual/schedule callbacks 每个实际执行 retry 自行提供 MaaCore source/offset 并捕捉一次，通用 artifact role 为 `diagnostic_log_file`。
+- Confirmed (`2026-07-13_1541-review-incomplete-session`): Diagnostics 的 maa-cli/tool/script 重复 API 已完整收敛为 channel-based `stream_log_files`/`stream_sink`；通用层不内建运行分类。MAA debug retention 位于新 `maa/cleanup.py`，只依赖 `MaaInstallation`，在启动和实际 MAA attempt 后执行。
+- Confirmed (`2026-07-13_1541-review-incomplete-session`): run 终态改为 durable-first/live-second，持久化有限重试；成功提交后才发布 live 终态，post-finish retention/listener 与核心提交隔离，持续持久化失败 fail-closed 并由启动恢复流程收尾。
+- Confirmed (`2026-07-13_1500-audit-run-architecture`, completed by `2026-07-13_1541-review-incomplete-session`): 五类应用异常与 FastAPI handlers 已实施，原 routes/shared run router 的 39 处 builtin→400/404/409 映射已清除；config validation 保留 422。durable JSON、config、schedule 与 task corruption 边界已补齐；上一会话漏改的 channel retention 测试已完成，当前完整后端为 119 passed。
 - Confirmed (`2026-07-06_0037-callback-run-manager`): manager 拥有 command/retry/lifecycle；领域只通过 callbacks 决定动态命令、raw-line 消费、attempt 结果和是否继续。不要恢复 driver-owned retry loop。
 - Confirmed (`2026-07-10_0416-full-project-audit`): `RunCoordinator` 跨四类 manager 共享，当前主要仲裁相同 ADB address；schedule auto > schedule manual > normal。
 - Confirmed (`2026-07-10_0416-full-project-audit`): 状态、history、diagnostics、framework logging 分离。保持该分离；scheduler daily stats/trigger state 继续留在 scheduler domain。
@@ -70,6 +76,7 @@
 
 ## Verification baseline
 
+- Confirmed (`2026-07-13_1541-review-incomplete-session`): 完成上一会话收尾修复后，`.venv/bin/python -m pytest -q` 为 119 passed；compileall 与 `git diff --check` 通过。未启动或重启服务。
 - Confirmed (`2026-07-11_0111-audit-container-plan`): 基础容器文件已实现并构建 `maa-auto-panel:local`（context 1.80 MB，image 325 MB，UID/GID 10001）。最终镜像 CLI/import/frontend/schema/adb/git/curl 通过；隔离临时卷 Web 首页与 SIGTERM exit 0 通过；测试后 systemd 恢复 active，未启动常驻 panel 容器。
 - Confirmed (`2026-07-10_0416-full-project-audit`): Ruff passed；compileall passed；`.venv/bin/python -m pytest -q` 为 66 passed；Vulture 无发现；frontend build passed；`npm audit` 0 vulnerabilities；`git diff --check` passed。
 - Confirmed (`2026-07-10_0416-full-project-audit`): 运行环境审计时 scheduled run 正在执行，未被审计操作中断；systemd unit 为 `maa-auto-panel-webui.service`，disabled 但 active。

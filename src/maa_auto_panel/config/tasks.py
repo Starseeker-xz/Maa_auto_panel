@@ -3,6 +3,7 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import Any
 
+from maa_auto_panel.errors import InvalidRequest
 TASK_SUFFIXES = (".toml", ".json", ".yaml", ".yml")
 WRITABLE_TASK_SUFFIXES = (".toml", ".json")
 MANAGED_PARAMS_KEY = "managed_params"
@@ -233,7 +234,7 @@ def resolve_managed_array(metadata: dict[str, Any], key: str) -> list[Any]:
     """Resolve a managed array from metadata, returning only enabled items."""
     spec = _managed_params(metadata).get(key)
     if not isinstance(spec, dict) or spec.get("type") != "array":
-        raise ValueError(f"metadata.{MANAGED_PARAMS_KEY}.{key} is not a managed array")
+        raise InvalidRequest(f"metadata.{MANAGED_PARAMS_KEY}.{key} is not a managed array")
     return [deepcopy(item.get("value")) for item in _managed_items(spec) if item.get("enabled") is not False]
 
 

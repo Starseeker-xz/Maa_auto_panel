@@ -9,11 +9,13 @@ import time
 
 import pytest
 from maa_auto_panel.diagnostics import Diagnostics
+from maa_auto_panel.errors import RuntimeUnavailable
 from maa_auto_panel.maa.runtime import MaaRuntime
 from maa_auto_panel.run_manager.command import CommandSpec
+from maa_auto_panel.run_manager.contracts import RunStartPlan
 from maa_auto_panel.run_manager.coordinator import RunCoordinator, RunLease
 from maa_auto_panel.run_manager.logs import plain_stream_log_profile
-from maa_auto_panel.run_manager.manager import GenericRunManager, RunStartPlan
+from maa_auto_panel.run_manager.manager import GenericRunManager
 from maa_auto_panel.run_manager.store import RunStateStore
 from maa_auto_panel.run_resources import adb_device_resource
 from maa_auto_panel.web.app import create_app
@@ -41,15 +43,15 @@ async def _exercise_lifespan(app) -> None:
 
 def test_manager_rejects_new_runs_after_shutdown_begins(tmp_path: Path) -> None:
     runtime = MaaRuntime(tmp_path)
-    manager = GenericRunManager(runtime, RunStateStore(runtime), Diagnostics(runtime))
+    manager = GenericRunManager(RunStateStore(runtime.layout.framework, runtime.path_references), Diagnostics(runtime.layout.framework, runtime.path_references))
     manager.begin_shutdown()
 
-    with pytest.raises(RuntimeError, match="shutting down"):
+    with pytest.raises(RuntimeUnavailable, match="shutting down"):
         manager.start(
             RunStartPlan(
                 kind="tool",
                 title="late run",
-                command=CommandSpec([sys.executable, "-c", "pass"], env=os.environ.copy()),
+                command=CommandSpec([sys.executable, "-c", "pass"], cwd=tmp_path, env=os.environ.copy()),
             )
         )
 
@@ -114,6 +116,7 @@ def test_web_services_close_stops_all_run_managers_with_shared_budget(tmp_path: 
                     title=f"shutdown-{index}",
                     command=CommandSpec(
                         [sys.executable, "-u", "-c", "import time; print('ready', flush=True); time.sleep(30)"],
+                        cwd=tmp_path,
                         env=os.environ.copy(),
                     ),
                 ),
@@ -134,8 +137,8 @@ def test_web_services_close_stops_all_run_managers_with_shared_budget(tmp_path: 
 
 def test_force_stop_kills_process_group_descendants(tmp_path: Path) -> None:
     runtime = MaaRuntime(tmp_path)
-    diagnostics = Diagnostics(runtime)
-    manager = GenericRunManager(runtime, RunStateStore(runtime), diagnostics)
+    diagnostics = Diagnostics(runtime.layout.framework, runtime.path_references)
+    manager = GenericRunManager(RunStateStore(runtime.layout.framework, runtime.path_references), diagnostics)
     pid_file = tmp_path / "child.pid"
     child_code = "import signal,time; signal.signal(signal.SIGTERM, signal.SIG_IGN); time.sleep(30)"
     parent_code = (
@@ -151,9 +154,10 @@ def test_force_stop_kills_process_group_descendants(tmp_path: Path) -> None:
             title="process tree",
             command=CommandSpec(
                 [sys.executable, "-u", "-c", parent_code, str(pid_file), child_code],
+                cwd=tmp_path,
                 env=os.environ.copy(),
             ),
-            log_profile=plain_stream_log_profile("tool", diagnostic_sink=diagnostics.append_tool_output),
+            log_profile=plain_stream_log_profile("tool", diagnostic_sink=diagnostics.stream_sink("tools")),
         ),
         run_id="process-tree",
     )

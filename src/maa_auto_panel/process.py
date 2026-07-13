@@ -11,9 +11,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, TextIO, cast
 
-from maa_auto_panel.maa.runtime import MaaRuntime
-
-
 OutputCallback = Callable[[str], None]
 StreamOutputCallback = Callable[[str, str], None]
 RawLineCallback = Callable[[str, str], None]
@@ -37,9 +34,9 @@ class StreamingProcessResult:
 
 
 def run_streaming_process(
-    runtime: MaaRuntime,
     cmd: list[str],
     *,
+    cwd: Path,
     env: dict[str, str],
     on_output: OutputCallback,
     on_stream_output: StreamOutputCallback | None = None,
@@ -60,7 +57,7 @@ def run_streaming_process(
     """Run subprocess with streaming output, hang/runtime timeouts, graceful stop, and force stop."""
     proc = subprocess.Popen(
         cmd,
-        cwd=runtime.repo_root,
+        cwd=cwd,
         env=env,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,

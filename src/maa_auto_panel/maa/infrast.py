@@ -4,6 +4,8 @@ import json
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+
+from maa_auto_panel.errors import InvalidRequest
 from maa_auto_panel.maa.runtime import MaaRuntime
 from maa_auto_panel.utils import relative_path, validate_file_name
 
@@ -111,9 +113,9 @@ class MaaInfrastService:
         errors: list[str] = []
         plans = self._load_plans(filename, errors)
         if errors:
-            raise ValueError("; ".join(errors))
+            raise InvalidRequest("; ".join(errors))
         if not plans:
-            raise ValueError("基建排班文件没有 plans")
+            raise InvalidRequest("基建排班文件没有 plans")
         active = self._active_plan(plans, now)
         return active.index if active else plans[0].index
 

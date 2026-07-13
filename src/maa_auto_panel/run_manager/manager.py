@@ -4,13 +4,10 @@ import subprocess
 import threading
 import time
 import uuid
-from collections.abc import Callable
-from dataclasses import dataclass, field
-from pathlib import Path
+from dataclasses import dataclass
 
 from maa_auto_panel.diagnostics import Diagnostics, get_logger
-from maa_auto_panel.logs.state import RunLogBuffer
-from maa_auto_panel.maa.runtime import MaaRuntime
+from maa_auto_panel.errors import Conflict, ResourceNotFound, RuntimeUnavailable
 from maa_auto_panel.process import (
     RawLineCallback,
     StreamingProcessResult,
@@ -20,6 +17,14 @@ from maa_auto_panel.process import (
     terminate_process_group,
 )
 from maa_auto_panel.run_manager.command import CommandSpec
+from maa_auto_panel.run_manager.contracts import (
+    LogConfigurator,
+    RetryDecision,
+    RunCompletion,
+    RunFinishedListener,
+    RunScriptSpec,
+    RunStartPlan,
+)
 from maa_auto_panel.run_manager.coordinator import (
     RunConflictError,
     RunCoordinator,
@@ -30,7 +35,6 @@ from maa_auto_panel.run_manager.coordinator import (
 from maa_auto_panel.run_manager.logs import RunLogProfile
 from maa_auto_panel.run_manager.state import LiveRetry, LiveRun, RunKind, RunTimeouts, now_text
 from maa_auto_panel.run_manager.store import RunStateStore
-from maa_auto_panel.run_resources import RUN_PRIORITY_NORMAL, RUN_PRIORITY_VALUES, RunResource
 from maa_auto_panel.state import idle_response
 from maa_auto_panel.time_utils import server_now_iso
 
@@ -38,124 +42,7 @@ from maa_auto_panel.time_utils import server_now_iso
 logger = get_logger(__name__)
 
 TERMINAL_STATUSES = {"succeeded", "failed", "soft_failed", "stopped", "skipped"}
-
-CommandBuilder = Callable[["RunAttempt"], CommandSpec | None]
-RawLineHandler = Callable[["RunAttempt", str, str], None]
-AttemptCallback = Callable[["RunAttempt"], None]
-StartCallback = Callable[["RunAttempt"], "RetryDecision | None"]
-EvaluateAttempt = Callable[["RunAttempt", StreamingProcessResult], "RetryDecision | None"]
-AfterAttempt = Callable[["RunAttempt", StreamingProcessResult, "RetryDecision"], "RetryDecision | None"]
-BeforeRetry = Callable[["RunAttempt", "RetryDecision"], None]
-FinishCallback = Callable[["RunCallbackAPI", "RunCompletion"], "RunCompletion | None"]
-ScriptCommandBuilder = Callable[["RunAttempt"], CommandSpec | None]
-LogConfigurator = Callable[[RunLogBuffer], None]
-RunFinishedListener = Callable[[LiveRun], None]
-
-
-@dataclass(frozen=True)
-class RunTextTemplates:
-    """Human-readable framework events for the manager-owned command loop."""
-
-    process_name: str = "进程"
-    start: str = "运行: {title}"
-    retry_start: str = "开始第 {retry_index} 次重试"
-    completed: str = "进程执行完成"
-    exit_code: str = "进程退出码: {return_code}"
-    retry_next: str = "准备重试运行。"
-    retry_limit_reached: str = ""
-    start_failed: str = "进程启动失败: {error}"
-    stop_requested: str = "收到停止请求，正在终止进程..."
-    force_stop_requested: str = "收到强制停止请求，正在强杀进程..."
-    execution_failed: str = "运行失败: {error}"
-
-
-@dataclass
-class RetryDecision:
-    """Callback-returned decision for the just-finished attempt."""
-
-    retry_status: str
-    return_code: int | None = None
-    run_status: str | None = None
-    continue_retry: bool = False
-    next_command: CommandSpec | None = None
-    next_attempt_payload: dict[str, object] | None = None
-    retry_metadata: dict[str, object] = field(default_factory=dict)
-    retry_artifacts: dict[str, object] = field(default_factory=dict)
-    summary_patch: dict[str, object] = field(default_factory=dict)
-
-
-@dataclass
-class RunCompletion:
-    """Final run result assembled by the manager before persistence."""
-
-    status: str
-    return_code: int | None = None
-    summary: dict[str, object] = field(default_factory=dict)
-    metadata_patch: dict[str, object] = field(default_factory=dict)
-    artifacts: dict[str, object] = field(default_factory=dict)
-
-
-@dataclass(frozen=True)
-class RunCallbacks:
-    """Optional decision and side-effect hooks. The manager still owns lifecycle."""
-
-    on_start: StartCallback | None = None
-    before_retry: BeforeRetry | None = None
-    before_attempt: AttemptCallback | None = None
-    build_command: CommandBuilder | None = None
-    on_raw_line: RawLineHandler | None = None
-    evaluate_attempt: EvaluateAttempt | None = None
-    after_attempt: AfterAttempt | None = None
-    on_finish: FinishCallback | None = None
-
-
-@dataclass(frozen=True)
-class RunScriptSpec:
-    """External script hook run by GenericRunManager at a fixed lifecycle point."""
-
-    command: CommandSpec | ScriptCommandBuilder
-    label: str = "script"
-    source_prefix: str = "script"
-    timeouts: RunTimeouts = field(default_factory=lambda: RunTimeouts(runtime_kill_seconds=120))
-    log_profile: RunLogProfile | None = None
-
-
-@dataclass(frozen=True)
-class RunScriptHooks:
-    before_run: tuple[RunScriptSpec, ...] = ()
-    after_run: tuple[RunScriptSpec, ...] = ()
-    before_retry: tuple[RunScriptSpec, ...] = ()
-    after_retry: tuple[RunScriptSpec, ...] = ()
-
-
-@dataclass(frozen=True)
-class RunStartPlan:
-    """Prepared live-run plan passed from a domain service into GenericRunManager."""
-
-    kind: RunKind
-    title: str
-    command: CommandSpec | None = None
-    max_retries: int = 1
-    callbacks: RunCallbacks = field(default_factory=RunCallbacks)
-    timeouts: RunTimeouts = field(default_factory=RunTimeouts)
-    log_profile: RunLogProfile = field(default_factory=RunLogProfile)
-    script_hooks: RunScriptHooks = field(default_factory=RunScriptHooks)
-    script_log_profile: RunLogProfile = field(default_factory=RunLogProfile)
-    metadata: dict[str, object] = field(default_factory=dict)
-    artifacts: dict[str, object] = field(default_factory=dict)
-    log_files: dict[str, str] = field(default_factory=dict)
-    event_log_file: str | None = None
-    initial_attempt_payload: dict[str, object] = field(default_factory=dict)
-    history_scope: tuple[str, ...] = ()
-    resources: tuple[RunResource, ...] = ()
-    priority_name: str = "normal"
-    priority: int | None = None
-    force_after_seconds: float | None = None
-    preemptible: bool = True
-    text: RunTextTemplates = field(default_factory=RunTextTemplates)
-
-    def priority_value(self) -> int:
-        return self.priority if self.priority is not None else RUN_PRIORITY_VALUES.get(self.priority_name, RUN_PRIORITY_NORMAL)
+FINALIZATION_PERSIST_ATTEMPTS = 3
 
 
 class RunCallbackAPI:
@@ -246,20 +133,18 @@ class RunAttempt:
 
 
 class GenericRunManager:
-    """Shared live-run lifecycle manager for process-like run types."""
+    """Generic live-run state machine and lifecycle owner."""
 
     def __init__(
         self,
-        runtime: MaaRuntime,
-        store: RunStateStore | None = None,
-        diagnostics: Diagnostics | None = None,
+        store: RunStateStore,
+        diagnostics: Diagnostics,
         coordinator: RunCoordinator | None = None,
         on_run_finished: RunFinishedListener | None = None,
         resource_wait_timeout_seconds: Callable[[], float] | None = None,
     ) -> None:
-        self.runtime = runtime
-        self.store = store or RunStateStore(runtime)
-        self.diagnostics = diagnostics or Diagnostics(runtime)
+        self.store = store
+        self.diagnostics = diagnostics
         self.coordinator = coordinator or RunCoordinator()
         self.on_run_finished = on_run_finished
         self.resource_wait_timeout_seconds = resource_wait_timeout_seconds or (lambda: 300.0)
@@ -274,7 +159,7 @@ class GenericRunManager:
     def start(self, plan: RunStartPlan, *, run_id: str | None = None) -> LiveRun:
         with self._lock:
             if self._closing:
-                raise RuntimeError("Application is shutting down")
+                raise RuntimeUnavailable("Application is shutting down")
         run_id = run_id or uuid.uuid4().hex[:12]
         started_at = now_text()
         state = LiveRun(
@@ -301,13 +186,16 @@ class GenericRunManager:
             force_after_seconds=plan.force_after_seconds,
             preemptible=plan.preemptible,
         )
+        thread = threading.Thread(target=self._execute_loop, args=(state, plan, lease), name=f"run-{state.id}", daemon=False)
+        state.thread = thread
+        start_error: Exception | None = None
         with self._lock:
             if self._closing:
-                raise RuntimeError("Application is shutting down")
+                raise RuntimeUnavailable("Application is shutting down")
             self._discard_terminal_runs_locked()
             current = self._runs.get(self._current_run_id or "")
             if current and current.status in {"running", "stopping"}:
-                raise RuntimeError(f"Run already active: {current.id}")
+                raise Conflict(f"Run already active: {current.id}")
             self.store.create_run(
                 run_id=run_id,
                 kind=plan.kind,
@@ -322,19 +210,19 @@ class GenericRunManager:
             self._runs[run_id] = state
             self._plans[run_id] = plan
             self._current_run_id = run_id
+            try:
+                thread.start()
+            except Exception as exc:
+                start_error = exc
             self._notify_locked()
 
-        thread = threading.Thread(target=self._execute_loop, args=(state, plan, lease), name=f"run-{state.id}", daemon=False)
-        state.thread = thread
-        try:
-            thread.start()
-        except Exception as exc:
-            self.append_event(state, plan, plan.text.execution_failed.format(error=exc), tone="danger")
+        if start_error is not None:
+            self.append_event(state, plan, plan.text.execution_failed.format(error=start_error), tone="danger")
             retry = state.current_retry
             if retry is not None:
                 self._finish_retry(state, retry, "failed", None)
             self._finish_run(state, RunCompletion(status="failed"))
-            raise
+            raise start_error
         return state
 
     def current(self) -> LiveRun | None:
@@ -352,7 +240,7 @@ class GenericRunManager:
             if state is None:
                 return
             if state.status not in TERMINAL_STATUSES:
-                raise RuntimeError(f"Run is still active: {run_id}")
+                raise Conflict(f"Run is still active: {run_id}")
             self._runs.pop(run_id, None)
             self._plans.pop(run_id, None)
             if self._current_run_id == run_id:
@@ -401,45 +289,57 @@ class GenericRunManager:
     def stop_current(self) -> LiveRun:
         state = self.current()
         if state is None:
-            raise KeyError("no-current-run")
+            raise ResourceNotFound("No run active")
         return self.stop(state.id)
 
     def force_stop_current(self) -> LiveRun:
         state = self.current()
         if state is None:
-            raise KeyError("no-current-run")
+            raise ResourceNotFound("No run active")
         return self.force_stop(state.id)
 
     def stop(self, run_id: str) -> LiveRun:
         state = self.get(run_id)
         if state is None:
-            raise KeyError(run_id)
+            raise ResourceNotFound(f"Run not found: {run_id}")
         plan = self._plan_for(state)
+        record_event = False
         with self._lock:
             if state.status in {"running", "stopping"}:
                 if not state.stop_requested:
-                    self._record_framework_event(state, plan.text.stop_requested, tone="warning")
+                    record_event = True
                     self._append_event_locked(state, plan, plan.text.stop_requested, tone="warning")
                 state.request_stop()
+                process = state.process
                 self._notify_locked()
+            else:
+                process = None
+        if record_event:
+            self._record_framework_event(state, plan.text.stop_requested, tone="warning")
         self.coordinator.notify_waiters()
-        terminate_process_group(state.process)
+        terminate_process_group(process)
         return state
 
     def force_stop(self, run_id: str) -> LiveRun:
         state = self.get(run_id)
         if state is None:
-            raise KeyError(run_id)
+            raise ResourceNotFound(f"Run not found: {run_id}")
         plan = self._plan_for(state)
+        record_event = False
         with self._lock:
             if state.status in {"running", "stopping"}:
                 if not state.force_stop_requested:
-                    self._record_framework_event(state, plan.text.force_stop_requested, tone="danger")
+                    record_event = True
                     self._append_event_locked(state, plan, plan.text.force_stop_requested, tone="danger")
                 state.request_force_stop()
+                process = state.process
                 self._notify_locked()
+            else:
+                process = None
+        if record_event:
+            self._record_framework_event(state, plan.text.force_stop_requested, tone="danger")
         self.coordinator.notify_waiters()
-        force_kill_process_group(state.process)
+        force_kill_process_group(process)
         return state
 
     def append_event(self, state: LiveRun, plan: RunStartPlan, text: str, *, tone: str = "info") -> None:
@@ -470,24 +370,22 @@ class GenericRunManager:
         self,
         state: LiveRun,
         retry: LiveRetry,
-        cmd: list[str],
+        command: CommandSpec,
         *,
-        env: dict[str, str],
         log_profile: RunLogProfile,
         timeouts: RunTimeouts,
         on_raw_line: RawLineCallback | None = None,
-        output_log_file: Path | None = None,
         on_timeout: TimeoutCallback | None = None,
     ) -> StreamingProcessResult:
         try:
             return run_streaming_process(
-                self.runtime,
-                cmd,
-                env=env,
+                command.cmd,
+                cwd=command.cwd,
+                env=command.env,
                 on_output=lambda text: None,
                 on_stream_output=lambda stream, text: self._append_stream_output(state, retry, log_profile, stream, text),
                 on_raw_line=on_raw_line,
-                output_log_file=output_log_file,
+                output_log_file=command.output_log_file,
                 on_process=lambda proc: self.set_process(state, proc),
                 should_stop=lambda: state.stop_requested,
                 should_force_stop=lambda: state.force_stop_requested,
@@ -630,7 +528,18 @@ class GenericRunManager:
                     metadata=retry.metadata,
                     artifacts=retry.artifacts,
                 )
-            self._finish_run(state, RunCompletion(status="failed"))
+            try:
+                self._finish_run(state, RunCompletion(status="failed"))
+            except Exception:
+                # Persistent storage failure is fail-closed: live and durable
+                # remain non-terminal, the lease stays held, and startup recovery
+                # will seal the durable record after the backend is restarted.
+                logger.critical(
+                    "run finalization could not be persisted; restart required run_id=%s kind=%s",
+                    state.id,
+                    state.kind,
+                    exc_info=True,
+                )
 
     def _report_resource_wait(self, attempt: RunAttempt, blockers: list[RunLease]) -> None:
         blocker_text = ", ".join(f"{item.title}({item.run_id})" for item in blockers)
@@ -714,11 +623,9 @@ class GenericRunManager:
             result = self.run_process(
                 state,
                 retry,
-                command.cmd,
-                env=command.env,
+                command,
                 log_profile=plan.log_profile,
                 timeouts=plan.timeouts,
-                output_log_file=command.output_log_file,
                 on_raw_line=lambda stream, line: self._handle_raw_line(plan, attempt, stream, line),
                 on_timeout=lambda level, elapsed: self._append_timeout_event(attempt, level, elapsed),
             )
@@ -785,11 +692,9 @@ class GenericRunManager:
                 result = self.run_process(
                     state,
                     retry,
-                    command.cmd,
-                    env=command.env,
+                    command,
                     log_profile=profile,
                     timeouts=script.timeouts,
-                    output_log_file=command.output_log_file,
                     on_timeout=lambda level, elapsed: self._append_script_timeout_event(attempt, level, elapsed),
                 )
             except Exception as exc:
@@ -859,45 +764,66 @@ class GenericRunManager:
         )
 
     def _finish_run(self, state: LiveRun, completion: RunCompletion) -> None:
-        should_persist = False
+        with self._lock:
+            if state.status in TERMINAL_STATUSES:
+                return
+
+        # Durable state is the recovery authority. Do not publish an irreversible
+        # live terminal status until its durable counterpart has been committed.
+        self._persist_completion(state, completion)
+
+        with self._lock:
+            if state.status in TERMINAL_STATUSES:
+                return
+            if completion.summary:
+                state.metadata = {**state.metadata, "summary": dict(completion.summary)}
+            if completion.metadata_patch:
+                state.metadata = {**state.metadata, **completion.metadata_patch}
+            if completion.artifacts:
+                state.artifacts = {**state.artifacts, **completion.artifacts}
+            state.finish(status=completion.status, return_code=completion.return_code)
+            self._plans.pop(state.id, None)
+            self._notify_locked()
+
+        self.coordinator.release(state.id)
+        logger.info("generic run finished run_id=%s kind=%s status=%s return_code=%s", state.id, state.kind, completion.status, completion.return_code)
+        self._run_post_finish_maintenance(state)
+
+    def _persist_completion(self, state: LiveRun, completion: RunCompletion) -> None:
+        for attempt in range(1, FINALIZATION_PERSIST_ATTEMPTS + 1):
+            try:
+                self.store.finish_run(
+                    state.id,
+                    status=completion.status,
+                    return_code=completion.return_code,
+                    retry_count=len(state.retries),
+                    retry_group_count=max((retry.retry_group for retry in state.retries), default=0),
+                    metadata={**completion.metadata_patch, **({"summary": completion.summary} if completion.summary else {})},
+                    artifacts=completion.artifacts,
+                )
+                return
+            except Exception:
+                if attempt >= FINALIZATION_PERSIST_ATTEMPTS:
+                    raise
+                logger.exception(
+                    "run finalization persistence failed; retrying run_id=%s kind=%s attempt=%s/%s",
+                    state.id,
+                    state.kind,
+                    attempt,
+                    FINALIZATION_PERSIST_ATTEMPTS,
+                )
+
+    def _run_post_finish_maintenance(self, state: LiveRun) -> None:
         try:
-            with self._lock:
-                if state.status in TERMINAL_STATUSES:
-                    return
-                if completion.summary:
-                    state.metadata = {**state.metadata, "summary": dict(completion.summary)}
-                if completion.metadata_patch:
-                    state.metadata = {**state.metadata, **completion.metadata_patch}
-                if completion.artifacts:
-                    state.artifacts = {**state.artifacts, **completion.artifacts}
-                state.finish(status=completion.status, return_code=completion.return_code)
-                should_persist = True
-                self._notify_locked()
-            self.store.finish_run(
-                state.id,
-                status=completion.status,
-                return_code=completion.return_code,
-                retry_count=len(state.retries),
-                retry_group_count=max((retry.retry_group for retry in state.retries), default=0),
-                metadata={**completion.metadata_patch, **({"summary": completion.summary} if completion.summary else {})},
-                artifacts=completion.artifacts,
-            )
             self.store.enforce_retention()
             self.diagnostics.enforce_retention(protected_paths=self.store.owned_paths())
-            logger.info("generic run finished run_id=%s kind=%s status=%s return_code=%s", state.id, state.kind, completion.status, completion.return_code)
-            if self.on_run_finished is not None:
-                try:
-                    self.on_run_finished(state)
-                except Exception:
-                    logger.exception("run finished listener failed run_id=%s kind=%s", state.id, state.kind)
-        finally:
-            if should_persist:
-                self.coordinator.release(state.id)
-            # Plans contain domain callbacks and captured service objects. They are
-            # only needed while a run is mutable, so release them at terminal state.
-            with self._lock:
-                if state.status in TERMINAL_STATUSES:
-                    self._plans.pop(state.id, None)
+        except Exception:
+            logger.exception("run post-finish retention failed run_id=%s kind=%s", state.id, state.kind)
+        if self.on_run_finished is not None:
+            try:
+                self.on_run_finished(state)
+            except Exception:
+                logger.exception("run finished listener failed run_id=%s kind=%s", state.id, state.kind)
 
     def _completion_from_decision(self, decision: RetryDecision, *, fallback_status: str) -> RunCompletion:
         return RunCompletion(

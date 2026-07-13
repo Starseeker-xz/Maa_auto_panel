@@ -10,6 +10,7 @@ from fastapi.responses import FileResponse, HTMLResponse
 
 from maa_auto_panel.branding import APP_TITLE, APP_WEB_TITLE
 from maa_auto_panel.diagnostics import get_logger
+from maa_auto_panel.web.exception_handlers import register_exception_handlers
 from maa_auto_panel.web.routes import (
     create_config_router,
     create_history_router,
@@ -43,6 +44,7 @@ def create_app(repo_root: Path | None = None) -> FastAPI:
 
     app = FastAPI(title=APP_WEB_TITLE, lifespan=lifespan)
     app.state.services = services
+    register_exception_handlers(app)
 
     @app.middleware("http")
     async def api_request_logging(request: Request, call_next):

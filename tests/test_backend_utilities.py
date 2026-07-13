@@ -5,12 +5,16 @@ import sys
 
 import pytest
 
+from maa_auto_panel.config.app_settings import FrameworkSettingsManager
 from maa_auto_panel.config.manager import ConfigManager
 from maa_auto_panel.diagnostics import Diagnostics
+from maa_auto_panel.errors import Conflict
 from maa_auto_panel.maa.runtime import MaaRuntime
 from maa_auto_panel.process import run_streaming_process
 from maa_auto_panel.run_manager.command import CommandSpec
-from maa_auto_panel.run_manager.manager import GenericRunManager, RunScriptHooks, RunScriptSpec, RunStartPlan, RunTextTemplates
+from maa_auto_panel.run_manager.contracts import RunScriptHooks, RunScriptSpec, RunStartPlan, RunTextTemplates
+from maa_auto_panel.run_manager.coordinator import RunCoordinator
+from maa_auto_panel.run_manager.manager import GenericRunManager
 from maa_auto_panel.run_manager.state import LiveRun, RunTimeouts
 from maa_auto_panel.run_manager.store import RunStateStore
 from maa_auto_panel.scheduler.models import RestartScriptPolicy, ScheduleConfig, ScheduleEntry
@@ -49,16 +53,15 @@ def test_version_compare_accepts_v_prefix_and_suffix() -> None:
 
 
 def test_streaming_process_preserves_carriage_returns_for_log_translator(tmp_path: Path) -> None:
-    runtime = MaaRuntime(tmp_path)
     chunks: list[str] = []
 
     result = run_streaming_process(
-        runtime,
         [
             sys.executable,
             "-c",
             "import sys; sys.stderr.write('first\\rsecond\\n'); sys.stderr.flush()",
         ],
+        cwd=tmp_path,
         env=os.environ.copy(),
         on_output=lambda text: None,
         on_stream_output=lambda stream, text: chunks.append(text),
@@ -71,7 +74,14 @@ def test_streaming_process_preserves_carriage_returns_for_log_translator(tmp_pat
 
 def test_game_update_tool_runs_python_unbuffered(tmp_path: Path) -> None:
     runtime = MaaRuntime(tmp_path)
-    manager = ToolRunManager(runtime, ConfigManager(runtime))
+    manager = ToolRunManager(
+        runtime,
+        ConfigManager(runtime),
+        RunStateStore(runtime.layout.framework, runtime.path_references),
+        Diagnostics(runtime.layout.framework, runtime.path_references),
+        FrameworkSettingsManager(runtime),
+        RunCoordinator(),
+    )
 
     command = _build_game_update_command(manager, {"address": "127.0.0.1:5555"})
 
@@ -81,7 +91,14 @@ def test_game_update_tool_runs_python_unbuffered(tmp_path: Path) -> None:
 
 def test_tool_start_rejects_stopping_current_run(tmp_path: Path) -> None:
     runtime = MaaRuntime(tmp_path)
-    manager = ToolRunManager(runtime, ConfigManager(runtime))
+    manager = ToolRunManager(
+        runtime,
+        ConfigManager(runtime),
+        RunStateStore(runtime.layout.framework, runtime.path_references),
+        Diagnostics(runtime.layout.framework, runtime.path_references),
+        FrameworkSettingsManager(runtime),
+        RunCoordinator(),
+    )
     state = LiveRun(
         id="run-1",
         kind="tool",
@@ -95,7 +112,7 @@ def test_tool_start_rejects_stopping_current_run(tmp_path: Path) -> None:
         manager.runs._runs[state.id] = state
         manager.runs._current_run_id = state.id
 
-    with pytest.raises(RuntimeError):
+    with pytest.raises(Conflict):
         manager.start("game-update", {})
 
 
@@ -285,8 +302,8 @@ def test_schedule_response_uses_single_current_snapshot_for_matching_run() -> No
 
 def test_schedule_restart_script_streams_to_visible_logs_and_diagnostics(tmp_path: Path) -> None:
     runtime = MaaRuntime(tmp_path)
-    diagnostics = Diagnostics(runtime)
-    store = RunStateStore(runtime)
+    diagnostics = Diagnostics(runtime.layout.framework, runtime.path_references)
+    store = RunStateStore(runtime.layout.framework, runtime.path_references)
     script_path = runtime.script_dir / "hook.sh"
     script_path.parent.mkdir(parents=True, exist_ok=True)
     script_path.write_text(
@@ -311,14 +328,14 @@ def test_schedule_restart_script_streams_to_visible_logs_and_diagnostics(tmp_pat
 
     def script_command(_attempt) -> CommandSpec:
         command = script_manager.command(config.restart.script, config.restart.variables)
-        return CommandSpec(command.cmd, env=command.env)
+        return CommandSpec(command.cmd, cwd=tmp_path, env=command.env)
 
-    manager = GenericRunManager(runtime, store, diagnostics)
+    manager = GenericRunManager(store, diagnostics)
     state = manager.start(
         RunStartPlan(
             kind="schedule",
             title="Daily / 04:00",
-            command=CommandSpec([sys.executable, "-c", ""], env=os.environ.copy()),
+            command=CommandSpec([sys.executable, "-c", ""], cwd=tmp_path, env=os.environ.copy()),
             log_profile=log_profile,
             script_hooks=RunScriptHooks(
                 before_run=(
@@ -332,7 +349,7 @@ def test_schedule_restart_script_streams_to_visible_logs_and_diagnostics(tmp_pat
                 )
             ),
             script_log_profile=script_log_profile,
-            log_files={**diagnostics.maa_cli_log_files("run-script"), **diagnostics.script_log_files("run-script")},
+            log_files={**diagnostics.stream_log_files("maa-cli", "run-script"), **diagnostics.stream_log_files("scripts", "run-script", key_prefix="script_")},
             event_log_file=diagnostics.event_log_file("run-script"),
             text=RunTextTemplates(start="", completed="", exit_code=""),
         ),

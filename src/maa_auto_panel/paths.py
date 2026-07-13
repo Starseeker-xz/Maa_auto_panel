@@ -56,6 +56,42 @@ class FrameworkPaths:
     def debug_dir(self) -> Path:
         return self.root / "debug"
 
+    @property
+    def framework_config_dir(self) -> Path:
+        return self.config_dir / "framework"
+
+    @property
+    def framework_state_dir(self) -> Path:
+        return self.state_dir / "framework"
+
+    @property
+    def run_state_dir(self) -> Path:
+        return self.framework_state_dir / "run-history"
+
+    @property
+    def scheduler_state_dir(self) -> Path:
+        return self.framework_state_dir / "scheduler"
+
+    @property
+    def framework_history_dir(self) -> Path:
+        return self.history_dir / "framework"
+
+    @property
+    def run_history_dir(self) -> Path:
+        return self.framework_history_dir / "runs"
+
+    @property
+    def framework_log_dir(self) -> Path:
+        return self.debug_dir / "framework"
+
+    @property
+    def framework_event_log_dir(self) -> Path:
+        return self.framework_log_dir / "events"
+
+    @property
+    def framework_external_log_dir(self) -> Path:
+        return self.framework_log_dir / "external"
+
 
 @dataclass(frozen=True)
 class CachePaths:

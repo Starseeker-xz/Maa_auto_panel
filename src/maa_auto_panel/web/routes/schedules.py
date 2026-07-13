@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
 from maa_auto_panel.config.manager import ConfigValidationFailure
@@ -31,19 +31,11 @@ def create_schedule_router(services: WebServices) -> APIRouter:
 
     @router.get("")
     def list_schedules() -> dict[str, object]:
-        try:
-            return scheduler.list_schedules()
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return scheduler.list_schedules()
 
     @router.post("")
     def create_schedule(payload: CreateSchedulePayload) -> dict[str, object]:
-        try:
-            return scheduler.create_schedule(payload.name, task_config=payload.task_config)
-        except FileNotFoundError as exc:
-            raise HTTPException(status_code=404, detail="Selected task config not found") from exc
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return scheduler.create_schedule(payload.name, task_config=payload.task_config)
 
     register_run_control_routes(
         router,
@@ -55,12 +47,7 @@ def create_schedule_router(services: WebServices) -> APIRouter:
 
     @router.get("/{schedule_id}")
     def read_schedule(schedule_id: str) -> dict[str, object]:
-        try:
-            return scheduler.read_schedule(schedule_id)
-        except FileNotFoundError as exc:
-            raise HTTPException(status_code=404, detail="Schedule not found") from exc
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return scheduler.read_schedule(schedule_id)
 
     @router.put("/{schedule_id}")
     def save_schedule(schedule_id: str, payload: SaveSchedulePayload) -> dict[str, object]:
@@ -68,29 +55,13 @@ def create_schedule_router(services: WebServices) -> APIRouter:
             return scheduler.save_schedule(schedule_id, payload.config)
         except ConfigValidationFailure as exc:
             raise validation_exception("Schedule validation failed", exc) from exc
-        except FileNotFoundError as exc:
-            raise HTTPException(status_code=404, detail="Schedule source not found") from exc
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     @router.delete("/{schedule_id}")
     def delete_schedule(schedule_id: str) -> dict[str, object]:
-        try:
-            return scheduler.delete_schedule(schedule_id)
-        except FileNotFoundError as exc:
-            raise HTTPException(status_code=404, detail="Schedule not found") from exc
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return scheduler.delete_schedule(schedule_id)
 
     @router.post("/{schedule_id}/run")
     def start_schedule_now(schedule_id: str, payload: StartSchedulePayload) -> dict[str, object]:
-        try:
-            return scheduler.start_now(schedule_id, entry_id=payload.entry_id, retry_count=payload.retry_count).to_dict()
-        except FileNotFoundError as exc:
-            raise HTTPException(status_code=404, detail="Schedule not found") from exc
-        except RuntimeError as exc:
-            raise HTTPException(status_code=409, detail=str(exc)) from exc
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return scheduler.start_now(schedule_id, entry_id=payload.entry_id, retry_count=payload.retry_count).to_dict()
 
     return router

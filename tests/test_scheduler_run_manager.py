@@ -2,7 +2,8 @@ from pathlib import Path
 
 from maa_auto_panel.diagnostics import Diagnostics
 from maa_auto_panel.maa.runtime import MaaRuntime
-from maa_auto_panel.run_manager.manager import GenericRunManager, RunStartPlan
+from maa_auto_panel.run_manager.contracts import RunStartPlan
+from maa_auto_panel.run_manager.manager import GenericRunManager
 from maa_auto_panel.run_manager.store import RunStateStore
 from maa_auto_panel.scheduler.models import ScheduleConfig, ScheduleEntry, TaskPolicy
 from maa_auto_panel.scheduler.service import ScheduledMaaRunCallbacks, _schedule_log_profile
@@ -11,8 +12,8 @@ from maa_auto_panel.scheduler.state import SchedulerStateStore
 
 def test_scheduled_driver_skip_persists_sealed_retry(tmp_path: Path) -> None:
     runtime = MaaRuntime(tmp_path)
-    diagnostics = Diagnostics(runtime)
-    store = RunStateStore(runtime)
+    diagnostics = Diagnostics(runtime.layout.framework, runtime.path_references)
+    store = RunStateStore(runtime.layout.framework, runtime.path_references)
     scheduler_state = SchedulerStateStore(runtime)
     log_profile = _schedule_log_profile(diagnostics, include_script=False)
     entry = ScheduleEntry(id="t0400", name="04:00", time="04:00", task_ids=["startup"])
@@ -38,7 +39,7 @@ def test_scheduled_driver_skip_persists_sealed_retry(tmp_path: Path) -> None:
         policies=[TaskPolicy(id="startup", name="启动", type="StartUp")],
         sorted_entries=[entry],
     )
-    manager = GenericRunManager(runtime, store, diagnostics)
+    manager = GenericRunManager(store, diagnostics)
 
     state = manager.start(
         RunStartPlan(
@@ -47,7 +48,7 @@ def test_scheduled_driver_skip_persists_sealed_retry(tmp_path: Path) -> None:
             callbacks=callbacks.to_callbacks(),
             max_retries=3,
             log_profile=log_profile,
-            log_files=diagnostics.maa_cli_log_files("schedule-skip"),
+            log_files=diagnostics.stream_log_files("maa-cli", "schedule-skip"),
             event_log_file=diagnostics.event_log_file("schedule-skip"),
             initial_attempt_payload={"task_ids": []},
             history_scope=("schedules", "daily"),

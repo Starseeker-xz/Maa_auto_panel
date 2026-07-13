@@ -6,9 +6,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from maa_auto_panel.maa.runtime import MaaRuntime
+from maa_auto_panel.errors import Conflict, ResourceNotFound
+from maa_auto_panel.paths import FrameworkPaths
 from maa_auto_panel.run_manager.state import RunKind
 from maa_auto_panel.storage.files import read_json_object, write_json_object
+from maa_auto_panel.storage.path_references import PathReferenceResolver
 from maa_auto_panel.time_utils import server_now_iso
 from maa_auto_panel.utils import relative_path, slugify
 
@@ -61,23 +63,29 @@ class StoredRun:
 
 
 class RunStateStore:
-    def __init__(self, runtime: MaaRuntime, retention: StateRetentionPolicy | None = None) -> None:
-        self.runtime = runtime
+    def __init__(
+        self,
+        paths: FrameworkPaths,
+        references: PathReferenceResolver,
+        retention: StateRetentionPolicy | None = None,
+    ) -> None:
+        self.paths = paths
+        self.references = references
         self.retention = retention or StateRetentionPolicy()
         self._lock = threading.RLock()
         self.ensure_dirs()
 
     @property
     def run_records_path(self) -> Path:
-        return self.runtime.run_state_dir / "recent-run-records.json"
+        return self.paths.run_state_dir / "recent-run-records.json"
 
     @property
     def retries_path(self) -> Path:
-        return self.runtime.run_state_dir / "run-retries.json"
+        return self.paths.run_state_dir / "run-retries.json"
 
     def ensure_dirs(self) -> None:
-        self.runtime.run_state_dir.mkdir(parents=True, exist_ok=True)
-        self.runtime.run_history_dir.mkdir(parents=True, exist_ok=True)
+        self.paths.run_state_dir.mkdir(parents=True, exist_ok=True)
+        self.paths.run_history_dir.mkdir(parents=True, exist_ok=True)
 
     def enforce_retention(self) -> list[dict[str, object]]:
         """Apply run-aware retention and cascade owned data for evicted runs.
@@ -267,9 +275,9 @@ class RunStateStore:
         with self._lock:
             run = self.run(run_id)
             if run is None:
-                raise KeyError(run_id)
+                raise ResourceNotFound(f"Run not found: {run_id}")
             if run.status in {"running", "stopping"}:
-                raise RuntimeError(f"Run is still active: {run_id}")
+                raise Conflict(f"Run is still active: {run_id}")
             runs = [_stored_run_from_data(item) for item in self._run_items() if item.get("id") != run_id]
             retries = [item for item in self._retry_items() if item.get("run_id") != run_id]
             owned_retries = [item for item in self._retry_items() if item.get("run_id") == run_id]
@@ -287,7 +295,7 @@ class RunStateStore:
             for run in self.runs(limit=0):
                 for _kind, reference in self._owned_references(run, retries_by_run.get(run.id, [])):
                     try:
-                        paths.add(self.runtime.path_references.resolve(reference))
+                        paths.add(self.references.resolve(reference))
                     except ValueError:
                         continue
             return paths
@@ -298,7 +306,7 @@ class RunStateStore:
 
         for kind, reference in sorted(references):
             try:
-                path = self.runtime.path_references.resolve(reference)
+                path = self.references.resolve(reference)
             except ValueError:
                 continue
             if kind == "dir":
@@ -314,7 +322,7 @@ class RunStateStore:
         return {
             "id": run.id,
             "history_deleted": history_deleted,
-            "history_path": relative_path(history_path, self.runtime.data_root),
+            "history_path": relative_path(history_path, self.paths.root),
         }
 
     def _owned_references(self, run: StoredRun, retries: list[dict[str, object]]) -> set[tuple[str, str]]:
@@ -336,7 +344,7 @@ class RunStateStore:
     def _collect_owned_artifacts(references: set[tuple[str, str]], artifacts: dict[str, Any]) -> None:
         # Ownership is explicit by artifact role. Unknown/shared/external values
         # remain untouched even if they happen to contain a local path.
-        for key, kind in (("generated_config_dir", "dir"), ("maacore_log_file", "file")):
+        for key, kind in (("generated_config_dir", "dir"), ("diagnostic_log_file", "file")):
             value = artifacts.get(key)
             if isinstance(value, str) and value:
                 references.add((kind, value))
@@ -435,7 +443,7 @@ class RunStateStore:
             "retries": retries,
         }
         write_json_object(path, data)
-        return self.runtime.path_references.reference("framework", path)
+        return self.references.reference("framework", path)
 
     def _sync_run_history(self, run_id: str) -> None:
         run = self.run(run_id)
@@ -459,7 +467,7 @@ class RunStateStore:
             output["log_entries"] = []
             return output
         try:
-            path = self.runtime.path_references.resolve(history_file, expected_root="framework")
+            path = self.references.resolve(history_file, expected_root="framework")
         except ValueError:
             output["log_entries"] = []
             return output
@@ -474,9 +482,9 @@ class RunStateStore:
 
     def _run_history_path(self, run_id: str, run: StoredRun | None) -> Path:
         if run is None:
-            return self.runtime.run_history_dir / "unknown" / f"{run_id}.json"
+            return self.paths.run_history_dir / "unknown" / f"{run_id}.json"
         scope = run.history_scope or ("unknown",)
-        return self.runtime.run_history_dir.joinpath(*(_safe_path_part(part) for part in scope), f"{run_id}.json")
+        return self.paths.run_history_dir.joinpath(*(_safe_path_part(part) for part in scope), f"{run_id}.json")
 
     def _write_runs(self, runs: list[StoredRun | None]) -> None:
         records = [run for run in runs if run is not None]

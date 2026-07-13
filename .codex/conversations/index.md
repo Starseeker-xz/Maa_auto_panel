@@ -4,6 +4,9 @@
 
 ## Active sessions
 
+- `2026-07-13_1541-review-incomplete-session`: 复核并完成上一 run-architecture 会话收尾；实现 durable-first 终态提交、MAA 领域 debug cleanup、完整 channel diagnostics 与 corrupt-state 边界，完整后端 119 passed。
+- `2026-07-13_1500-audit-run-architecture`: 审计并实施 run core/path/异常重构；process/manager/store/diagnostics 已脱离 MaaRuntime，新增通用 retry-scoped 增量文件诊断捕捉与五类应用异常 handlers；其“110 tests passed”记录已由后续复核纠正。
+
 - `2026-07-12_0216-fix-scrcpy-url`: 修正 scrcpy URL 协议中 request_id 的 UUID 生成与文档约定。
 - `2026-07-12_0125-toolbar-scrcpy-notifications`: 审计并调整 Toolbar 尺寸/分隔、通知删除按钮 focus 行为，并设计本地 scrcpy URL 协议。
 - `2026-07-12_0055-fix-retention-frontend-split`: 修复后端 run-aware retention；前端迁移 AlertDialog/NavLink/Tabs/rename hook/Tooltip，并完成 route + editor lazy 分块、构筑与浏览器 smoke。

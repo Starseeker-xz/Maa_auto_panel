@@ -11,6 +11,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import tomli_w
 
+from maa_auto_panel.errors import InvalidRequest
 from maa_auto_panel.run_manager.state import RunTimeouts
 from maa_auto_panel.utils import bounded_int
 from maa_auto_panel.maa.runtime import MaaRuntime
@@ -193,7 +194,7 @@ def _manual_timezone_info(value: str) -> TimezoneInfo:
     raw_value = value.strip()
     parsed = raw_value.upper()
     if not raw_value:
-        raise ValueError("Timezone cannot be empty")
+        raise InvalidRequest("Timezone cannot be empty")
 
     if parsed in {"UTC", "Z"}:
         offset_minutes = 0
@@ -233,10 +234,10 @@ def _manual_timezone_info(value: str) -> TimezoneInfo:
             else:
                 offset_minutes = sign * int(raw) * 60
     except ValueError as exc:
-        raise ValueError(f"Invalid timezone: {value}") from exc
+        raise InvalidRequest(f"Invalid timezone: {value}") from exc
 
     if not -14 * 60 <= offset_minutes <= 14 * 60:
-        raise ValueError(f"Timezone offset out of range: {value}")
+        raise InvalidRequest(f"Timezone offset out of range: {value}")
 
     now = datetime.now(timezone(timedelta(minutes=offset_minutes)))
     return TimezoneInfo(name=raw_value, offset_minutes=offset_minutes, label=_offset_label(offset_minutes), resolved_at=now.isoformat(timespec="seconds"))

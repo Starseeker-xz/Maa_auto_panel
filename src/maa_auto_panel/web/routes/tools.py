@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
 from maa_auto_panel.run_manager.router import RunControlRoutes, register_run_control_routes
@@ -34,11 +34,6 @@ def create_tools_router(services: WebServices) -> APIRouter:
 
     @router.post("/{tool_id}/run")
     def start_tool_run(tool_id: str, payload: StartToolPayload) -> dict[str, object]:
-        try:
-            return tools.start(tool_id, payload.config, retry_count=payload.retry_count).to_dict()
-        except RuntimeError as exc:
-            raise HTTPException(status_code=409, detail=str(exc)) from exc
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return tools.start(tool_id, payload.config, retry_count=payload.retry_count).to_dict()
 
     return router

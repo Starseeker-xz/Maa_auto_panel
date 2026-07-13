@@ -10,15 +10,18 @@ from maa_auto_panel.config.app_settings import FrameworkSettingsManager
 from maa_auto_panel.config.manager import ConfigManager
 from maa_auto_panel.config.tasks import TASK_SUFFIXES, prepare_framework_task_config
 from maa_auto_panel.diagnostics import Diagnostics, get_logger
+from maa_auto_panel.errors import CorruptState
+from maa_auto_panel.maa.cleanup import enforce_maa_debug_retention
 from maa_auto_panel.maa.log_templates import register_maa_log_sources
 from maa_auto_panel.maa.results import MaaTaskDescriptor, MaaTaskResultCollector
 from maa_auto_panel.maa.runtime import MaaRuntime
 from maa_auto_panel.notifications import NotificationService
 from maa_auto_panel.process import StreamingProcessResult
 from maa_auto_panel.run_manager.command import CommandSpec
+from maa_auto_panel.run_manager.contracts import RetryDecision, RunCallbacks, RunStartPlan, RunTextTemplates
 from maa_auto_panel.run_manager.coordinator import RunCoordinator
 from maa_auto_panel.run_manager.logs import RunLogProfile
-from maa_auto_panel.run_manager.manager import GenericRunManager, RetryDecision, RunAttempt, RunCallbacks, RunStartPlan, RunTextTemplates
+from maa_auto_panel.run_manager.manager import GenericRunManager, RunAttempt
 from maa_auto_panel.run_manager.state import LiveRun
 from maa_auto_panel.run_manager.store import RunStateStore
 from maa_auto_panel.run_resources import RUN_PRIORITY_NORMAL, maa_run_resources_from_profile
@@ -115,15 +118,18 @@ def resolve_task_file(runtime: MaaRuntime, task: str) -> Path:
 
 
 def load_task_file(path: Path) -> dict[str, object]:
-    content = path.read_text(encoding="utf-8")
-    if path.suffix.lower() == ".toml":
-        return tomllib.loads(content)
-    if path.suffix.lower() == ".json":
-        loaded = json.loads(content)
-        if isinstance(loaded, dict):
-            return loaded
-        raise ValueError("Task JSON root must be an object")
-    raise ValueError(f"Cannot generate maa-cli task from {path.suffix} config yet")
+    try:
+        content = path.read_text(encoding="utf-8")
+        if path.suffix.lower() == ".toml":
+            return tomllib.loads(content)
+        if path.suffix.lower() == ".json":
+            loaded = json.loads(content)
+            if isinstance(loaded, dict):
+                return loaded
+            raise CorruptState(f"Task JSON root must be an object: {path}")
+    except (UnicodeDecodeError, json.JSONDecodeError, tomllib.TOMLDecodeError) as exc:
+        raise CorruptState(f"Cannot parse task config: {path}") from exc
+    raise CorruptState(f"Cannot generate maa-cli task from {path.suffix} config: {path}")
 
 
 def ensure_generated_config_links(runtime: MaaRuntime, generated_root: Path, *, skip_names: set[str] | None = None) -> None:
@@ -161,7 +167,7 @@ class ManualMaaRunCallbacks:
         self.policy_by_id = {policy.id: policy for policy in self.policies}
         self.run_successful_task_ids: set[str] = set()
         self.collectors: dict[str, MaaTaskResultCollector] = {}
-        self.maacore_offsets: dict[str, int] = {}
+        self.maacore_log_offsets: dict[str, int] = {}
 
     def to_callbacks(self) -> RunCallbacks:
         return RunCallbacks(
@@ -215,8 +221,8 @@ class ManualMaaRunCallbacks:
         task_descriptors = _task_descriptors(self.policy_by_id, task_ids)
         attempt.configure_log(lambda log: log.begin_task_sequence(_task_descriptor_dicts(task_descriptors)))
         self.collectors[attempt.retry_id] = MaaTaskResultCollector(task_descriptors)
-        self.maacore_offsets[attempt.retry_id] = self.diagnostics.maacore_log_offset()
-        return CommandSpec(cmd, env=run_env)
+        self.maacore_log_offsets[attempt.retry_id] = current_log_offset(maacore_log_source(self.runtime))
+        return CommandSpec(cmd, cwd=self.runtime.repo_root, env=run_env)
 
     def on_raw_line(self, attempt: RunAttempt, stream: str, line: str) -> None:
         collector = self.collectors.get(attempt.retry_id)
@@ -227,7 +233,12 @@ class ManualMaaRunCallbacks:
         generated_config_dir = _generated_config_dir(self.runtime, attempt.run_id)
         collector = self.collectors.pop(attempt.retry_id, MaaTaskResultCollector([]))
         collector.finish()
-        maacore_log_file = self.diagnostics.capture_maacore_log(attempt.retry_id, self.maacore_offsets.pop(attempt.retry_id, 0))
+        maacore_capture = self.diagnostics.capture_file_increment(
+            maacore_log_source(self.runtime),
+            self.maacore_log_offsets.pop(attempt.retry_id, 0),
+            capture_id=attempt.retry_id,
+        )
+        enforce_maa_debug_retention(self.runtime.layout.maa)
         task_results = list(collector.results)
         task_ids = _attempt_task_ids(attempt)
         status_by_task_id = collector.status_by_task_id(task_ids)
@@ -262,7 +273,7 @@ class ManualMaaRunCallbacks:
             continue_retry=will_retry,
             next_attempt_payload={"task_ids": next_task_ids},
             retry_metadata={"task_ids": task_ids, "task_results": task_results},
-            retry_artifacts={"generated_config_dir": generated_config_dir, "maacore_log_file": maacore_log_file},
+            retry_artifacts={"generated_config_dir": generated_config_dir, "diagnostic_log_file": maacore_capture.log_file},
             summary_patch={"task_results": task_results, "generated_config_dir": generated_config_dir},
         )
 
@@ -288,21 +299,20 @@ class MaaRunManager:
     def __init__(
         self,
         runtime: MaaRuntime,
-        run_state: RunStateStore | None = None,
-        diagnostics: Diagnostics | None = None,
-        framework_settings: FrameworkSettingsManager | None = None,
-        configs: ConfigManager | None = None,
-        run_coordinator: RunCoordinator | None = None,
+        run_state: RunStateStore,
+        diagnostics: Diagnostics,
+        framework_settings: FrameworkSettingsManager,
+        configs: ConfigManager,
+        run_coordinator: RunCoordinator,
         notifications: NotificationService | None = None,
     ) -> None:
         self.runtime = runtime
-        self.run_state = run_state or RunStateStore(runtime)
-        self.diagnostics = diagnostics or Diagnostics(runtime)
-        self.framework_settings = framework_settings or FrameworkSettingsManager(runtime)
-        self.configs = configs or ConfigManager(runtime)
-        self.run_coordinator = run_coordinator or RunCoordinator()
+        self.run_state = run_state
+        self.diagnostics = diagnostics
+        self.framework_settings = framework_settings
+        self.configs = configs
+        self.run_coordinator = run_coordinator
         self.runs = GenericRunManager(
-            runtime,
             self.run_state,
             self.diagnostics,
             self.run_coordinator,
@@ -314,7 +324,7 @@ class MaaRunManager:
         profile_data = self._profile_data(request.profile)
         resources = maa_run_resources_from_profile(profile_data)
         run_id = uuid.uuid4().hex[:12]
-        log_files = self.diagnostics.maa_cli_log_files(run_id)
+        log_files = self.diagnostics.stream_log_files("maa-cli", run_id)
         max_retries = _retry_count(request.retry_count)
         log_profile = _maa_cli_log_profile(self.diagnostics)
         task_data = load_task_file(resolve_task_file(self.runtime, request.task))
@@ -408,12 +418,23 @@ def _maa_cli_log_profile(diagnostics: Diagnostics) -> RunLogProfile:
         max_output_chunks=2000,
         register_sources=register_maa_log_sources,
         source_for_stream=lambda stream: f"maa-cli:{stream}",
-        diagnostic_sink=diagnostics.append_maa_cli_output,
+        diagnostic_sink=diagnostics.stream_sink("maa-cli"),
     )
 
 
 def _generated_config_dir(runtime: MaaRuntime, run_id: str) -> str:
     return runtime.path_references.reference("runtime", runtime.generated_config_dir / run_id)
+
+
+def maacore_log_source(runtime: MaaRuntime) -> Path:
+    return runtime.state_home / "maa" / "debug" / "asst.log"
+
+
+def current_log_offset(path: Path) -> int:
+    try:
+        return path.stat().st_size
+    except FileNotFoundError:
+        return 0
 
 
 def _retry_count(value: object) -> int:

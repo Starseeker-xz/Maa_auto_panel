@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from maa_auto_panel.errors import CorruptState
 from maa_auto_panel.utils import write_text_atomic
 
 
@@ -39,14 +40,16 @@ def read_jsonl(path: Path) -> list[dict[str, object]]:
 
 
 def read_json_object(path: Path) -> dict[str, Any]:
-    """Read JSON file as dict, or return empty dict on failure."""
+    """Read a durable JSON object, distinguishing absence from corruption."""
     if not path.exists():
         return {}
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError:
-        return {}
-    return data if isinstance(data, dict) else {}
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise CorruptState(f"Invalid JSON object: {path}") from exc
+    if not isinstance(data, dict):
+        raise CorruptState(f"JSON root must be an object: {path}")
+    return data
 
 
 def write_json_object(path: Path, data: dict[str, Any]) -> None:

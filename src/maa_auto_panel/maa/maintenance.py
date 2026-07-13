@@ -11,12 +11,14 @@ import requests
 
 from maa_auto_panel.config.app_settings import FrameworkSettingsManager
 from maa_auto_panel.diagnostics import Diagnostics, get_logger
+from maa_auto_panel.errors import InvalidRequest
 from maa_auto_panel.maa.log_templates import register_maa_log_sources
 from maa_auto_panel.maa.runtime import MaaRuntime
 from maa_auto_panel.run_manager.command import CommandSpec
+from maa_auto_panel.run_manager.contracts import RunStartPlan, RunTextTemplates
 from maa_auto_panel.run_manager.coordinator import RunCoordinator
 from maa_auto_panel.run_manager.logs import RunLogProfile
-from maa_auto_panel.run_manager.manager import GenericRunManager, RunStartPlan, RunTextTemplates
+from maa_auto_panel.run_manager.manager import GenericRunManager
 from maa_auto_panel.run_manager.state import LiveRun
 from maa_auto_panel.run_manager.store import RunStateStore
 from maa_auto_panel.run_resources import maa_runtime_resource
@@ -42,17 +44,16 @@ class MaintenanceActionManager:
     def __init__(
         self,
         runtime: MaaRuntime,
-        run_state: RunStateStore | None = None,
-        diagnostics: Diagnostics | None = None,
-        framework_settings: FrameworkSettingsManager | None = None,
-        run_coordinator: RunCoordinator | None = None,
+        run_state: RunStateStore,
+        diagnostics: Diagnostics,
+        framework_settings: FrameworkSettingsManager,
+        run_coordinator: RunCoordinator,
     ) -> None:
         self.runtime = runtime
-        self.diagnostics = diagnostics or Diagnostics(runtime)
-        self.framework_settings = framework_settings or FrameworkSettingsManager(runtime)
+        self.diagnostics = diagnostics
+        self.framework_settings = framework_settings
         self.runs = GenericRunManager(
-            runtime,
-            run_state or RunStateStore(runtime),
+            run_state,
             self.diagnostics,
             run_coordinator,
             resource_wait_timeout_seconds=self.framework_settings.resource_wait_timeout_seconds,
@@ -70,7 +71,7 @@ class MaintenanceActionManager:
     def start(self, kind: str) -> LiveRun:
         command_info = MAINTENANCE_COMMANDS.get(kind)
         if command_info is None:
-            raise ValueError(f"Unsupported maintenance action: {kind}")
+            raise InvalidRequest(f"Unsupported maintenance action: {kind}")
 
         title, args = command_info
         run_id = uuid.uuid4().hex[:12]
@@ -80,11 +81,11 @@ class MaintenanceActionManager:
             RunStartPlan(
                 kind="maintenance",
                 title=title,
-                command=CommandSpec(cmd, env=self.runtime.env()),
+                command=CommandSpec(cmd, cwd=self.runtime.repo_root, env=self.runtime.env()),
                 max_retries=1,
                 timeouts=self.framework_settings.run_timeouts(),
                 log_profile=log_profile,
-                log_files=self.diagnostics.maa_cli_log_files(run_id),
+                log_files=self.diagnostics.stream_log_files("maa-cli", run_id),
                 event_log_file=self.diagnostics.event_log_file(run_id),
                 metadata={"maintenance_kind": kind},
                 history_scope=("maintenance", kind),
@@ -130,7 +131,7 @@ def _maa_cli_log_profile(diagnostics: Diagnostics) -> RunLogProfile:
         max_output_chunks=1000,
         register_sources=register_maa_log_sources,
         source_for_stream=lambda stream: f"maa-cli:{stream}",
-        diagnostic_sink=diagnostics.append_maa_cli_output,
+        diagnostic_sink=diagnostics.stream_sink("maa-cli"),
     )
 
 

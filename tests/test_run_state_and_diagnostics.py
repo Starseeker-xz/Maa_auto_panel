@@ -4,18 +4,33 @@ import time
 import json
 from pathlib import Path
 
+import pytest
+
 from maa_auto_panel.diagnostics import Diagnostics, LogRetentionPolicy
+from maa_auto_panel.errors import CorruptState
 from maa_auto_panel.maa.runtime import MaaRuntime
 from maa_auto_panel.run_manager.store import RunStateStore, StateRetentionPolicy
 from maa_auto_panel.scheduler.state import SchedulerStateStore
 
 
+def test_run_state_store_rejects_corrupt_index_without_overwriting_it(tmp_path: Path) -> None:
+    runtime = MaaRuntime(tmp_path)
+    store = RunStateStore(runtime.layout.framework, runtime.path_references)
+    corrupt = store.run_records_path
+    corrupt.write_text('{"runs": [', encoding="utf-8")
+
+    with pytest.raises(CorruptState, match="Invalid JSON object"):
+        store.create_run(run_id="new-run", kind="manual", title="must not overwrite")
+
+    assert corrupt.read_text(encoding="utf-8") == '{"runs": ['
+
+
 def test_run_state_store_writes_readable_state_outside_debug(tmp_path: Path) -> None:
     runtime = MaaRuntime(tmp_path)
-    diagnostics = Diagnostics(runtime)
-    store = RunStateStore(runtime)
+    diagnostics = Diagnostics(runtime.layout.framework, runtime.path_references)
+    store = RunStateStore(runtime.layout.framework, runtime.path_references)
     run_id = "run-1"
-    log_files = diagnostics.maa_cli_log_files(run_id)
+    log_files = diagnostics.stream_log_files("maa-cli", run_id)
     event_log_file = diagnostics.event_log_file(run_id)
 
     store.create_run(
@@ -108,14 +123,14 @@ def test_scheduler_state_store_records_stats_and_triggers(tmp_path: Path) -> Non
 
 def test_diagnostics_writes_framework_and_external_logs(tmp_path: Path) -> None:
     runtime = MaaRuntime(tmp_path)
-    diagnostics = Diagnostics(runtime)
+    diagnostics = Diagnostics(runtime.layout.framework, runtime.path_references)
     logger = diagnostics.configure_logging()
 
     for level in [logging.DEBUG, logging.INFO, logging.WARNING, logging.ERROR, logging.CRITICAL]:
         logger.log(level, "level probe %s", logging.getLevelName(level))
     diagnostics.append_run_event("run-1", "manual", "framework", "人读事件", tone="info")
-    diagnostics.append_maa_cli_output("run-1", "stdout", "stdout line\n")
-    diagnostics.append_maa_cli_output("run-1", "stderr", "stderr line\n")
+    diagnostics.stream_sink("maa-cli")("run-1", "stdout", "stdout line\n")
+    diagnostics.stream_sink("maa-cli")("run-1", "stderr", "stderr line\n")
 
     framework = (tmp_path / "data/debug/framework/framework.log").read_text(encoding="utf-8")
     assert "DEBUG" in framework
@@ -128,9 +143,9 @@ def test_diagnostics_writes_framework_and_external_logs(tmp_path: Path) -> None:
     assert (tmp_path / "data/debug/framework/external/maa-cli/run-1.stdout.log").read_text(encoding="utf-8") == "stdout line\n"
     assert (tmp_path / "data/debug/framework/external/maa-cli/run-1.stderr.log").read_text(encoding="utf-8") == "stderr line\n"
 
-    tool_log_files = diagnostics.tool_log_files("tool-1")
-    diagnostics.append_tool_output("tool-1", "stdout", "tool stdout\n")
-    diagnostics.append_tool_output("tool-1", "stderr", "tool stderr\n")
+    tool_log_files = diagnostics.stream_log_files("tools", "tool-1")
+    diagnostics.stream_sink("tools")("tool-1", "stdout", "tool stdout\n")
+    diagnostics.stream_sink("tools")("tool-1", "stderr", "tool stderr\n")
     assert tool_log_files == {
         "stdout": "framework:debug/framework/external/tools/tool-1.stdout.log",
         "stderr": "framework:debug/framework/external/tools/tool-1.stderr.log",
@@ -139,9 +154,47 @@ def test_diagnostics_writes_framework_and_external_logs(tmp_path: Path) -> None:
     assert (tmp_path / "data/debug/framework/external/tools/tool-1.stderr.log").read_text(encoding="utf-8") == "tool stderr\n"
 
 
+def test_diagnostics_captures_binary_file_increment_and_reports_next_offset(tmp_path: Path) -> None:
+    runtime = MaaRuntime(tmp_path)
+    diagnostics = Diagnostics(runtime.layout.framework, runtime.path_references)
+    source = tmp_path / "source.log"
+    source.write_bytes(b"before\n")
+    start_offset = source.stat().st_size
+    source.write_bytes(b"before\nnew:\xff\n")
+
+    capture = diagnostics.capture_file_increment(source, start_offset, capture_id="attempt-1")
+
+    assert capture.log_file == "framework:debug/framework/external/incremental/attempt-1.log"
+    assert capture.next_offset == source.stat().st_size
+    assert capture.captured_bytes == len(b"new:\xff\n")
+    assert runtime.path_references.resolve(capture.log_file).read_bytes() == b"new:\xff\n"
+
+    empty = diagnostics.capture_file_increment(source, capture.next_offset, capture_id="attempt-2")
+    assert empty.log_file is None
+    assert empty.next_offset == capture.next_offset
+    assert empty.captured_bytes == 0
+
+
+def test_diagnostics_increment_capture_handles_missing_and_truncated_source(tmp_path: Path) -> None:
+    runtime = MaaRuntime(tmp_path)
+    diagnostics = Diagnostics(runtime.layout.framework, runtime.path_references)
+    source = tmp_path / "source.log"
+
+    missing = diagnostics.capture_file_increment(source, 100, capture_id="missing")
+    assert missing.log_file is None
+    assert missing.next_offset == 0
+    assert missing.captured_bytes == 0
+
+    source.write_bytes(b"replacement")
+    truncated = diagnostics.capture_file_increment(source, 100, capture_id="truncated")
+    assert truncated.next_offset == len(b"replacement")
+    assert truncated.captured_bytes == len(b"replacement")
+    assert runtime.path_references.resolve(truncated.log_file).read_bytes() == b"replacement"
+
+
 def test_run_state_store_records_single_attempt_for_generic_runs(tmp_path: Path) -> None:
     runtime = MaaRuntime(tmp_path)
-    store = RunStateStore(runtime)
+    store = RunStateStore(runtime.layout.framework, runtime.path_references)
 
     store.create_run(run_id="manual-1", kind="manual", title="General", metadata={"task": "General", "profile": "default"}, history_scope=("manual",))
     store.add_retry(
@@ -184,41 +237,29 @@ def test_run_state_store_records_single_attempt_for_generic_runs(tmp_path: Path)
 def test_diagnostics_retention_prunes_debug_artifacts(tmp_path: Path) -> None:
     runtime = MaaRuntime(tmp_path)
     diagnostics = Diagnostics(
-        runtime,
+        runtime.layout.framework,
+        runtime.path_references,
         LogRetentionPolicy(
             max_age_days=9999,
             max_event_log_files=1,
-            max_maa_cli_log_files=1,
-            max_maacore_capture_files=1,
-            max_generated_config_dirs=1,
-            max_legacy_run_log_files=1,
-            max_maacore_debug_files=1,
+            max_stream_log_files_per_channel=1,
+            max_incremental_log_files=1,
         ),
     )
     old_event = runtime.framework_event_log_dir / "old.jsonl"
     new_event = runtime.framework_event_log_dir / "new.jsonl"
     old_cli = runtime.maa_cli_log_dir / "old.stdout.log"
     new_cli = runtime.maa_cli_log_dir / "new.stdout.log"
-    old_maacore = runtime.maacore_capture_log_dir / "old.log"
-    new_maacore = runtime.maacore_capture_log_dir / "new.log"
-    old_generated = runtime.generated_config_dir / "old"
-    new_generated = runtime.generated_config_dir / "new"
-    old_legacy = runtime.run_log_dir / "old.log"
-    new_legacy = runtime.run_log_dir / "new.log"
-    old_debug = runtime.state_home / "maa" / "debug" / "old.png"
-    new_debug = runtime.state_home / "maa" / "debug" / "new.png"
-
-    for path in [old_event, new_event, old_cli, new_cli, old_maacore, new_maacore, old_legacy, new_legacy, old_debug, new_debug]:
+    old_incremental = runtime.framework_external_log_dir / "incremental" / "old.log"
+    new_incremental = runtime.framework_external_log_dir / "incremental" / "new.log"
+    for path in [old_event, new_event, old_cli, new_cli, old_incremental, new_incremental]:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(path.name, encoding="utf-8")
-    for path in [old_generated, new_generated]:
-        path.mkdir(parents=True, exist_ok=True)
-        (path / "task.json").write_text("{}", encoding="utf-8")
 
     now = time.time()
-    for path in [old_event, old_cli, old_maacore, old_generated, old_legacy, old_debug]:
+    for path in [old_event, old_cli, old_incremental]:
         os.utime(path, (now - 10, now - 10))
-    for path in [new_event, new_cli, new_maacore, new_generated, new_legacy, new_debug]:
+    for path in [new_event, new_cli, new_incremental]:
         os.utime(path, (now, now))
 
     diagnostics.enforce_retention()
@@ -227,26 +268,20 @@ def test_diagnostics_retention_prunes_debug_artifacts(tmp_path: Path) -> None:
     assert new_event.exists()
     assert not old_cli.exists()
     assert new_cli.exists()
-    assert not old_maacore.exists()
-    assert new_maacore.exists()
-    assert not old_generated.exists()
-    assert new_generated.exists()
-    assert not old_legacy.exists()
-    assert new_legacy.exists()
-    assert not old_debug.exists()
-    assert new_debug.exists()
+    assert not old_incremental.exists()
+    assert new_incremental.exists()
 
 
 def test_run_aware_retention_cascades_only_owned_run_data(tmp_path: Path) -> None:
     runtime = MaaRuntime(tmp_path)
-    store = RunStateStore(runtime, StateRetentionPolicy(max_run_records=10, max_retry_records=1))
-    diagnostics = Diagnostics(runtime)
+    store = RunStateStore(runtime.layout.framework, runtime.path_references, StateRetentionPolicy(max_run_records=10, max_retry_records=1))
+    diagnostics = Diagnostics(runtime.layout.framework, runtime.path_references)
 
     def add_run(run_id: str, generated_name: str) -> tuple[Path, Path, Path]:
         event_ref = diagnostics.event_log_file(run_id)
-        log_refs = diagnostics.maa_cli_log_files(run_id)
+        log_refs = diagnostics.stream_log_files("maa-cli", run_id)
         diagnostics.append_run_event(run_id, "manual", "framework", "event")
-        diagnostics.append_maa_cli_output(run_id, "stdout", "output")
+        diagnostics.stream_sink("maa-cli")(run_id, "stdout", "output")
         generated = runtime.generated_config_dir / generated_name
         generated.mkdir(parents=True)
         (generated / "task.json").write_text("{}", encoding="utf-8")
@@ -306,12 +341,12 @@ def test_run_aware_retention_cascades_only_owned_run_data(tmp_path: Path) -> Non
 
 def test_manual_run_delete_cascades_diagnostics_history_and_owned_artifacts(tmp_path: Path) -> None:
     runtime = MaaRuntime(tmp_path)
-    store = RunStateStore(runtime)
-    diagnostics = Diagnostics(runtime)
+    store = RunStateStore(runtime.layout.framework, runtime.path_references)
+    diagnostics = Diagnostics(runtime.layout.framework, runtime.path_references)
     event_ref = diagnostics.event_log_file("delete-me")
-    log_refs = diagnostics.tool_log_files("delete-me")
+    log_refs = diagnostics.stream_log_files("tools", "delete-me")
     diagnostics.append_run_event("delete-me", "tool", "framework", "event")
-    diagnostics.append_tool_output("delete-me", "stderr", "failure")
+    diagnostics.stream_sink("tools")("delete-me", "stderr", "failure")
     generated = runtime.generated_config_dir / "delete-me"
     generated.mkdir(parents=True)
     store.create_run(

@@ -2,7 +2,7 @@
 
 状态：持续维护，结论可能随代码演进过时
 
-最近整理：2026-07-11
+最近整理：2026-07-13
 
 整理会话：`2026-07-11_1805-consolidate-audits`
 
@@ -18,6 +18,7 @@
 项目已有一套可复用运行内核，但整体仍更接近“MAA 专用应用”，尚未完全成为 integration 驱动的通用框架。应保留以下基础：
 
 - `GenericRunManager` 统一运行、重试、停止、日志、持久化和资源协调，领域差异由 callbacks 提供。
+- run contracts 已独立于 manager 实现；process executor 只接收 command/cwd/env，manager 不依赖 runtime aggregate，也不含 MAA/manual/schedule/tool 等分类分支。
 - live/history 使用统一的 `{run, retries}` 结构。
 - 运行状态、结构化历史、诊断日志与 framework logging 保持分离。
 - scheduler、四类 manager、coordinator 和 SSE 已纳入应用 lifespan 与共享关闭期限。
@@ -27,6 +28,18 @@
 项目仍处于早期阶段。新增能力时优先收紧职责和删除重复路径，不为未发布的旧布局或旧 API 保留兼容层。
 
 ## 活跃问题
+
+### 已解决：run 终态发布与持久化失败分裂
+
+`GenericRunManager._finish_run` 现采用 durable-first、live-second 的终态提交顺序：先幂等写 store，成功后才向 live/SSE 发布不可逆终态。短暂持久化失败有限重试；持续失败时 live 与 durable 均保持非终态、资源 lease 保持占用，fail-closed 等待已有启动恢复流程处理，不再出现 live=`succeeded` / durable=`running`。
+
+终态之后的 retention 与 notification listener 已隔离为 best-effort maintenance，不会把已提交的运行结果重新解释为运行失败。回归覆盖持久化阻塞期间不可见终态、一次性 I/O 失败重试，以及持续失败时的 fail-closed 状态。
+
+### 已解决：MAA debug retention 迁回领域边界
+
+通用 `Diagnostics` 继续只管理 framework event/channel/incremental diagnostics。MAA installation 新增独立 debug cleanup，恢复 `asst.log` 大小 rotation 以及 debug 文件数量/年龄清理，并在应用启动和每个实际 MAA attempt 捕捉日志后执行。
+
+该 cleanup 只依赖 `MaaInstallation`，未注入 `GenericRunManager`，也未把 MAA 路径放回通用 Diagnostics。
 
 ### 已解决：runtime 使用共享/独占资源边界
 
@@ -61,7 +74,7 @@
 
 `2026-07-12` 已将运行记录作为统一 retention 单元：终态立即释放 `RunStartPlan` 及 callbacks，manager 只保留当前 active 或最近一次终态 live snapshot；开始下一次运行时丢弃旧 snapshot，手动删除也同步清除对应 manager snapshot。
 
-持久化不再分别截断 run/retry index。`RunStateStore` 按最新 run 顺序同时应用 run/retry 上限，active run 永不淘汰，某个终态 run 淘汰时一次删除其 run/retry index、history JSON、事件与 stdout/stderr diagnostics，以及明确声明为 run-owned 的 generated config 和 MaaCore capture。artifact ownership 采用角色白名单，未知、共享或外部 artifact 不级联删除。diagnostics 独立清理只处理未被现存 run 引用的 orphan，避免按年龄/分类数量提前删除仍被历史引用的数据。
+持久化不再分别截断 run/retry index。`RunStateStore` 按最新 run 顺序同时应用 run/retry 上限，active run 永不淘汰，某个终态 run 淘汰时一次删除其 run/retry index、history JSON、事件与 stdout/stderr diagnostics，以及明确声明为 run-owned 的 generated config 和通用 diagnostic capture。artifact ownership 采用角色白名单，未知、共享或外部 artifact 不级联删除。diagnostics 独立清理只处理未被现存 run 引用的 orphan，避免按年龄/分类数量提前删除仍被历史引用的数据。
 
 回归覆盖 callbacks 可被 GC、连续运行时 live state 有界、retry 上限触发的整 run 淘汰、自动与手动级联、保留 run 的 diagnostics 保护，以及未知共享 artifact 保留。
 
@@ -73,13 +86,16 @@
 
 下载与安装链路应核对 package name、signing certificate、上游 hash/size，并使用 `.part`、fsync、atomic rename。manifest 应记录来源、hash、证书和验证时间，不能只依赖 HTTP 状态、Content-Length 或 versionCode。
 
-### P1：通用层仍可能依赖 MAA aggregate
+### 部分解决：通用运行/状态/诊断层不再依赖 MAA aggregate
 
-路径所有权已拆为 `ApplicationPaths`、`FrameworkPaths`、`CachePaths` 和 `MaaInstallation`，但调用方类型依赖仍需逐步收窄：
+`2026-07-13` 已完成：
 
-- process 只依赖 cwd/env 或 `ProcessContext`。
-- store/diagnostics 只依赖 `FrameworkPaths`。
-- MAA runner、maintenance 和领域服务才依赖 `MaaInstallation`。
+- `CommandSpec` 显式携带 cwd/env，process executor 不再接收 `MaaRuntime`。
+- `GenericRunManager` 只依赖 store、diagnostics、coordinator 和 opaque run plan；默认装配 fallback 已删除。
+- `RunStateStore`、`Diagnostics` 只依赖 `FrameworkPaths + PathReferenceResolver`。
+- `Diagnostics.capture_file_increment(source, offset, capture_id=...)` 通用捕捉任意文件增量，原样保存 bytes 并返回 logical reference/new offset/byte count；MAA callback 自行提供 MaaCore 源路径，每个实际执行 retry 捕捉一次。
+
+剩余收窄项是让 MAA runner、maintenance、scheduler 的 MAA 执行部分直接依赖 `MaaInstallation`/明确 process context，而不是继续接收完整 `MaaRuntime`。这不再污染通用运行内核，可按 MAA 领域边界单独处理。
 
 不要为了形式立即引入动态插件系统。先用内部 `ActionSpec`/`IntegrationSpec` registry 验证第二个 integration。
 
@@ -87,9 +103,15 @@
 
 `2026-07-11` 抽样确认旧数据虽多为相对字符串，但没有声明所属根；MAA generated-config artifact 还以 `repo_root` 求相对路径，data/runtime/cache 使用外置挂载时会回退成宿主绝对路径。现已统一使用可解析的 `framework:...`、`runtime:...` 与 `downloads:...` 引用：history index、diagnostics、trash、MAA artifact 和 download manifest 均不再依赖 repo/deploy 路径。单一 `PathReferenceResolver` 负责编码、逻辑根校验、重定位解析和 `..`/绝对路径逃逸拒绝。项目未发布，不保留旧格式兼容读取；本机旧 JSON 在服务切换新版时做一次性原子改写。
 
-### P2：解析失败不应静默等价为空状态
+### 已解决：持久状态解析失败不再静默等价为空状态
 
-JSON/TOML 状态解析失败时应隔离损坏文件、写入诊断并阻止破坏性覆盖。所有 store 修改都应核对 atomic write、并发边界和失败恢复。
+`read_json_object` 现在严格区分文件缺失和 malformed/non-object JSON，后者抛 `CorruptState`，由 FastAPI handler 返回稳定 500 并记录异常；测试确认后续 create 不会覆盖损坏 index。Config/schedule 持久内容的解析失败也转换为 `CorruptState`。
+
+Config/schedule/task 的 malformed JSON/TOML、非 object root 与 UTF-8 解码失败均在已知读取边界转换为 `CorruptState`。`ScheduleConfigManager.list_files` 不再以 broad `except Exception` 把损坏 schedule 降级成普通列表项，因此列表路径不会掩盖 durable corruption。
+
+### 已解决：route builtin 异常映射分散
+
+`2026-07-13` 建立 `InvalidRequest`、`ResourceNotFound`、`Conflict`、`CorruptState`、`RuntimeUnavailable` 五类应用异常及统一 FastAPI handlers，保留 `ConfigValidationFailure` 结构化 422。原 39 处 route/shared-run-router 的 builtin→400/404/409 映射已删除；领域边界抛语义异常，未知 Python builtin 继续作为 500 暴露程序缺陷。后台 coordinator 冲突仍保持 accepted run 的 failed terminal/event 语义，不伪装成同步 HTTP 409。
 
 ## 路径与持久化边界
 

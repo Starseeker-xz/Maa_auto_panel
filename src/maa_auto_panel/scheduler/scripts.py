@@ -4,6 +4,7 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
+from maa_auto_panel.errors import InvalidRequest, ResourceNotFound
 from maa_auto_panel.maa.runtime import MaaRuntime
 from maa_auto_panel.utils import relative_path, validate_file_name
 
@@ -70,9 +71,9 @@ class ScheduleScriptManager:
         try:
             path.relative_to(self.runtime.script_dir)
         except ValueError as exc:
-            raise ValueError("Invalid script path") from exc
+            raise InvalidRequest("Invalid script path") from exc
         if not path.is_file():
-            raise FileNotFoundError(name)
+            raise ResourceNotFound(f"Script not found: {name}")
         return path
 
 

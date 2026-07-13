@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from typing import Literal
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Query
 
+from maa_auto_panel.errors import ResourceNotFound
 from maa_auto_panel.web.services import WebServices
 
 
@@ -24,7 +25,7 @@ def create_history_router(services: WebServices) -> APIRouter:
     def get_run(run_id: str) -> dict[str, object]:
         run = run_state.run(run_id)
         if run is None:
-            raise HTTPException(status_code=404, detail="Run not found")
+            raise ResourceNotFound("Run not found")
         return {
             "run": run.to_dict(),
             "retries": run_state.retries(run_id),
@@ -33,14 +34,9 @@ def create_history_router(services: WebServices) -> APIRouter:
 
     @router.delete("/runs/{run_id}")
     def delete_run(run_id: str) -> dict[str, object]:
-        try:
-            deleted = run_state.delete_run(run_id)
-            services.discard_terminal_run(run_id)
-            diagnostics.enforce_retention(protected_paths=run_state.owned_paths())
-            return {"deleted": deleted}
-        except KeyError as exc:
-            raise HTTPException(status_code=404, detail="Run not found") from exc
-        except RuntimeError as exc:
-            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        deleted = run_state.delete_run(run_id)
+        services.discard_terminal_run(run_id)
+        diagnostics.enforce_retention(protected_paths=run_state.owned_paths())
+        return {"deleted": deleted}
 
     return router

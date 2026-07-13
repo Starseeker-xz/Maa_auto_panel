@@ -9,6 +9,7 @@ from typing import Any
 import tomli_w
 
 from maa_auto_panel.config.manager import ConfigFile, ConfigManager
+from maa_auto_panel.errors import CorruptState, InvalidRequest, ResourceNotFound
 from maa_auto_panel.maa.runtime import MaaRuntime
 from maa_auto_panel.scheduler.models import (
     RestartScriptPolicy,
@@ -60,18 +61,12 @@ class ScheduleConfigManager:
         self.ensure_dirs()
         files: list[ScheduleConfigFile] = []
         for path in sorted(self.runtime.schedule_config_dir.glob("*.toml"), key=lambda item: item.name):
-            try:
-                config = self.read(path.stem)
-                config_id = config.id
-                name = config.name
-            except Exception:
-                config_id = path.stem
-                name = path.stem
+            config = self.read(path.stem)
             stat = path.stat()
             files.append(
                 ScheduleConfigFile(
-                    id=config_id,
-                    name=name,
+                    id=config.id,
+                    name=config.name,
                     filename=path.name,
                     path=relative_path(path, self.runtime.data_root),
                     size=stat.st_size,
@@ -82,7 +77,11 @@ class ScheduleConfigManager:
 
     def read(self, schedule_id: str) -> ScheduleConfig:
         path = self.resolve(schedule_id)
-        return schedule_from_data(tomllib.loads(path.read_text(encoding="utf-8")), fallback_id=path.stem)
+        try:
+            data = tomllib.loads(path.read_text(encoding="utf-8"))
+            return schedule_from_data(data, fallback_id=path.stem)
+        except (UnicodeDecodeError, tomllib.TOMLDecodeError, InvalidRequest) as exc:
+            raise CorruptState(f"Cannot parse schedule: {path}") from exc
 
     def write(self, schedule_id: str, payload: dict[str, Any]) -> ScheduleConfig:
         config = schedule_from_data(payload, fallback_id=schedule_id)
@@ -120,12 +119,12 @@ class ScheduleConfigManager:
         for candidate in candidates:
             if candidate.is_file() and candidate.suffix.lower() == ".toml":
                 return candidate
-        raise FileNotFoundError(schedule_id)
+        raise ResourceNotFound(f"Schedule not found: {schedule_id}")
 
     def resolve_for_write(self, schedule_id: str) -> Path:
         normalized = slug(schedule_id)
         if not normalized:
-            raise ValueError("Invalid schedule id")
+            raise InvalidRequest("Invalid schedule id")
         return self.runtime.schedule_config_dir / f"{normalized}.toml"
 
     def file_info(self, config: ScheduleConfig) -> ConfigFile:
@@ -145,7 +144,7 @@ class ScheduleConfigManager:
 def schedule_from_data(data: dict[str, Any], *, fallback_id: str) -> ScheduleConfig:
     schedule_id = slug(str(data.get("id") or fallback_id))
     if not schedule_id:
-        raise ValueError("Schedule id cannot be empty")
+        raise InvalidRequest("Schedule id cannot be empty")
 
     raw_entries = data.get("entries") if isinstance(data.get("entries"), list) else []
     entries = [entry_from_data(item, index=index) for index, item in enumerate(raw_entries, start=1) if isinstance(item, dict)]
@@ -219,11 +218,14 @@ def schedule_to_toml_data(config: ScheduleConfig) -> dict[str, Any]:
 def normalize_time(value: str) -> str:
     parts = value.strip().split(":")
     if len(parts) < 2:
-        raise ValueError(f"Invalid time: {value}")
-    hour = int(parts[0])
-    minute = int(parts[1])
+        raise InvalidRequest(f"Invalid time: {value}")
+    try:
+        hour = int(parts[0])
+        minute = int(parts[1])
+    except ValueError as exc:
+        raise InvalidRequest(f"Invalid time: {value}") from exc
     if not 0 <= hour <= 23 or not 0 <= minute <= 59:
-        raise ValueError(f"Invalid time: {value}")
+        raise InvalidRequest(f"Invalid time: {value}")
     return f"{hour:02d}:{minute:02d}"
 
 

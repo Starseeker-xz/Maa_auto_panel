@@ -5,6 +5,7 @@ import uuid
 from pathlib import Path
 from typing import Any
 
+from maa_auto_panel.errors import InvalidRequest, ResourceNotFound
 
 def slugify(value: str, *, max_length: int = 64) -> str:
     """Produce a URL/filesystem-safe slug from a string, lowercased and truncated."""
@@ -36,7 +37,7 @@ def validate_file_name(name: str, *, label: str = "name") -> Path:
     """Validate a name is not absolute, empty, or path traversal; return as Path."""
     requested = Path(name)
     if requested.is_absolute() or requested.name != name or name in {"", ".", ".."}:
-        raise ValueError(f"Invalid {label}")
+        raise InvalidRequest(f"Invalid {label}")
     return requested
 
 
@@ -56,10 +57,10 @@ def resolve_existing_named_file(
         try:
             candidate.relative_to(directory)
         except ValueError as exc:
-            raise ValueError(f"Invalid {label.replace(' name', ' path')}") from exc
+            raise InvalidRequest(f"Invalid {label.replace(' name', ' path')}") from exc
         if candidate.is_file() and candidate.suffix.lower() in normalized_suffixes:
             return candidate
-    raise FileNotFoundError(name)
+    raise ResourceNotFound(name)
 
 
 def bounded_int(value: object, *, default: int, minimum: int, maximum: int) -> int:

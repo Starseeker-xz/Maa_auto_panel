@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
 from maa_auto_panel.config.app_settings import FrameworkSettingsManager
@@ -31,12 +31,7 @@ def create_settings_router(services: WebServices) -> APIRouter:
 
     @router.get("")
     def read_settings() -> dict[str, object]:
-        try:
-            return settings_response(configs, framework_settings, maintenance, notification_settings)
-        except FileNotFoundError as exc:
-            raise HTTPException(status_code=404, detail="Settings source not found") from exc
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return settings_response(configs, framework_settings, maintenance, notification_settings)
 
     @router.put("")
     def save_settings(payload: SaveSettingsPayload) -> dict[str, object]:
@@ -54,8 +49,6 @@ def create_settings_router(services: WebServices) -> APIRouter:
             return settings_response(configs, framework_settings, maintenance, notification_settings)
         except ConfigValidationFailure as exc:
             raise validation_exception("Settings validation failed", exc) from exc
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     return router
 

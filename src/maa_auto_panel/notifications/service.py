@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal, Protocol
 
+from maa_auto_panel.errors import InvalidRequest
 from maa_auto_panel.maa.runtime import MaaRuntime
 from maa_auto_panel.run_manager.state import LiveRun
 from maa_auto_panel.time_utils import server_now_iso
@@ -234,7 +235,7 @@ class NotificationService:
         data: dict[str, object] | None = None,
     ) -> NotificationEvent:
         if tag not in TAG_BY_ID:
-            raise ValueError(f"Unknown notification tag: {tag}")
+            raise InvalidRequest(f"Unknown notification tag: {tag}")
         rules = self.settings.read_rules()[tag]
         spec = TAG_BY_ID[tag]
         with self._condition:

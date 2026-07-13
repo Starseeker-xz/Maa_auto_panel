@@ -7,6 +7,7 @@ from pathlib import Path
 
 import tomli_w
 
+from maa_auto_panel.errors import CorruptState, InvalidRequest
 from maa_auto_panel.maa.runtime import MaaRuntime
 from maa_auto_panel.config.schema import ConfigSchemaValidator
 from maa_auto_panel.config.tasks import TASK_SUFFIXES, WRITABLE_TASK_SUFFIXES, inflate_managed_params_for_edit, task_items_to_config_data
@@ -93,7 +94,11 @@ class ConfigManager:
             size=stat.st_size,
             modified_at=stat.st_mtime,
         )
-        return info, path.read_text(encoding="utf-8")
+        try:
+            content = path.read_text(encoding="utf-8")
+        except UnicodeDecodeError as exc:
+            raise CorruptState(f"Cannot decode config: {path}") from exc
+        return info, content
 
     def read_task_items(self, name: str) -> list[dict[str, object]]:
         data = self.read_structured("tasks", name)
@@ -189,15 +194,18 @@ class ConfigManager:
         return self._read_structured_path(path)
 
     def _read_structured_path(self, path: Path) -> dict[str, object]:
-        content = path.read_text(encoding="utf-8")
-        if path.suffix.lower() == ".toml":
-            return tomllib.loads(content)
-        if path.suffix.lower() == ".json":
-            loaded = json.loads(content)
-            if isinstance(loaded, dict):
-                return loaded
-            raise ValueError("Config JSON root must be an object")
-        raise ValueError(f"Cannot parse {path.suffix} config yet")
+        try:
+            content = path.read_text(encoding="utf-8")
+            if path.suffix.lower() == ".toml":
+                return tomllib.loads(content)
+            if path.suffix.lower() == ".json":
+                loaded = json.loads(content)
+                if isinstance(loaded, dict):
+                    return loaded
+                raise CorruptState(f"Config JSON root must be an object: {path}")
+        except (UnicodeDecodeError, json.JSONDecodeError, tomllib.TOMLDecodeError) as exc:
+            raise CorruptState(f"Cannot parse config: {path}") from exc
+        raise InvalidRequest(f"Cannot parse {path.suffix} config yet")
 
     def write_task_config(
         self,
@@ -274,16 +282,16 @@ class ConfigManager:
 
         suffix = requested.suffix.lower() or default_suffix
         if suffix not in WRITABLE_TASK_SUFFIXES:
-            raise ValueError(f"Cannot write {suffix} config yet")
+            raise InvalidRequest(f"Cannot write {suffix} config yet")
 
         stem = requested.stem if requested.suffix else requested.name
         if not slugify(stem):
-            raise ValueError("Invalid config name")
+            raise InvalidRequest("Invalid config name")
         path = directory / f"{stem}{suffix}"
         try:
             path.relative_to(directory)
         except ValueError as exc:
-            raise ValueError("Invalid config path") from exc
+            raise InvalidRequest("Invalid config path") from exc
         return path
 
     def _serialize(self, suffix: str, data: dict[str, object]) -> str:
@@ -291,12 +299,12 @@ class ConfigManager:
             return tomli_w.dumps(data)
         if suffix == ".json":
             return json.dumps(data, ensure_ascii=False, indent=2) + "\n"
-        raise ValueError(f"Cannot write {suffix} config yet")
+        raise InvalidRequest(f"Cannot write {suffix} config yet")
 
     def _kind_dir(self, kind: str) -> Path:
         dirname = CONFIG_KINDS.get(kind)
         if dirname is None:
-            raise ValueError(f"Unsupported config kind: {kind}")
+            raise InvalidRequest(f"Unsupported config kind: {kind}")
         path = self.runtime.config_dir / dirname
         path.mkdir(parents=True, exist_ok=True)
         return path

@@ -8,11 +8,13 @@ from typing import Any, Callable
 from maa_auto_panel.config.app_settings import FrameworkSettingsManager
 from maa_auto_panel.config.manager import ConfigManager
 from maa_auto_panel.diagnostics import Diagnostics, get_logger
+from maa_auto_panel.errors import InvalidRequest
 from maa_auto_panel.maa.runtime import MaaRuntime
 from maa_auto_panel.run_manager.command import CommandSpec
+from maa_auto_panel.run_manager.contracts import RunStartPlan, RunTextTemplates
 from maa_auto_panel.run_manager.coordinator import RunCoordinator
 from maa_auto_panel.run_manager.logs import plain_stream_log_profile
-from maa_auto_panel.run_manager.manager import GenericRunManager, RunStartPlan, RunTextTemplates
+from maa_auto_panel.run_manager.manager import GenericRunManager
 from maa_auto_panel.run_manager.state import LiveRun
 from maa_auto_panel.run_manager.store import RunStateStore
 from maa_auto_panel.run_resources import RUN_PRIORITY_NORMAL, RunResource, adb_device_resource
@@ -84,20 +86,19 @@ class ToolRunManager:
         self,
         runtime: MaaRuntime,
         configs: ConfigManager,
-        run_state: RunStateStore | None = None,
-        diagnostics: Diagnostics | None = None,
-        framework_settings: FrameworkSettingsManager | None = None,
-        run_coordinator: RunCoordinator | None = None,
+        run_state: RunStateStore,
+        diagnostics: Diagnostics,
+        framework_settings: FrameworkSettingsManager,
+        run_coordinator: RunCoordinator,
     ) -> None:
         self.runtime = runtime
         self.configs = configs
-        self.diagnostics = diagnostics or Diagnostics(runtime)
-        self.framework_settings = framework_settings or FrameworkSettingsManager(runtime)
+        self.diagnostics = diagnostics
+        self.framework_settings = framework_settings
         self.runs = GenericRunManager(
-            runtime,
-            run_state or RunStateStore(runtime),
+            run_state,
             self.diagnostics,
-            run_coordinator or RunCoordinator(),
+            run_coordinator,
             resource_wait_timeout_seconds=self.framework_settings.resource_wait_timeout_seconds,
         )
         self._specs = {
@@ -135,19 +136,19 @@ class ToolRunManager:
     def start(self, tool_id: str, config: dict[str, object], *, retry_count: int = 1) -> LiveRun:
         spec = self._specs.get(tool_id)
         if spec is None:
-            raise ValueError(f"Unsupported tool: {tool_id}")
+            raise InvalidRequest(f"Unsupported tool: {tool_id}")
 
         sanitized_config = _sanitize_config(config)
         command = spec.build_command(self, sanitized_config)
         resources = self._tool_resources(tool_id, sanitized_config)
         run_id = uuid.uuid4().hex[:12]
-        log_files = self.diagnostics.tool_log_files(run_id)
+        log_files = self.diagnostics.stream_log_files("tools", run_id)
         max_retries = _retry_count(retry_count)
-        log_profile = plain_stream_log_profile("tool", diagnostic_sink=self.diagnostics.append_tool_output)
+        log_profile = plain_stream_log_profile("tool", diagnostic_sink=self.diagnostics.stream_sink("tools"))
         plan = RunStartPlan(
             kind="tool",
             title=spec.definition.title,
-            command=CommandSpec(command.cmd, env=command.env),
+            command=CommandSpec(command.cmd, cwd=self.runtime.repo_root, env=command.env),
             max_retries=max_retries,
             timeouts=self.framework_settings.run_timeouts(),
             log_profile=log_profile,
@@ -226,7 +227,7 @@ class ToolRunManager:
 def _build_game_update_command(manager: ToolRunManager, config: dict[str, object]) -> ToolCommand:
     address = str(config.get("address") or manager._default_connection_address()).strip()
     if not address:
-        raise ValueError("连接地址不能为空")
+        raise InvalidRequest("连接地址不能为空")
     return ToolCommand(
         cmd=[
             sys.executable,

@@ -8,6 +8,7 @@ import time
 from maa_auto_panel.config.app_settings import FrameworkSettingsManager
 from maa_auto_panel.config.manager import ConfigManager
 from maa_auto_panel.diagnostics import Diagnostics, get_logger
+from maa_auto_panel.maa.cleanup import enforce_maa_debug_retention
 from maa_auto_panel.maa.infrast import MaaInfrastService
 from maa_auto_panel.maa.maintenance import MaintenanceActionManager
 from maa_auto_panel.maa.runner import MaaRunManager
@@ -124,9 +125,12 @@ def create_services(
         data_root=data_root,
         cache_root=cache_root,
     )
-    diagnostics = Diagnostics(runtime)
+    framework_paths = runtime.layout.framework
+    path_references = runtime.path_references
+    diagnostics = Diagnostics(framework_paths, path_references)
     diagnostics.configure_logging()
-    run_state = RunStateStore(runtime)
+    enforce_maa_debug_retention(runtime.layout.maa)
+    run_state = RunStateStore(framework_paths, path_references)
     recovered_runs = run_state.recover_interrupted_runs()
     run_state.enforce_retention()
     diagnostics.enforce_retention(protected_paths=run_state.owned_paths())
