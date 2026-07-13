@@ -3,9 +3,9 @@ import { ArrowLeft, Info, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { STATUS_LABELS } from "@/lib/logs";
-import { formatTimeOfDay } from "@/lib/time";
-import type { MaaLogEntry, MaaLogMessage, RunRetry, RunState } from "@/lib/types";
+import type { MaaLogEntry, MaaLogMessage, RunState } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { RetryLogList } from "@/pages/main/RetryLogList";
 import React from "react";
 
 type LogPaneProps = {
@@ -19,52 +19,11 @@ type LogPaneProps = {
   className?: string;
 };
 
-const BLOCK_STATUS_LABELS: Record<string, string> = {
-  default: "",
-  running: "进行中",
-  succeeded: "完成",
-  failed: "失败",
-  stopped: "已停止",
-  unknown: "未确认结束",
-  unfinished: "未完成",
-  warning: "警告"
-};
-
-const BLOCK_STATUS_CLASS: Record<string, string> = {
-  default: "text-muted-foreground",
-  running: "text-sky-600 dark:text-sky-300",
-  succeeded: "text-emerald-600 dark:text-emerald-300",
-  failed: "text-destructive",
-  stopped: "text-amber-600 dark:text-amber-300",
-  unknown: "text-muted-foreground",
-  unfinished: "text-amber-600 dark:text-amber-300",
-  warning: "text-amber-600 dark:text-amber-300"
-};
-
-const BLOCK_PANEL_CLASS: Record<string, string> = {
-  default: "border-border bg-background shadow-sm",
-  running: "border-primary/70 bg-background shadow-sm shadow-primary/10",
-  succeeded: "border-border bg-background shadow-sm",
-  failed: "border-amber-500 bg-amber-50/40 shadow-sm shadow-amber-500/10 dark:bg-amber-950/10",
-  stopped: "border-amber-500 bg-amber-50/40 shadow-sm shadow-amber-500/10 dark:bg-amber-950/10",
-  unknown: "border-border bg-background shadow-sm",
-  unfinished: "border-amber-500 bg-amber-50/40 shadow-sm shadow-amber-500/10 dark:bg-amber-950/10",
-  warning: "border-amber-500 bg-amber-50/40 shadow-sm shadow-amber-500/10 dark:bg-amber-950/10"
-};
-
-const MESSAGE_TONE_CLASS: Record<string, string> = {
-  default: "text-muted-foreground",
-  info: "text-muted-foreground",
-  success: "text-emerald-600 dark:text-emerald-300",
-  warning: "text-amber-600 dark:text-amber-300",
-  danger: "text-destructive",
-  theme: "text-primary"
-};
-
 export function LogPane({ run, error, title = "日志", emptyText = "等待 maa-cli info 日志...", historyRun = null, onCloseHistory, hideHeader = false, className }: LogPaneProps) {
   const viewingHistory = Boolean(historyRun);
   const visibleRun = historyRun || run;
-  const entries = normalizeEntries(visibleRun);
+  const entries = (visibleRun.retries || []).flatMap((retry) => retry.log_entries || []);
+  const hasVisibleContent = (visibleRun.max_retries || 1) > 1 ? Boolean(visibleRun.retries?.length) : Boolean(entries.length);
   const details = runDetails(visibleRun, entries);
   const [detailsOpen, setDetailsOpen] = React.useState(false);
   const viewportRef = React.useRef<HTMLDivElement>(null);
@@ -113,12 +72,8 @@ export function LogPane({ run, error, title = "日志", emptyText = "等待 maa-
         </CardHeader>
       )}
       <div ref={viewportRef} onScroll={handleScroll} className="m-0 min-h-0 overflow-auto bg-card p-3">
-        {entries.length ? (
-          <div className="grid gap-1.5">
-            {entries.map((entry, index) => (
-              <LogEntryView key={index} entry={entry} />
-            ))}
-          </div>
+        {hasVisibleContent ? (
+          <RetryLogList key={`${viewingHistory ? "history" : "live"}:${visibleRun.id || "idle"}`} run={visibleRun} />
         ) : (
           <div className="rounded-md border bg-background px-3 py-2 text-xs text-muted-foreground">{emptyText}</div>
         )}
@@ -163,14 +118,6 @@ function RunDetailsPanel({ details }: { details: RunDetailItem[] }) {
       )}
     </div>
   );
-}
-
-function normalizeEntries(run: RunState): MaaLogEntry[] {
-  const retries = run.retries || [];
-  if ((run.max_retries || 1) <= 1) {
-    return retries.flatMap((retry) => retry.log_entries || []);
-  }
-  return retries.flatMap((retry) => [retryMarkerEntry(retry), ...(retry.log_entries || [])]);
 }
 
 function runDetails(run: RunState, entries: MaaLogEntry[]): RunDetailItem[] {
@@ -221,30 +168,6 @@ function artifactValue(value: unknown): string {
   return JSON.stringify(value) || String(value);
 }
 
-function retryMarkerEntry(retry: RunRetry): MaaLogEntry {
-  return {
-    type: "block",
-    id: `${retry.id}-marker`,
-    source: "framework:event",
-    kind: "retry",
-    title: `第 ${retry.retry_index} 次重试`,
-    status: retry.closed ? "default" : "running",
-    time: retry.started_at,
-    opened_at: retry.started_at,
-    sealed_at: retry.ended_at,
-    updated_at: retry.updated_at,
-    closed: retry.closed ?? false,
-    tone: retry.retry_index === 1 ? "info" : "warning",
-    messages: [
-      {
-        text: `第 ${retry.retry_index} 次重试`,
-        tone: retry.retry_index === 1 ? "info" : "warning"
-      }
-    ],
-    lines: []
-  };
-}
-
 function selectionDetails(entries: MaaLogEntry[]) {
   const selections = new Map<string, string[]>();
   const prefixes: Array<[string, string]> = [
@@ -271,78 +194,6 @@ function flattenMessages(entries: MaaLogEntry[]): MaaLogMessage[] {
     if (entry.messages?.length) messages.push(...entry.messages);
   }
   return messages;
-}
-
-function LogEntryView({ entry }: { entry: MaaLogEntry }) {
-  const status = entry.status || "default";
-  const title = status === "default" ? "" : blockTitle(entry);
-  const isCompact = !title && status === "default";
-  const statusClass = BLOCK_STATUS_CLASS[status] || BLOCK_STATUS_CLASS.default;
-  const panelClass = BLOCK_PANEL_CLASS[status] || BLOCK_PANEL_CLASS.default;
-  const time = entry.time || entry.sealed_at || entry.opened_at || entry.updated_at || undefined;
-  const messages = entry.messages?.length ? entry.messages : fallbackMessages(entry);
-
-  return (
-    <div className="grid grid-cols-[3.75rem_minmax(0,1fr)] items-start gap-2">
-      <TimeStamp time={time} />
-      <div className={isCompact ? "rounded-md border bg-background px-3 py-1.5 text-xs leading-5 shadow-sm" : `rounded-md border-2 px-3 py-2 text-xs leading-5 transition-colors ${panelClass}`}>
-        {!isCompact && title ? <div className={`font-medium ${statusClass}`}>{title}</div> : null}
-        <div className={isCompact ? "grid gap-0.5" : "mt-1 grid gap-0.5"}>
-          {messages.map((message, index) => (
-            <MessageContent key={index} message={message} />
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function TimeStamp({ time }: { time?: string | null }) {
-  return <div className="pt-1.5 text-right font-mono text-xs leading-5 text-muted-foreground tabular-nums">{formatTimeOfDay(time)}</div>;
-}
-
-function MessageContent({ message }: { message: MaaLogMessage }) {
-  const toneClass = MESSAGE_TONE_CLASS[message.tone || "default"] || MESSAGE_TONE_CLASS.default;
-
-  return (
-    <div className={`break-anywhere ${toneClass}`}>
-      {message.segments?.length ? (
-        message.segments.map((segment, index) => (
-          <span key={index} className={`${MESSAGE_TONE_CLASS[segment.tone || message.tone || "default"] || toneClass} ${segment.strong ? "font-medium" : ""}`}>
-            {segment.text}
-          </span>
-        ))
-      ) : (
-        <span>{message.text}</span>
-      )}
-      {message.image ? (
-        <img
-          src={message.image.src}
-          alt={message.image.alt || ""}
-          width={message.image.width}
-          height={message.image.height}
-          className="mt-1 max-h-28 max-w-full rounded border object-contain"
-        />
-      ) : null}
-    </div>
-  );
-}
-
-function blockTitle(entry: MaaLogEntry) {
-  const status = entry.status || "default";
-  const statusLabel = BLOCK_STATUS_LABELS[status] || status;
-  const title = entry.name || entry.title || "";
-  if (entry.panel_kind === "task" || entry.task_id || entry.source_name) {
-    return `任务 ${title} ${statusLabel}`.trim();
-  }
-  return title || entry.kind;
-}
-
-function fallbackMessages(entry: MaaLogEntry): MaaLogMessage[] {
-  if (entry.lines.length) {
-    return entry.lines.map((line) => ({ text: line, tone: entry.tone || "default" }));
-  }
-  return [];
 }
 
 function isRunActive(run: RunState): boolean {

@@ -5,6 +5,7 @@ import threading
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
+from maa_auto_panel.logs.records import LogMessage
 from maa_auto_panel.logs.state import RunLogBuffer
 from maa_auto_panel.time_utils import server_now_iso
 
@@ -49,6 +50,7 @@ class LiveRetry:
     ended_at: str | None = None
     return_code: int | None = None
     log_files: dict[str, str] = field(default_factory=dict)
+    summary_messages: list[LogMessage] = field(default_factory=list)
     metadata: dict[str, Any] = field(default_factory=dict)
     artifacts: dict[str, Any] = field(default_factory=dict)
     closed: bool = False
@@ -77,6 +79,7 @@ class LiveRetry:
             "ended_at": self.ended_at,
             "return_code": self.return_code,
             "log_files": dict(self.log_files),
+            "summary_messages": [message.to_dict() for message in self.summary_messages],
             "metadata": dict(self.metadata),
             "artifacts": dict(self.artifacts),
             "closed": self.closed,

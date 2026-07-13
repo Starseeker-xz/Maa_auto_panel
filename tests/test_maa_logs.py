@@ -3,7 +3,7 @@ from __future__ import annotations
 from maa_auto_panel.logs.pipeline import LogSourceSpec, plain_translate_line
 from maa_auto_panel.logs.state import RunLogBuffer
 from maa_auto_panel.maa.log_templates import register_maa_log_sources
-from maa_auto_panel.maa.results import MaaTaskDescriptor, MaaTaskResultCollector
+from maa_auto_panel.maa.results import MaaTaskDescriptor, MaaTaskResultCollector, retry_result_summary
 
 
 def maa_log(**kwargs: object) -> RunLogBuffer:
@@ -38,6 +38,58 @@ def test_task_result_collector_reads_raw_stderr_task_events() -> None:
         ("infrast", "基建", "Infrast", "failed"),
     ]
     assert collector.status_by_task_id(["startup", "infrast"]) == {"startup": "succeeded", "infrast": "failed"}
+
+
+def test_retry_result_summary_lists_all_run_tasks_and_fades_unexecuted_tasks() -> None:
+    tasks = [
+        MaaTaskDescriptor(task_id="startup", source_name="StartUp", name="启动"),
+        MaaTaskDescriptor(task_id="infrast", source_name="Infrast", name="基建"),
+        MaaTaskDescriptor(task_id="fight", source_name="Fight", name="刷理智"),
+        MaaTaskDescriptor(task_id="award", source_name="Award", name="领取奖励"),
+        MaaTaskDescriptor(task_id="closedown", source_name="CloseDown", name="关闭游戏"),
+    ]
+    messages = retry_result_summary(
+        tasks,
+        [
+            {"task_id": "startup", "status": "succeeded"},
+            {"task_id": "infrast", "status": "failed"},
+            {"task_id": "fight", "status": "stopped"},
+            {"task_id": "award", "status": "unfinished"},
+        ],
+        planned_task_ids=["startup", "infrast", "fight", "award", "closedown"],
+        retry_status="failed",
+    )
+
+    assert len(messages) == 1
+    assert messages[0].text == "重试结果：✔️ 启动 · ❌ 基建 · ⚠️ 刷理智 · ⚠️ 领取奖励 · 关闭游戏"
+    task_segments = messages[0].segments[1::2]
+    assert task_segments == [
+        {"text": "✔️ 启动", "tone": "success", "strong": True},
+        {"text": "❌ 基建", "tone": "danger", "strong": True},
+        {"text": "⚠️ 刷理智", "tone": "warning", "strong": True},
+        {"text": "⚠️ 领取奖励", "tone": "warning", "strong": True},
+        {"text": "关闭游戏"},
+    ]
+    assert [ord(character) for character in task_segments[0]["text"][:2]] == [0x2714, 0xFE0F]
+
+
+def test_retry_result_summary_marks_planned_tasks_when_stopped_before_task_start() -> None:
+    tasks = [
+        MaaTaskDescriptor(task_id="startup", source_name="StartUp", name="启动"),
+        MaaTaskDescriptor(task_id="fight", source_name="Fight", name="刷理智"),
+    ]
+
+    messages = retry_result_summary(
+        tasks,
+        [],
+        planned_task_ids=["startup"],
+        retry_status="stopped",
+    )
+
+    assert messages[0].text == "重试结果：⚠️ 启动 · 刷理智"
+    assert messages[0].segments[1] == {"text": "⚠️ 启动", "tone": "warning", "strong": True}
+    assert messages[0].segments[3] == {"text": "刷理智"}
+    assert [ord(character) for character in messages[0].segments[1]["text"][:2]] == [0x26A0, 0xFE0F]
 
 
 def test_groups_completed_and_failed_tasks_as_blocks() -> None:

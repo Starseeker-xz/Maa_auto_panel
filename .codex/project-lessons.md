@@ -43,6 +43,7 @@
 
 ## Environment
 
+- `2026-07-13_2243-frontend-retry-block`: 修改后端 Python 代码后必须在确认没有 active run 的前提下重启 `maa-auto-panel-webui.service`，并复查新 PID、`active` 状态和 API；仅重建前端会造成新 UI 连接旧 Python 进程，例如 retry Accordion 已出现但旧后端不生成 `summary_messages`。
 - `2026-07-11_1805-consolidate-audits`: 不要直接执行 `runtime/maa/bin/maa version` 判断面板 runtime；缺少 `MAA_CONFIG_DIR` 与 XDG_DATA/CACHE/STATE 环境时会误报无法读取 MaaCore。使用 `scripts/maa-env maa version` 或 `MaaRuntime.env()` 等价环境。本次直接执行曾误判更新后 Core 损坏，正确环境确认 MaaCore v6.14.1 且用户 smoke 任务可运行。
 - `2026-07-10_0416-full-project-audit`: 仓库移动/重命名后，venv console script shebang 和 editable install 元数据可能仍指向旧路径。优先重建/重装 `.venv`；临时验证用 `.venv/bin/python -m pytest`，不要仅信 `which pytest`。
 - `2026-07-10_0416-full-project-audit`: Docker multi-stage 复制 venv 时 builder/runtime 必须保持相同绝对路径，或使用 wheel 安装；否则 console-script shebang 会指向 builder 路径。`tini` 与 Compose `init: true` 二选一。

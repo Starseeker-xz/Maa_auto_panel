@@ -16,7 +16,7 @@ from maa_auto_panel.logs.pipeline import default_tone_for_source
 from maa_auto_panel.logs.state import RunLogBuffer
 from maa_auto_panel.maa.cleanup import enforce_maa_debug_retention
 from maa_auto_panel.maa.log_templates import register_maa_log_sources
-from maa_auto_panel.maa.results import MaaTaskDescriptor, MaaTaskResultCollector
+from maa_auto_panel.maa.results import MaaTaskDescriptor, MaaTaskResultCollector, retry_result_summary
 from maa_auto_panel.maa.runner import (
     current_log_offset,
     load_task_file,
@@ -235,6 +235,12 @@ class ScheduledMaaRunCallbacks:
                 ),
                 "diagnostic_log_file": maacore_capture.log_file,
             },
+            retry_summary_messages=retry_result_summary(
+                _task_descriptors(self.policy_by_id, self.selected_task_ids),
+                task_results,
+                planned_task_ids=task_ids,
+                retry_status=attempt_status,
+            ),
             summary_patch=summary,
         )
 
@@ -557,7 +563,6 @@ class SchedulerService:
                     start="",
                     completed="",
                     exit_code="maa-cli 退出码: {return_code}",
-                    retry_start="第 {retry_index} 次重试",
                     retry_next="",
                     retry_limit_reached="",
                     start_failed="启动 maa-cli 失败: {error}",

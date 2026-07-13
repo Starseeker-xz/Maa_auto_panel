@@ -22,6 +22,10 @@
 
 ## Current architecture
 
+- Confirmed (`2026-07-13_2243-frontend-retry-block`): 前端部署可在旧 Python 进程仍运行时先显示新 retry Accordion，但旧进程不会生成 `summary_messages`。用户 smoke 暴露该版本错配后，确认无 active run，并于 2026-07-13 23:08 UTC 重启 `maa-auto-panel-webui.service`；新 MainPID 6379，服务 active/idle。重启前生成的历史不回填摘要，后续新 run 使用完整新链路。
+- Confirmed (`2026-07-13_2243-frontend-retry-block`): retry 日志在 `max_retries > 1` 时使用 Radix 单选 Accordion；首次进入/切换历史默认展开最后一项，新 retry 追加时展开新项，普通 SSE、状态变化与 retry 完成均不改变选择。`max_retries = 1` 直接渲染原日志。展开内容无 retry 外框，摘要留在可折叠标题区域。
+- Confirmed (`2026-07-13_2243-frontend-retry-block`): `RetryDecision.retry_summary_messages` 通过 `LiveRetry.summary_messages` 进入 SSE、retry index 和完整历史。MAA 手动/定时运行按整次 run 的初始任务清单生成 retry 结果摘要；本 retry 成功/失败/停止/未完成用勾叉和 tone 表示，未执行任务淡化。通用 retry-start 占位事件已清除，避免与 retry 标题重复。
+- Confirmed (`2026-07-13_2243-frontend-retry-block`): retry 任务摘要最终符号为成功 `✔️`（U+2714 U+FE0F）、失败 `❌`、停止/未完成 `⚠️`（U+26A0 U+FE0F）。摘要同时接收完整 run 任务、当前 retry 计划任务和 retry 终态：停止发生在 Start 前时，当前 retry 计划内任务显示 `⚠️`；不属于当前 retry 计划且未执行的任务才淡化。码点有测试锁定。
 - Confirmed (`2026-07-12_0125-toolbar-scrcpy-notifications`): Toolbar 高度已收紧，设备工具与通知之间增加竖线；共享 `FocusDeleteButton` 使用 accent hover/focus 背景。通知 Sheet 打开时聚焦容器而非首条删除按钮，避免 Radix 自动聚焦导致无 hover 时误显示。独立项目 scrcpy-tool 拥有的通用 URL 协议草案位于 `docs/scrcpy-url-protocol.md`，入口为 `scrcpy-tool://launch/v1`；Maa Auto Panel 仅为调用方。
 - Confirmed (`2026-07-12_0125-toolbar-scrcpy-notifications`): Toolbar Scrcpy 入口已接通 `scrcpy-tool://launch/v1`。普通页面点击时即时读取 default profile 的连接地址；定时详情页由 SchedulePage 上送当前 draft profile 地址，因此未保存地址修改也生效。通用 Scrcpy 设置保存于 `framework.scrcpy`，默认视频码率 100 Mbps、最大帧率 60，并生成官方参数 `--video-bit-rate=<n>M`、`--max-fps=<n>`。
 - Confirmed (`2026-07-11_0203-separate-runtime-and-agent-doc`): 全局通知子系统位于 `notifications/`，固定五类 tag：runtime 缺失、runtime 更新、手动 MAA 完成、自动定时 MAA 完成、手动触发定时 MAA 完成。成功/失败使用 severity/status 区分，用户停止不通知；Toast 走独立 `/api/notifications/events` SSE，外部发送保留 `ExternalNotificationSender` protocol + 空实现。
@@ -76,6 +80,7 @@
 
 ## Verification baseline
 
+- Confirmed (`2026-07-13_2243-frontend-retry-block`): retry Accordion/摘要实施后，`.venv/bin/python -m pytest -q` 为 120 passed，compileall、frontend `npm run build` 与 `git diff --check` 通过。独立 Playwright fixture 验证首次/历史最后一项、新 retry 自动展开、普通更新与完成不改展开、手动单选/收起、键盘操作、单次运行无 wrapper 和折叠摘要；测试 Vite 服务已停止，未重启 systemd 服务。
 - Confirmed (`2026-07-13_1541-review-incomplete-session`): 完成上一会话收尾修复后，`.venv/bin/python -m pytest -q` 为 119 passed；compileall 与 `git diff --check` 通过。未启动或重启服务。
 - Confirmed (`2026-07-11_0111-audit-container-plan`): 基础容器文件已实现并构建 `maa-auto-panel:local`（context 1.80 MB，image 325 MB，UID/GID 10001）。最终镜像 CLI/import/frontend/schema/adb/git/curl 通过；隔离临时卷 Web 首页与 SIGTERM exit 0 通过；测试后 systemd 恢复 active，未启动常驻 panel 容器。
 - Confirmed (`2026-07-10_0416-full-project-audit`): Ruff passed；compileall passed；`.venv/bin/python -m pytest -q` 为 66 passed；Vulture 无发现；frontend build passed；`npm audit` 0 vulnerabilities；`git diff --check` passed。

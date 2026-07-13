@@ -8,6 +8,7 @@ import time
 import weakref
 
 from maa_auto_panel.diagnostics import Diagnostics
+from maa_auto_panel.logs.records import LogMessage
 from maa_auto_panel.maa.runtime import MaaRuntime
 from maa_auto_panel.run_manager.command import CommandSpec
 from maa_auto_panel.run_manager.contracts import RetryDecision, RunCallbacks, RunStartPlan
@@ -40,6 +41,7 @@ def test_generic_run_manager_persists_retry_and_releases_resources(tmp_path) -> 
                 next_attempt_payload={"task_ids": ["task-2"]},
                 retry_metadata={"task_ids": attempt.payload["task_ids"], "task_results": [{"task_id": "task-1", "status": "failed"}]},
                 retry_artifacts={"generated_config_dir": "runtime/generated/run-1"},
+                retry_summary_messages=[LogMessage("重试结果：❌ task-1", tone="danger")],
             )
         return RetryDecision(
             "succeeded",
@@ -47,6 +49,7 @@ def test_generic_run_manager_persists_retry_and_releases_resources(tmp_path) -> 
             run_status="succeeded",
             retry_metadata={"task_ids": attempt.payload["task_ids"], "task_results": [{"task_id": "task-2", "status": "succeeded"}]},
             retry_artifacts={"generated_config_dir": "runtime/generated/run-2"},
+            retry_summary_messages=[LogMessage("重试结果：✔️ task-2", tone="success")],
             summary_patch={"done": True},
         )
 
@@ -75,6 +78,8 @@ def test_generic_run_manager_persists_retry_and_releases_resources(tmp_path) -> 
     assert payload["retries"][0]["status"] == "failed"  # type: ignore[index]
     assert payload["retries"][1]["status"] == "succeeded"  # type: ignore[index]
     assert payload["retries"][1]["closed"] is True  # type: ignore[index]
+    assert payload["retries"][0]["summary_messages"] == [{"text": "重试结果：❌ task-1", "tone": "danger"}]  # type: ignore[index]
+    assert payload["retries"][1]["summary_messages"] == [{"text": "重试结果：✔️ task-2", "tone": "success"}]  # type: ignore[index]
     assert "task_ids" not in payload["retries"][0]  # type: ignore[operator]
     assert "generated_config_dir" not in payload["retries"][0]  # type: ignore[operator]
     assert payload["stream_version"] > 0
@@ -89,8 +94,10 @@ def test_generic_run_manager_persists_retry_and_releases_resources(tmp_path) -> 
     retries = store.retries("run-1")
     assert retries[0]["metadata"]["task_results"] == [{"task_id": "task-1", "status": "failed"}]
     assert retries[0]["artifacts"]["generated_config_dir"] == "runtime/generated/run-1"
+    assert retries[0]["summary_messages"] == [{"text": "重试结果：❌ task-1", "tone": "danger"}]
     assert retries[1]["metadata"]["task_results"] == [{"task_id": "task-2", "status": "succeeded"}]
     assert retries[1]["artifacts"]["generated_config_dir"] == "runtime/generated/run-2"
+    assert retries[1]["summary_messages"] == [{"text": "重试结果：✔️ task-2", "tone": "success"}]
 
 
 def test_terminal_state_is_persisted_before_live_publication(tmp_path) -> None:

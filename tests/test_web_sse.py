@@ -32,6 +32,7 @@ def test_state_patch_replaces_mutated_current_retry() -> None:
                 "updated_at": "2026-07-01T15:10:00",
                 "closed": True,
                 "log_entries": [{"id": "log-1", "kind": "task", "status": "succeeded"}],
+                "summary_messages": [{"text": "重试结果：✔️ 启动", "tone": "success"}],
             }
         ],
     }

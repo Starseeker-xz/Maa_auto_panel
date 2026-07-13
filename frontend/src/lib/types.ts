@@ -99,6 +99,7 @@ export type RunRetry = {
   ended_at?: string | null;
   return_code?: number | null;
   log_entries?: MaaLogEntry[];
+  summary_messages?: MaaLogMessage[];
   log_entries_file?: string;
   log_files?: Record<string, string>;
   metadata?: Record<string, unknown>;

@@ -4,6 +4,7 @@
 
 ## Active sessions
 
+- `2026-07-13_2243-frontend-retry-block`: 实现完整 retry 日志折叠层、持久化富文本摘要与 MAA 逐次任务结果展示；展开状态只响应首次进入、新 retry 和用户操作。
 - `2026-07-13_1541-review-incomplete-session`: 复核并完成上一 run-architecture 会话收尾；实现 durable-first 终态提交、MAA 领域 debug cleanup、完整 channel diagnostics 与 corrupt-state 边界，完整后端 119 passed。
 - `2026-07-13_1500-audit-run-architecture`: 审计并实施 run core/path/异常重构；process/manager/store/diagnostics 已脱离 MaaRuntime，新增通用 retry-scoped 增量文件诊断捕捉与五类应用异常 handlers；其“110 tests passed”记录已由后续复核纠正。
 

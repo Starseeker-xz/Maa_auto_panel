@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
+from maa_auto_panel.logs.records import LogMessage
 from maa_auto_panel.logs.state import RunLogBuffer
 from maa_auto_panel.process import StreamingProcessResult
 from maa_auto_panel.run_manager.command import CommandSpec
@@ -30,7 +31,7 @@ class RunTextTemplates:
 
     process_name: str = "进程"
     start: str = "运行: {title}"
-    retry_start: str = "开始第 {retry_index} 次重试"
+    retry_start: str = ""
     completed: str = "进程执行完成"
     exit_code: str = "进程退出码: {return_code}"
     retry_next: str = "准备重试运行。"
@@ -53,6 +54,7 @@ class RetryDecision:
     next_attempt_payload: dict[str, object] | None = None
     retry_metadata: dict[str, object] = field(default_factory=dict)
     retry_artifacts: dict[str, object] = field(default_factory=dict)
+    retry_summary_messages: list[LogMessage] = field(default_factory=list)
     summary_patch: dict[str, object] = field(default_factory=dict)
 
 

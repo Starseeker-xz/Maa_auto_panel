@@ -64,6 +64,7 @@ def test_run_state_store_writes_readable_state_outside_debug(tmp_path: Path) -> 
         metadata={"task_ids": ["startup"], "task_results": [{"task_id": "startup", "status": "succeeded"}]},
         artifacts={"generated_config_dir": "runtime:maa/generated-configs/schedule-run-1"},
         log_entries=[{"type": "block", "id": "log-1", "source": "framework:event", "kind": "event", "messages": [{"text": "开始运行"}], "lines": ["开始运行"]}],
+        summary_messages=[{"text": "重试结果：✔️ 启动", "tone": "success"}],
         log_files=log_files,
     )
     store.finish_run(
@@ -85,6 +86,7 @@ def test_run_state_store_writes_readable_state_outside_debug(tmp_path: Path) -> 
     assert store.retries(run_id)[0]["log_entries"][0]["kind"] == "event"
     assert store.retries(run_id)[0]["metadata"]["task_results"] == [{"task_id": "startup", "status": "succeeded"}]
     assert store.retries(run_id)[0]["artifacts"]["generated_config_dir"] == "runtime:maa/generated-configs/schedule-run-1"
+    assert store.retries(run_id)[0]["summary_messages"] == [{"text": "重试结果：✔️ 启动", "tone": "success"}]
     assert store.retries(run_id)[0]["log_entries_file"] == "framework:history/framework/runs/schedules/daily/run-1.json"
 
     recent_runs = (tmp_path / "data/state/framework/run-history/recent-run-records.json").read_text(encoding="utf-8")
@@ -98,6 +100,7 @@ def test_run_state_store_writes_readable_state_outside_debug(tmp_path: Path) -> 
     assert "开始运行" in history
     assert json.loads(history)["run"]["status"] == "succeeded"
     assert json.loads(history)["run"]["retry_count"] == 1
+    assert json.loads(history)["retries"][0]["summary_messages"] == [{"text": "重试结果：✔️ 启动", "tone": "success"}]
     assert not (tmp_path / "data/debug/framework/history").exists()
 
 

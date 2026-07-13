@@ -219,6 +219,7 @@ class RunStateStore:
         metadata: dict[str, Any],
         artifacts: dict[str, Any],
         log_entries: list[dict[str, Any]],
+        summary_messages: list[dict[str, Any]] | None = None,
         log_files: dict[str, str] | None = None,
     ) -> None:
         with self._lock:
@@ -234,6 +235,7 @@ class RunStateStore:
                 return_code=return_code,
                 metadata=metadata,
                 artifacts=artifacts,
+                summary_messages=summary_messages,
                 log_entries=log_entries,
                 log_files=log_files,
             )
@@ -251,6 +253,7 @@ class RunStateStore:
                     "return_code": return_code,
                     "metadata": metadata,
                     "artifacts": artifacts,
+                    "summary_messages": summary_messages or [],
                     "log_entries_file": history_file,
                     "log_files": log_files or {},
                 }
@@ -409,6 +412,7 @@ class RunStateStore:
         return_code: int | None,
         metadata: dict[str, Any],
         artifacts: dict[str, Any],
+        summary_messages: list[dict[str, Any]] | None,
         log_entries: list[dict[str, Any]],
         log_files: dict[str, str] | None,
     ) -> str:
@@ -430,6 +434,7 @@ class RunStateStore:
                 "return_code": return_code,
                 "metadata": metadata,
                 "artifacts": artifacts,
+                "summary_messages": summary_messages or [],
                 "log_entries": log_entries,
                 "log_files": log_files or {},
                 "closed": True,

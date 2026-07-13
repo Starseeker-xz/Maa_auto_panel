@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
+from maa_auto_panel.logs.records import LogMessage
 from maa_auto_panel.time_utils import server_datetime_from_text
 
 
@@ -102,6 +103,50 @@ class MaaTaskResultCollector:
             self.expected_index = index + 1
             return task
         return MaaTaskDescriptor(task_id="", source_name=source_name, name=source_name)
+
+
+def retry_result_summary(
+    tasks: list[MaaTaskDescriptor],
+    results: list[dict[str, object]],
+    *,
+    planned_task_ids: list[str],
+    retry_status: str,
+) -> list[LogMessage]:
+    """Build the compact, retry-scoped task result shown outside collapsed logs."""
+    if not tasks:
+        return []
+
+    status_by_id = {
+        str(result.get("task_id") or ""): str(result.get("status") or "unknown")
+        for result in results
+        if result.get("task_id")
+    }
+    planned_ids = set(planned_task_ids)
+    segments: list[dict[str, object]] = [
+        {"text": "重试结果：", "tone": "theme", "strong": True},
+    ]
+    plain_parts: list[str] = []
+    for index, task in enumerate(tasks):
+        if index:
+            segments.append({"text": " · "})
+        status = status_by_id.get(task.task_id)
+        if status == "succeeded":
+            label = f"✔️ {task.name}"
+            segments.append({"text": label, "tone": "success", "strong": True})
+        elif status == "failed":
+            label = f"❌ {task.name}"
+            segments.append({"text": label, "tone": "danger", "strong": True})
+        elif status is not None:
+            label = f"⚠️ {task.name}"
+            segments.append({"text": label, "tone": "warning", "strong": True})
+        elif retry_status == "stopped" and task.task_id in planned_ids:
+            label = f"⚠️ {task.name}"
+            segments.append({"text": label, "tone": "warning", "strong": True})
+        else:
+            label = task.name
+            segments.append({"text": label})
+        plain_parts.append(label)
+    return [LogMessage(text=f"重试结果：{' · '.join(plain_parts)}", segments=segments)]
 
 
 def parse_log_line(raw: str) -> dict[str, str | None]:

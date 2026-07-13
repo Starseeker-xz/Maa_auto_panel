@@ -8,6 +8,7 @@ from dataclasses import dataclass
 
 from maa_auto_panel.diagnostics import Diagnostics, get_logger
 from maa_auto_panel.errors import Conflict, ResourceNotFound, RuntimeUnavailable
+from maa_auto_panel.logs.records import LogMessage
 from maa_auto_panel.process import (
     RawLineCallback,
     StreamingProcessResult,
@@ -724,6 +725,7 @@ class GenericRunManager:
             decision.return_code,
             metadata=decision.retry_metadata,
             artifacts=decision.retry_artifacts,
+            summary_messages=decision.retry_summary_messages,
         )
 
     def _finish_retry(
@@ -735,6 +737,7 @@ class GenericRunManager:
         *,
         metadata: dict[str, object] | None = None,
         artifacts: dict[str, object] | None = None,
+        summary_messages: list[LogMessage] | None = None,
     ) -> None:
         with self._lock:
             if retry.closed:
@@ -743,6 +746,8 @@ class GenericRunManager:
                 retry.metadata = dict(metadata)
             if artifacts is not None:
                 retry.artifacts = dict(artifacts)
+            if summary_messages is not None:
+                retry.summary_messages = list(summary_messages)
             retry.seal(status=status, return_code=return_code)
             state.touch()
             self._notify_locked()
@@ -759,6 +764,7 @@ class GenericRunManager:
             return_code=return_code,
             metadata=retry.metadata,
             artifacts=retry.artifacts,
+            summary_messages=[message.to_dict() for message in retry.summary_messages],
             log_entries=retry.log.entries(),
             log_files=retry.log_files,
         )

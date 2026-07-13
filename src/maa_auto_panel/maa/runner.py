@@ -13,7 +13,7 @@ from maa_auto_panel.diagnostics import Diagnostics, get_logger
 from maa_auto_panel.errors import CorruptState
 from maa_auto_panel.maa.cleanup import enforce_maa_debug_retention
 from maa_auto_panel.maa.log_templates import register_maa_log_sources
-from maa_auto_panel.maa.results import MaaTaskDescriptor, MaaTaskResultCollector
+from maa_auto_panel.maa.results import MaaTaskDescriptor, MaaTaskResultCollector, retry_result_summary
 from maa_auto_panel.maa.runtime import MaaRuntime
 from maa_auto_panel.notifications import NotificationService
 from maa_auto_panel.process import StreamingProcessResult
@@ -274,6 +274,12 @@ class ManualMaaRunCallbacks:
             next_attempt_payload={"task_ids": next_task_ids},
             retry_metadata={"task_ids": task_ids, "task_results": task_results},
             retry_artifacts={"generated_config_dir": generated_config_dir, "diagnostic_log_file": maacore_capture.log_file},
+            retry_summary_messages=retry_result_summary(
+                _task_descriptors(self.policy_by_id, self.selected_task_ids),
+                task_results,
+                planned_task_ids=task_ids,
+                retry_status=attempt_status,
+            ),
             summary_patch={"task_results": task_results, "generated_config_dir": generated_config_dir},
         )
 
@@ -363,7 +369,6 @@ class MaaRunManager:
                     process_name="maa-cli",
                     completed="",
                     exit_code="maa-cli 退出码: {return_code}",
-                    retry_start="第 {retry_index} 次重试",
                     retry_next="",
                     retry_limit_reached="",
                     start_failed="启动 maa-cli 失败: {error}",
