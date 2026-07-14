@@ -1,7 +1,12 @@
 from __future__ import annotations
 
+from pathlib import Path
+
+import pytest
+
 from maa_auto_panel.logs.pipeline import LogSourceSpec, plain_translate_line
 from maa_auto_panel.logs.state import RunLogBuffer
+from maa_auto_panel.maa import log_templates
 from maa_auto_panel.maa.log_templates import begin_maa_task_sequence, configure_maa_log_template, maa_log_source_specs
 from maa_auto_panel.maa.results import MaaTaskDescriptor, MaaTaskResultCollector, retry_result_summary
 from maa_auto_panel.run_manager.logs import RunLogProfile
@@ -416,6 +421,117 @@ def test_json_suppression_state_is_isolated_per_log_buffer() -> None:
 
     assert first.entries() == []
     assert second.entries()[0]["messages"][0]["text"] == "已连接"
+
+
+def test_runtime_template_is_reloaded_for_each_new_buffer_and_reuses_last_good_on_syntax_error(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = tmp_path / "maa-log-template.toml"
+    monkeypatch.setattr(log_templates, "MAA_LOG_TEMPLATE_PATH", path)
+    monkeypatch.setattr(log_templates, "_last_good_template", None)
+    profile = RunLogProfile(source_specs=maa_log_source_specs(), configure_buffer=configure_maa_log_template)
+
+    def save_translation(text: str) -> None:
+        path.write_text(
+            f'''version = 1
+
+[global.translations]
+Connected = "{text}"
+
+[blocks.task]
+''',
+            encoding="utf-8",
+        )
+
+    save_translation("第一次")
+    first = profile.new_buffer()
+    first.pipeline.append("[2026-07-14 03:00:01 INFO ] Connected\n", source="maa-cli:stderr")
+    assert first.entries()[0]["messages"][0]["text"] == "第一次"
+
+    save_translation("第二次")
+    second = profile.new_buffer()
+    second.pipeline.append("[2026-07-14 03:00:02 INFO ] Connected\n", source="maa-cli:stderr")
+    assert second.entries()[0]["messages"][0]["text"] == "第二次"
+
+    path.write_text("version = 1\n[global\n", encoding="utf-8")
+    third = profile.new_buffer()
+    third.pipeline.append("[2026-07-14 03:00:03 INFO ] Connected\n", source="maa-cli:stderr")
+    assert third.entries()[0]["messages"][0]["text"] == "日志模板加载失败，已使用上一次有效模板。"
+    assert third.entries()[-1]["messages"][0]["text"] == "第二次"
+
+
+def test_initially_unreadable_runtime_template_falls_back_to_plain_log(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = tmp_path / "broken.toml"
+    path.write_text("not valid TOML = [", encoding="utf-8")
+    monkeypatch.setattr(log_templates, "MAA_LOG_TEMPLATE_PATH", path)
+    monkeypatch.setattr(log_templates, "_last_good_template", None)
+    profile = RunLogProfile(source_specs=maa_log_source_specs(), configure_buffer=configure_maa_log_template)
+
+    log = profile.new_buffer()
+    log.pipeline.append("[2026-07-14 03:00:01 INFO ] Connected\n", source="maa-cli:stderr")
+
+    assert log.entries()[0]["messages"][0]["text"] == "日志模板加载失败，已切换到原始日志。"
+    assert log.entries()[-1]["messages"][0]["text"] == "[2026-07-14 03:00:01 INFO ] Connected"
+    assert "maa_log_template_error" in log.pipeline.context
+
+
+def test_partially_invalid_runtime_template_reports_one_event_and_keeps_valid_translation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = tmp_path / "partial.toml"
+    path.write_text(
+        '''version = 1
+
+[global.translations]
+Connected = "已连接"
+
+[blocks.task]
+
+[blocks.fetch]
+
+[[blocks.fetch.start]]
+source = "maa-cli:stderr"
+match = "From https://github.com/{repository:text}"
+tone = "info"
+''',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(log_templates, "MAA_LOG_TEMPLATE_PATH", path)
+    monkeypatch.setattr(log_templates, "_last_good_template", None)
+    profile = RunLogProfile(source_specs=maa_log_source_specs(), configure_buffer=configure_maa_log_template)
+
+    log = profile.new_buffer()
+    log.pipeline.append("[2026-07-14 03:00:01 INFO ] Connected\n", source="maa-cli:stderr")
+
+    assert [entry["messages"][0]["text"] for entry in log.entries()] == [
+        "日志模板部分配置无效，已忽略错误项。",
+        "已连接",
+    ]
+    assert log.entries()[0]["messages"][0]["metadata"] == {"event_key": "visible-log-template-error"}
+
+
+def test_visible_log_configurator_failure_uses_plain_fallback() -> None:
+    def fail_after_partial_registration(log: RunLogBuffer) -> None:
+        log.pipeline.context["partial"] = True
+        raise RuntimeError("broken display extension")
+
+    profile = RunLogProfile(
+        source_specs=(LogSourceSpec("demo:stdout", "info", plain_translate_line),),
+        configure_buffer=fail_after_partial_registration,
+    )
+
+    log = profile.new_buffer()
+    log.pipeline.append("still runs\n", source="demo:stdout")
+
+    assert log.entries()[0]["messages"][0]["text"] == "可见日志配置失败，已切换到原始日志。"
+    assert log.entries()[-1]["messages"][0]["text"] == "still runs"
+    assert "partial" not in log.pipeline.context
+    assert log.pipeline.context["visible_log_configuration_error"] == "broken display extension"
 
 
 def test_summary_after_git_up_to_date_starts_run_summary_block() -> None:

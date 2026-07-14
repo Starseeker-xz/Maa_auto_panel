@@ -4,6 +4,7 @@
 
 ## Runtime and process control
 
+- `2026-07-14_1304-investigate-9am-schedule`: run 的异常报告与终态收尾不能依赖导致主路径失败的可插拔日志 profile。`RunLogProfile.new_buffer()` 必须把配置器当非关键展示扩展：异常时回滚部分注册、使用 plain buffer、写固定 framework event 并继续；否则错误报告会二次抛错并留下无 worker 的永久 `running`。运行模板应片段容错并保留 strict 离线校验，语法级损坏使用 last-known-good/plain fallback。
 - `2026-07-13_1541-review-incomplete-session`: durable run state 是恢复权威；终态必须先持久化成功再发布 live/SSE。短暂写失败可幂等有限重试，持续失败应 fail-closed 保持 durable/live 非终态与资源 lease，不能先展示 succeeded 再留下磁盘 running。retention/notification 等 post-finish maintenance 必须与核心终态提交隔离。
 - `2026-07-13_1500-audit-run-architecture`: `GenericRunManager` 必须继续独占 live state、retry loop 与锁；实现协作者只能接收不可变输入/回调，不能直接突变 `LiveRun`。避免在 manager 锁内写 store/diagnostics，并确保 thread 已绑定后才把 run 发布给 shutdown/join 观察者。
 - `2026-07-13_1500-audit-run-architecture`: 通用 run manager 不得按 manual/schedule/maintenance/tool/MAA 等分类分支，也不得依赖某 integration 的 log capture/cleanup。专项逻辑留在领域 plan builder/callback；manager 只处理 opaque kind、command、decision、metadata 与 artifacts。

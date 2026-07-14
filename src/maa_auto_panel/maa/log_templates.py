@@ -1,14 +1,15 @@
 from __future__ import annotations
 
 import re
+import threading
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
-from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from maa_auto_panel.diagnostics import get_logger
 from maa_auto_panel.logs.pipeline import LogSourceSpec
-from maa_auto_panel.logs.templates.loader import load_translation_template
+from maa_auto_panel.logs.templates.loader import load_translation_template_tolerant
 from maa_auto_panel.logs.templates.model import MissingFieldsRequest, TranslationFieldMonitor, TranslationTemplate
 from maa_auto_panel.logs.templates.runtime import TemplateBlockRuntime, template_source_spec
 from maa_auto_panel.time_utils import server_datetime_from_text
@@ -27,6 +28,18 @@ LEVEL_TONE = {
     "WARN": "warning",
     "INFO": "info",
 }
+MAA_LOG_TEMPLATE_PATH = Path(__file__).with_name("log_template.toml")
+
+logger = get_logger(__name__)
+_template_lock = threading.Lock()
+_last_good_template: TranslationTemplate | None = None
+
+
+@dataclass(frozen=True)
+class MaaTemplateSnapshot:
+    template: TranslationTemplate | None
+    user_message: str | None = None
+    user_tone: str = "warning"
 
 
 @dataclass
@@ -72,9 +85,24 @@ def maa_log_source_specs() -> tuple[LogSourceSpec, ...]:
 
 def configure_maa_log_template(log: "RunLogBuffer") -> MaaLogState:
     state = MaaLogState()
-    runtime = TemplateBlockRuntime(maa_translation_template(), state, fallback_block="task")
     log.pipeline.context["maa_log_state"] = state
-    runtime.register(log.pipeline)
+    blocks_before = list(log.pipeline.block_definitions)
+    context_before = dict(log.pipeline.context)
+    try:
+        snapshot = load_maa_translation_template()
+        if snapshot.template is not None:
+            runtime = TemplateBlockRuntime(snapshot.template, state, fallback_block="task")
+            runtime.register(log.pipeline)
+        if snapshot.user_message:
+            log.pipeline.context["maa_log_template_error"] = snapshot.user_message
+            append_template_error_event(log, snapshot.user_message, snapshot.user_tone)
+    except Exception as exc:
+        log.pipeline.block_definitions[:] = blocks_before
+        log.pipeline.context.clear()
+        log.pipeline.context.update(context_before)
+        log.pipeline.context["maa_log_template_error"] = str(exc)
+        logger.exception("MAA log template unavailable; using plain visible-log fallback path=%s", MAA_LOG_TEMPLATE_PATH)
+        append_template_error_event(log, "日志模板加载失败，已切换到原始日志。", "warning")
     return state
 
 
@@ -85,9 +113,58 @@ def begin_maa_task_sequence(log: "RunLogBuffer", tasks: list[dict[str, str]]) ->
     state.begin_task_sequence(tasks)
 
 
-@lru_cache(maxsize=1)
 def maa_translation_template() -> TranslationTemplate:
-    return load_translation_template(Path(__file__).with_name("log_template.toml"))
+    snapshot = load_maa_translation_template()
+    if snapshot.template is None:
+        raise RuntimeError("No usable MAA log template")
+    return snapshot.template
+
+
+def load_maa_translation_template() -> MaaTemplateSnapshot:
+    """Read the TOML for each new log buffer so edits apply without a restart."""
+    global _last_good_template
+    with _template_lock:
+        try:
+            loaded = load_translation_template_tolerant(MAA_LOG_TEMPLATE_PATH)
+        except Exception:
+            if _last_good_template is not None:
+                logger.exception(
+                    "MAA log template could not be decoded; using last-known-good template path=%s",
+                    MAA_LOG_TEMPLATE_PATH,
+                )
+                return MaaTemplateSnapshot(_last_good_template, "日志模板加载失败，已使用上一次有效模板。")
+            logger.exception("MAA log template could not be decoded; using plain fallback path=%s", MAA_LOG_TEMPLATE_PATH)
+            return MaaTemplateSnapshot(None, "日志模板加载失败，已切换到原始日志。")
+        for diagnostic in loaded.diagnostics:
+            logger.warning("MAA log template fragment ignored: %s", diagnostic)
+        if loaded.template.blocks:
+            _last_good_template = loaded.template
+        elif _last_good_template is not None:
+            logger.error(
+                "MAA log template contains no usable blocks; using last-known-good template path=%s",
+                MAA_LOG_TEMPLATE_PATH,
+            )
+            return MaaTemplateSnapshot(_last_good_template, "日志模板加载失败，已使用上一次有效模板。")
+        return MaaTemplateSnapshot(
+            loaded.template,
+            "日志模板部分配置无效，已忽略错误项。" if loaded.diagnostics else None,
+        )
+
+
+def append_template_error_event(log: "RunLogBuffer", message: str, tone: str) -> None:
+    try:
+        log.pipeline.append(
+            f"{message}\n",
+            source="framework:event",
+            metadata={
+                "tone": tone,
+                "kind_override": "event",
+                "status_override": "warning",
+                "message_metadata": {"event_key": "visible-log-template-error"},
+            },
+        )
+    except Exception:
+        logger.exception("MAA log template fallback event could not be appended")
 
 
 def parse_log_line(raw: str, state: dict[str, object]) -> tuple[str, dict[str, object]]:

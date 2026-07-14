@@ -22,6 +22,8 @@
 
 ## Current architecture
 
+- Confirmed (`2026-07-14_1304-investigate-9am-schedule`): 日志模板保持 strict loader 供 CLI/开发校验，MAA runtime 改用 tolerant loader：可解码 TOML 按独立 fragment 隔离未知/无效 field、lookup、translation、rule、boundary、block，每项记录 framework warning；每个新 retry buffer 从磁盘重读，语法/I/O/encoding/version 失败时使用进程内 last-known-good，无历史模板则 plain/raw。错误通过每 retry 一条稳定 framework event 随既有 SSE 下发，不阻塞连接或后续日志。
+- Confirmed (`2026-07-14_1304-investigate-9am-schedule`): `RunLogProfile.new_buffer()` 已建立通用展示故障边界：配置器异常会回滚其 block/context、记录 exception、插入固定 fallback event 并继续运行外部命令。真实 GenericRunManager 回归测试确认配置器抛错后 run 仍 succeeded。
 - Confirmed (`2026-07-14_0244-optimize-log-template-migration`): MAA 可见日志已完成 block-runtime 迁移。通用 `TemplateBlockRuntime` 从严格 TOML 自动注册 block、匹配/reprocess start/end、翻译与 fallback、追加有界 record、派生状态和关闭策略；模板不使用人工 rule/event id。`maa/log_templates.py` 从 510 行降至 141 行，不再手工构造 `BlockDefinition`。
 - Confirmed (`2026-07-14_0244-optimize-log-template-migration`): `LogSourceSpec` 支持每 source 有状态 raw-line preprocessor；`LogLineInput` 同时保留原始 raw 与处理后 content/metadata。MAA 预处理器只负责移除 maa-cli envelope、提取 time/level/tone，并在检测到 OperBox/Depot pretty JSON 后持续静默到对象闭合；状态属于单个 buffer/source，不跨 retry/run，共享 diagnostics/raw-result 仍保留原文。
 - Confirmed (`2026-07-14_0244-optimize-log-template-migration`): `RunLogProfile` 直接携带 `source_specs`，运行注册处声明可见 source；`configure_buffer` 只初始化每 buffer 独立的模板 runtime/字段监视器。通用 manager 不含 MAA 分支。
@@ -116,7 +118,6 @@
 - Confirmed (`2026-07-10_0416-full-project-audit`): 自定义脚本当前只有 schedule restart hook；工具 registry 仅在 `ToolRunManager` 中硬编码 `game-update`。未来以本地可信 manifest + ActionSpec 扩展，不应先开放 Web 任意脚本上传。
 
 ## Active high-priority findings
-
 - Confirmed (`2026-07-11_0111-audit-container-plan`): WebUI 手动更新后宿主 `maa version` 可报告 maa-cli 0.7.5 / MaaCore 6.14.0，但官方 stable 安装脚本 + 全新容器卷 `maa install --batch stable` 仍产生混合 Linux runtime：core 依赖 OpenCV `.411`，ADB control plugin 依赖 `.412`，artifact 仅含 `.411`。`maa version` 未加载 ADB plugin，不能作为设备任务可用证明。基础应用镜像不受阻；真实设备 smoke 暂缓，禁止伪造 SONAME symlink。
 - Confirmed (`2026-07-10_0416-full-project-audit`): 服务以 root 身份监听 `0.0.0.0:8000` 是裸机测试方式；在可信内网单用户前提下，无 authentication scheme 不视为缺陷。容器仍应避免 privileged/Docker socket/host network，并用低成本专用 UID/capability 收缩宿主影响面。
 - Confirmed (`2026-07-10_0416-full-project-audit`): 上述 root/监听状态是裸机测试方式，不能原样判定为目标容器缺陷。容器实施时重新以 UID/capability/volume/published port 评估；TCP ADB 不需要 privileged、host network 或宿主 USB mount。

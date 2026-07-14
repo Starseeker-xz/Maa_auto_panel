@@ -4,6 +4,7 @@
 
 ## Active sessions
 
+- `2026-07-14_1304-investigate-9am-schedule`: 定位并修复 09:00 BST 模板故障；模板改为每 retry 热读取、片段级容错、last-known-good/plain fallback，配置异常写详细 framework log 并通过 SSE 固定事件回报，通用展示配置不再阻止 run；僵尸状态已随服务重启恢复封口。
 - `2026-07-14_0244-optimize-log-template-migration`: 完成 TemplateBlockRuntime、profile source_specs、有状态 raw 预处理和 output 投影删除；模板实现拆为 model/engine/loader/runtime 子包，MAA 仅填 task 字段并解析 envelope/JSON。
 - `2026-07-14_0145-audit-gui-tools`: 下一轮 tools 实施 handoff；范围已收敛为公招识别 + 牛杂，完整记录 Recruit callback 缺口、五个 Custom 入口/副作用、隐秘战线路线算法及动态限时条目机制。
 - `2026-07-14_0051-audit-maa-log-templates`: MAA 可见日志迁移到严格 TOML；根层仅 global/blocks，block 只声明 start/end/rules，无 id/event，轻量 MAA 监视器补 task 字段。

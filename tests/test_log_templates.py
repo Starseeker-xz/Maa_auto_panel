@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from maa_auto_panel.logs.templates.engine import TranslationEngine
-from maa_auto_panel.logs.templates.loader import load_translation_template
+from maa_auto_panel.logs.templates.loader import load_translation_template, load_translation_template_tolerant
 from maa_auto_panel.logs.templates.model import MissingFieldsRequest, TemplateValidationError
 
 
@@ -213,6 +213,65 @@ text = "你好"
 
     with pytest.raises(TemplateValidationError, match=r"blocks\.line\.rules\[0\]\.id: unknown field"):
         load_translation_template(path)
+
+
+def test_tolerant_loader_ignores_unknown_boundary_field_and_keeps_valid_fragments(tmp_path: Path) -> None:
+    path = write_template(
+        tmp_path,
+        """
+version = 1
+
+[global.translations]
+Connected = "已连接"
+
+[blocks.task]
+
+[blocks.fetch]
+kind = "output"
+
+[[blocks.fetch.start]]
+source = "maa-cli:stderr"
+match = "From https://github.com/{repository:text}"
+tone = "info"
+""",
+    )
+
+    loaded = load_translation_template_tolerant(path)
+    engine = TranslationEngine(loaded.template)
+
+    assert len(loaded.template.blocks["fetch"].start) == 1
+    assert loaded.template.blocks["fetch"].start[0].pattern.match("From https://github.com/MaaAssistantArknights/MaaResource") == {
+        "repository": "MaaAssistantArknights/MaaResource"
+    }
+    assert engine.translate("maa-cli:stderr", "Connected", block="task").message.text == "已连接"  # type: ignore[union-attr]
+    assert loaded.diagnostics == (f"{path}: blocks.fetch.start[0].tone: unknown field ignored",)
+
+
+def test_tolerant_loader_discards_only_invalid_rule(tmp_path: Path) -> None:
+    path = write_template(
+        tmp_path,
+        """
+version = 1
+
+[global]
+
+[[blocks.task.rules]]
+match = "Broken"
+text = "坏规则"
+indent = -1
+
+[[blocks.task.rules]]
+match = "Connected"
+text = "已连接"
+""",
+    )
+
+    loaded = load_translation_template_tolerant(path)
+    result = TranslationEngine(loaded.template).translate("maa-cli:stderr", "Connected", block="task")
+
+    assert result.message is not None and result.message.text == "已连接"
+    assert result.rule_location == "blocks.task.rules[1]"
+    assert loaded.diagnostics == (f"{path}: blocks.task.rules[0].indent: must be a non-negative integer",)
 
 
 def test_matches_declarative_block_end(tmp_path: Path) -> None:

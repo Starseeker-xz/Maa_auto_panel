@@ -43,7 +43,6 @@ NotEnoughStaff = "干员不足"
 MissionStart = "作战开始"
 MissionCompleted = "作战完成"
 MissionFailed = "作战失败"
-InfrastDormDoubleConfirmed = "宿舍换班二次确认"
 
 # Global dynamic translations.
 
@@ -206,6 +205,11 @@ indent = 1
 [[blocks.task.rules]]
 match = "CustomInfrastRoomOperators: {operators:text}"
 text = "换班干员: {operators}"
+indent = 1
+
+[[blocks.task.rules]]
+match = "InfrastDormDoubleConfirmed"
+text = "宿舍换班二次确认"
 indent = 1
 
 # Summary block

@@ -13,6 +13,7 @@ from maa_auto_panel.maa.runtime import MaaRuntime
 from maa_auto_panel.run_manager.command import CommandSpec
 from maa_auto_panel.run_manager.contracts import RetryDecision, RunCallbacks, RunStartPlan
 from maa_auto_panel.run_manager.coordinator import RunCoordinator, RunLease
+from maa_auto_panel.run_manager.logs import RunLogProfile
 from maa_auto_panel.run_manager.manager import GenericRunManager, RunAttempt
 from maa_auto_panel.run_manager.state import RunTimeouts
 from maa_auto_panel.run_manager.store import RunStateStore
@@ -98,6 +99,36 @@ def test_generic_run_manager_persists_retry_and_releases_resources(tmp_path) -> 
     assert retries[1]["metadata"]["task_results"] == [{"task_id": "task-2", "status": "succeeded"}]
     assert retries[1]["artifacts"]["generated_config_dir"] == "runtime/generated/run-2"
     assert retries[1]["summary_messages"] == [{"text": "重试结果：✔️ task-2", "tone": "success"}]
+
+
+def test_visible_log_configuration_failure_does_not_reject_run(tmp_path) -> None:
+    runtime = MaaRuntime(tmp_path)
+    diagnostics = Diagnostics(runtime.layout.framework, runtime.path_references)
+    manager = GenericRunManager(
+        RunStateStore(runtime.layout.framework, runtime.path_references),
+        diagnostics,
+        RunCoordinator(),
+    )
+
+    def broken_visible_log(_log) -> None:
+        raise RuntimeError("invalid display config")
+
+    state = manager.start(
+        RunStartPlan(
+            kind="tool",
+            title="display fallback",
+            command=CommandSpec([sys.executable, "-c", "print('command completed')"], cwd=tmp_path, env=os.environ.copy()),
+            log_profile=RunLogProfile(configure_buffer=broken_visible_log),
+        ),
+        run_id="display-fallback",
+    )
+
+    assert state.thread is not None
+    state.thread.join(timeout=2)
+    assert state.status == "succeeded"
+    messages = [message["text"] for entry in state.retries[0].log.entries() for message in entry["messages"]]
+    assert messages[0] == "可见日志配置失败，已切换到原始日志。"
+    assert "command completed" in messages
 
 
 def test_terminal_state_is_persisted_before_live_publication(tmp_path) -> None:
