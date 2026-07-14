@@ -3,7 +3,9 @@ from __future__ import annotations
 import argparse
 from contextlib import contextmanager
 import os
+from pathlib import Path
 import signal
+import sys
 import threading
 from types import FrameType
 
@@ -24,6 +26,15 @@ def build_parser() -> argparse.ArgumentParser:
     web_parser.add_argument("--data-dir", help=f"Framework data root (or {DATA_DIR_ENV})")
     web_parser.add_argument("--runtime-dir", help=f"Integration runtime root (or {RUNTIME_DIR_ENV})")
     web_parser.add_argument("--cache-dir", help=f"Disposable cache root (or {CACHE_DIR_ENV})")
+
+    template_parser = subparsers.add_parser("validate-log-template", help="Validate a declarative log template")
+    template_parser.add_argument(
+        "path",
+        nargs="?",
+        type=Path,
+        default=Path(__file__).with_name("maa") / "log_template.toml",
+        help="TOML path (defaults to the bundled MAA template)",
+    )
 
     return parser
 
@@ -79,6 +90,19 @@ def main(argv: list[str] | None = None) -> int:
                 timeout_graceful_shutdown=5,
             )
             ShutdownAwareServer(config).run()
+        return 0
+
+    if args.command == "validate-log-template":
+        from maa_auto_panel.logs.templates.loader import load_translation_template
+        from maa_auto_panel.logs.templates.model import TemplateValidationError
+
+        try:
+            template = load_translation_template(args.path)
+        except TemplateValidationError as exc:
+            print(exc, file=sys.stderr)
+            return 2
+        rule_count = len(template.rules) + sum(len(block.rules) for block in template.blocks.values())
+        print(f"模板有效: {template.path}（{len(template.blocks)} 个 blocks，{rule_count} 条规则）")
         return 0
 
     raise AssertionError(f"Unhandled command: {args.command}")

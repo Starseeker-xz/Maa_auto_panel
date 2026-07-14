@@ -12,7 +12,7 @@ from maa_auto_panel.config.tasks import TASK_SUFFIXES, prepare_framework_task_co
 from maa_auto_panel.diagnostics import Diagnostics, get_logger
 from maa_auto_panel.errors import CorruptState
 from maa_auto_panel.maa.cleanup import enforce_maa_debug_retention
-from maa_auto_panel.maa.log_templates import register_maa_log_sources
+from maa_auto_panel.maa.log_templates import begin_maa_task_sequence, configure_maa_log_template, maa_log_source_specs
 from maa_auto_panel.maa.results import MaaTaskDescriptor, MaaTaskResultCollector, retry_result_summary
 from maa_auto_panel.maa.runtime import MaaRuntime
 from maa_auto_panel.notifications import NotificationService
@@ -219,7 +219,7 @@ class ManualMaaRunCallbacks:
             attempt.add_event(message, tone="info")
 
         task_descriptors = _task_descriptors(self.policy_by_id, task_ids)
-        attempt.configure_log(lambda log: log.begin_task_sequence(_task_descriptor_dicts(task_descriptors)))
+        attempt.configure_log(lambda log: begin_maa_task_sequence(log, _task_descriptor_dicts(task_descriptors)))
         self.collectors[attempt.retry_id] = MaaTaskResultCollector(task_descriptors)
         self.maacore_log_offsets[attempt.retry_id] = current_log_offset(maacore_log_source(self.runtime))
         return CommandSpec(cmd, cwd=self.runtime.repo_root, env=run_env)
@@ -420,8 +420,8 @@ class MaaRunManager:
 
 def _maa_cli_log_profile(diagnostics: Diagnostics) -> RunLogProfile:
     return RunLogProfile(
-        max_output_chunks=2000,
-        register_sources=register_maa_log_sources,
+        source_specs=maa_log_source_specs(),
+        configure_buffer=configure_maa_log_template,
         source_for_stream=lambda stream: f"maa-cli:{stream}",
         diagnostic_sink=diagnostics.stream_sink("maa-cli"),
     )

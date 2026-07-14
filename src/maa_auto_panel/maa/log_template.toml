@@ -1,0 +1,365 @@
+version = 1
+
+[global.fields."task.id"]
+type = "string"
+external = true
+
+[global.fields."task.name"]
+type = "string"
+external = true
+
+[global.fields."task.source_name"]
+type = "string"
+external = true
+
+[global.lookups.product]
+PureGold = "赤金"
+SyntheticJade = "合成玉"
+SkillLevel = "技能专精"
+Money = "龙门币"
+MoodAddition = "心情增益"
+Drone = "无人机"
+General = "线索收集"
+HR = "公招刷新"
+OriginStone = "源石碎片"
+
+[global.lookups.facility]
+Mfg = "制造站"
+Trade = "贸易站"
+Power = "发电站"
+Control = "控制中枢"
+Reception = "会客室"
+Office = "办公室"
+Dorm = "宿舍"
+Training = "训练室"
+
+[global.translations]
+Connected = "已连接"
+AllTasksCompleted = "全部任务结束"
+"Updating hot update files..." = "检查热更新资源..."
+"Hot update completed successfully" = "热更新资源检查完成"
+GameOffline = "游戏掉线"
+ProductUnknown = "产物识别失败"
+ProductIncorrect = "产物不匹配"
+ProductChanged = "产物已切换"
+NotEnoughStaff = "干员不足"
+MissionStart = "作战开始"
+MissionCompleted = "作战完成"
+MissionFailed = "作战失败"
+InfrastDormDoubleConfirmed = "宿舍换班二次确认"
+
+# Global dynamic translations.
+
+[[global.rules]]
+match = "FastestWayToScreencap {method:word} {cost:int}"
+text = "已选择截图方式: {method}, 最短耗时 {cost} ms"
+segments = [
+    { text = "已选择截图方式: " },
+    { text = "{method}", tone = "info", strong = true },
+    { text = ", 最短耗时 " },
+    { text = "{cost} ms", tone = "success", strong = true },
+]
+
+# Task block
+
+[blocks.task]
+kind = "task"
+title = "任务 {task.name}"
+status = "running"
+tone = "info"
+message_tone = "info"
+panel_kind = "task"
+entry = { name = "{task.name}", task_id = "{task.id}", source_name = "{task.source_name}" }
+track_elapsed = true
+
+[[blocks.task.start]]
+source = "maa-cli:stderr"
+match = "{source_name:word} Start"
+values = { status = "running" }
+
+[[blocks.task.end]]
+source = "maa-cli:stderr"
+match = "{source_name:word} Completed"
+values = { status = "succeeded" }
+
+[[blocks.task.end]]
+source = "maa-cli:stderr"
+match = "{source_name:word} Error"
+values = { status = "failed" }
+
+[[blocks.task.end]]
+source = "maa-cli:stderr"
+match = "{source_name:word} Stopped"
+values = { status = "stopped" }
+
+[[blocks.task.end]]
+source = "maa-cli:stderr"
+match = "Error: Interrupted by user!"
+values = { status = "unfinished" }
+message = "用户中断"
+message_tone = "warning"
+
+## 公招
+
+[[blocks.task.rules]]
+match = "Refresh Tags"
+text = "{action}"
+styles = { action = { tone = "theme", strong = true } }
+values = { action = "刷新公招标签" }
+
+[[blocks.task.rules]]
+match = "Recruit"
+text = "{action}"
+styles = { action = { tone = "theme", strong = true } }
+values = { action = "确认招募" }
+
+[[blocks.task.rules]]
+match = "RecruitTagsRefreshed: {count:int} times"
+action = "drop"
+
+[[blocks.task.rules]]
+match = "RecruitResult: {result:text}"
+text = "公招识别结果: {result}"
+
+[[blocks.task.rules]]
+match = "RecruitTagsSelected: {tags:text}"
+text = "选择公招标签: {tags}"
+
+## 作战
+
+[[blocks.task.rules]]
+match = "Mission started ({times:int} times, use {sanity:int} sanity)"
+text = "{action} ({times}次，-{sanity}理智)"
+tone = "theme"
+styles = { action = { tone = "theme", strong = true } }
+values = { action = "开始行动" }
+
+[[blocks.task.rules]]
+match = "Current sanity: {sanity:text}"
+text = "当前理智: {sanity}"
+tone = "theme"
+styles = { sanity = { tone = "theme", strong = true } }
+
+[[blocks.task.rules]]
+match = "Use {count:int} expiring medicine"
+text = "使用 {count}{label}"
+tone = "warning"
+styles = { count = { tone = "warning", strong = true }, label = { tone = "warning", strong = true } }
+values = { label = " 个临期理智药" }
+
+[[blocks.task.rules]]
+match = "Use {count:int} medicine"
+text = "使用 {count}{label}"
+tone = "warning"
+styles = { count = { tone = "warning", strong = true }, label = { tone = "warning", strong = true } }
+values = { label = " 个理智药" }
+
+[[blocks.task.rules]]
+match = "Drops: {drops:text}"
+text = "掉落统计: {drops}"
+indent = 1
+replacements = { drops = { furni = "家具" } }
+
+[[blocks.task.rules]]
+match = "ReportTo{platform:word}: {url:text}"
+action = "drop"
+fold_group = "report"
+fold_role = "noise"
+
+[[blocks.task.rules]]
+match = "Successfully ReportTo{platform:word}"
+text = "汇报成功"
+tone = "success"
+indent = 1
+fold_group = "report"
+fold_role = "emit_once"
+
+# 基建换班
+
+[[blocks.task.rules]]
+match = "EnterFacility {facility:word} {index:word}"
+text = "进入设施: {facility} {index}"
+lookups = { facility = "facility" }
+segments = [
+    { text = "进入设施: " },
+    { text = "{facility} {index}", tone = "theme", strong = true },
+]
+
+[[blocks.task.rules]]
+match = "ProductOfFacility: {product:text}"
+text = "设施产物: {product}"
+indent = 1
+lookups = { product = "product" }
+
+[[blocks.task.rules]]
+match = "CustomInfrastRoomOperators: {operators:text}"
+text = "换班干员: {operators}"
+indent = 1
+
+# Summary block
+
+[blocks.summary]
+kind = "summary"
+title = "运行摘要"
+status = "succeeded"
+tone = "success"
+message_tone = "default"
+panel_kind = "summary"
+capture_start = true
+fallback_indent = 1
+status_from_message_tone = true
+close_on_metadata = "enveloped"
+
+[[blocks.summary.start]]
+source = "maa-cli:stdout"
+match = "Summary"
+
+[[blocks.summary.rules]]
+match = "----------------------------------------"
+action = "drop"
+
+## 子任务标题
+
+[[blocks.summary.rules]]
+match = "[{task:text}] {started:text} - {ended:text} ({elapsed:text}) Completed"
+text = "{task}: {status_label}, 用时 {elapsed}"
+tone = "success"
+values = { status_label = "完成" }
+styles = { task = { tone = "success", strong = true }, status_label = { tone = "success" } }
+
+[[blocks.summary.rules]]
+match = "[{task:text}] {started:text} - {ended:text} ({elapsed:text}) Error"
+text = "{task}: {status_label}, 用时 {elapsed}"
+tone = "danger"
+values = { status_label = "失败" }
+styles = { task = { tone = "danger", strong = true }, status_label = { tone = "danger" } }
+
+[[blocks.summary.rules]]
+match = "[{task:text}] {started:text} - {ended:text} ({elapsed:text}) Stopped"
+text = "{task}: {status_label}, 用时 {elapsed}"
+tone = "warning"
+values = { status_label = "已停止" }
+styles = { task = { tone = "warning", strong = true }, status_label = { tone = "warning" } }
+
+[[blocks.summary.rules]]
+match = "[{task:text}] {started:text} - {ended:text} ({elapsed:text}) Unknown"
+text = "{task}: {status_label}, 用时 {elapsed}"
+tone = "warning"
+values = { status_label = "未确认结束" }
+styles = { task = { tone = "warning", strong = true }, status_label = { tone = "warning" } }
+
+## 作战详情
+
+[[blocks.summary.rules]]
+match = "Fight {stage:word} {times:int} times, used {medicine:int} medicine ({expiring:int} expiring), drops:"
+text = "作战 {stage} {times} 次，使用 {medicine} 个理智药（{expiring} 个临期），掉落："
+indent = 1
+
+[[blocks.summary.rules]]
+match = "Fight {stage:word} {times:int} times, used {medicine:int} medicine, drops:"
+text = "作战 {stage} {times} 次，使用 {medicine} 个理智药，掉落："
+indent = 1
+
+[[blocks.summary.rules]]
+match = "Fight {stage:word} {times:int} times, drops:"
+text = "作战 {stage} {times} 次，掉落："
+indent = 1
+
+[[blocks.summary.rules]]
+match = "{index:int}. {drops:text}"
+text = "{index}. {drops}"
+tone = "theme"
+indent = 1
+segments = [
+    { text = "{index}.", tone = "theme", strong = true },
+    { text = " {drops}" },
+]
+replacements = { drops = { furni = "家具" } }
+
+[[blocks.summary.rules]]
+match = "total drops: {drops:text}"
+text = "{label}{drops}"
+tone = "theme"
+indent = 1
+styles = { label = { tone = "theme", strong = true } }
+values = { label = "合计掉落: " }
+replacements = { drops = { furni = "家具" } }
+
+## 公招详情
+
+[[blocks.summary.rules]]
+match = "Detected tags:"
+text = "识别到的公招标签："
+tone = "info"
+indent = 1
+
+[[blocks.summary.rules]]
+match = "Recruited {count:int} times"
+text = "已招募 {count} 次"
+tone = "info"
+indent = 1
+
+[[blocks.summary.rules]]
+match = "Refreshed {count:int} times"
+text = "已刷新 {count} 次"
+tone = "info"
+indent = 1
+
+## 基建换班详情
+
+[[blocks.summary.rules]]
+match = "{facility:word}({product:text}) with operators: {operators:text}"
+text = "{facility}（{product}）: {operators}"
+tone = "info"
+indent = 1
+lookups = { facility = "facility", product = "product" }
+
+[[blocks.summary.rules]]
+match = "{facility:word} with operators: {operators:text}"
+text = "{facility}: {operators}"
+tone = "info"
+indent = 1
+lookups = { facility = "facility" }
+
+# Resource block
+
+[blocks.resource]
+kind = "output"
+title = "资源拉取结果"
+status = "succeeded"
+tone = "info"
+message_tone = "info"
+panel_kind = "summary"
+capture_start = true
+emit_start = true
+close_on_metadata = "enveloped"
+
+[[blocks.resource.start]]
+source = "maa-cli:stdout"
+match = "Already up to date."
+
+[[blocks.resource.start]]
+source = "maa-cli:stdout"
+match = "Updating {from:word}..{to:word}"
+
+[[blocks.resource.end]]
+source = "maa-cli:stdout"
+match = "Summary"
+reprocess = true
+
+# Resource fetch block
+
+[blocks.fetch]
+kind = "output"
+title = "资源拉取诊断"
+status = "succeeded"
+tone = "info"
+message_tone = "info"
+panel_kind = "summary"
+capture_start = true
+emit_start = true
+close_on_metadata = "enveloped"
+
+[[blocks.fetch.start]]
+source = "maa-cli:stderr"
+match = "From https://github.com/{repository:text}"

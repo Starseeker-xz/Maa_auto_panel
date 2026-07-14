@@ -9,7 +9,7 @@ from maa_auto_panel.logs.state import RunLogBuffer
 
 StreamSourceMapper = Callable[[str], str]
 DiagnosticSink = Callable[[str, str, str], None]
-SourceRegistrar = Callable[[RunLogBuffer], None]
+BufferConfigurator = Callable[[RunLogBuffer], None]
 
 
 def default_stream_source(stream: str) -> str:
@@ -20,15 +20,17 @@ def default_stream_source(stream: str) -> str:
 class RunLogProfile:
     """Connects process streams to visible-log sources and optional diagnostic sinks."""
 
-    max_output_chunks: int = 2000
-    register_sources: SourceRegistrar | None = None
+    source_specs: tuple[LogSourceSpec, ...] = ()
+    configure_buffer: BufferConfigurator | None = None
     source_for_stream: StreamSourceMapper = default_stream_source
     diagnostic_sink: DiagnosticSink | None = None
 
     def new_buffer(self) -> RunLogBuffer:
-        log = RunLogBuffer(max_output_chunks=self.max_output_chunks)
-        if self.register_sources is not None:
-            self.register_sources(log)
+        log = RunLogBuffer()
+        for source_spec in self.source_specs:
+            log.register_source(source_spec)
+        if self.configure_buffer is not None:
+            self.configure_buffer(log)
         return log
 
     def visible_source(self, stream: str) -> str:
@@ -42,16 +44,14 @@ class RunLogProfile:
 def plain_stream_log_profile(
     prefix: str,
     *,
-    max_output_chunks: int = 2000,
     diagnostic_sink: DiagnosticSink | None = None,
 ) -> RunLogProfile:
-    def register(log: RunLogBuffer) -> None:
-        for source in (f"{prefix}:stdout", f"{prefix}:stderr"):
-            log.register_source(LogSourceSpec(source, default_tone_for_source(source), plain_translate_line))
-
+    sources = tuple(
+        LogSourceSpec(source, default_tone_for_source(source), plain_translate_line)
+        for source in (f"{prefix}:stdout", f"{prefix}:stderr")
+    )
     return RunLogProfile(
-        max_output_chunks=max_output_chunks,
-        register_sources=register,
+        source_specs=sources,
         source_for_stream=lambda stream: f"{prefix}:{stream}",
         diagnostic_sink=diagnostic_sink,
     )

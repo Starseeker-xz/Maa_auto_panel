@@ -13,9 +13,8 @@ from maa_auto_panel.diagnostics import Diagnostics, get_logger
 from maa_auto_panel.errors import InvalidRequest, RuntimeUnavailable
 from maa_auto_panel.logs.pipeline import LogSourceSpec, plain_translate_line
 from maa_auto_panel.logs.pipeline import default_tone_for_source
-from maa_auto_panel.logs.state import RunLogBuffer
 from maa_auto_panel.maa.cleanup import enforce_maa_debug_retention
-from maa_auto_panel.maa.log_templates import register_maa_log_sources
+from maa_auto_panel.maa.log_templates import begin_maa_task_sequence, configure_maa_log_template, maa_log_source_specs
 from maa_auto_panel.maa.results import MaaTaskDescriptor, MaaTaskResultCollector, retry_result_summary
 from maa_auto_panel.maa.runner import (
     current_log_offset,
@@ -151,7 +150,7 @@ class ScheduledMaaRunCallbacks:
         for message in prepare_messages:
             attempt.add_event(message, tone="info")
         task_descriptors = _task_descriptors(self.policy_by_id, task_ids)
-        attempt.configure_log(lambda log: log.begin_task_sequence(_task_descriptor_dicts(task_descriptors)))
+        attempt.configure_log(lambda log: begin_maa_task_sequence(log, _task_descriptor_dicts(task_descriptors)))
         self.collectors[attempt.retry_id] = MaaTaskResultCollector(task_descriptors)
         self.maacore_log_offsets[attempt.retry_id] = current_log_offset(maacore_log_source(self.runtime))
         return CommandSpec(cmd, cwd=self.runtime.repo_root, env=run_env)
@@ -641,18 +640,17 @@ def _task_descriptor_dicts(descriptors: list[MaaTaskDescriptor]) -> list[dict[st
     return [{"task_id": item.task_id, "source_name": item.source_name, "name": item.name} for item in descriptors]
 
 
-def _register_schedule_log_sources(log: RunLogBuffer, *, include_script: bool) -> None:
-    register_maa_log_sources(log)
+def _schedule_log_profile(diagnostics: Diagnostics, *, include_script: bool) -> RunLogProfile:
+    sources = list(maa_log_source_specs())
     if include_script:
         hooks = ("before_run", "after_run", "before_retry", "after_retry")
-        for source in (f"script:{hook}:{stream}" for hook in hooks for stream in ("stdout", "stderr")):
-            log.register_source(LogSourceSpec(source, default_tone_for_source(source), plain_translate_line))
-
-
-def _schedule_log_profile(diagnostics: Diagnostics, *, include_script: bool) -> RunLogProfile:
+        sources.extend(
+            LogSourceSpec(source, default_tone_for_source(source), plain_translate_line)
+            for source in (f"script:{hook}:{stream}" for hook in hooks for stream in ("stdout", "stderr"))
+        )
     return RunLogProfile(
-        max_output_chunks=3000,
-        register_sources=lambda log: _register_schedule_log_sources(log, include_script=include_script),
+        source_specs=tuple(sources),
+        configure_buffer=configure_maa_log_template,
         source_for_stream=lambda stream: f"maa-cli:{stream}",
         diagnostic_sink=diagnostics.stream_sink("maa-cli"),
     )
@@ -660,7 +658,6 @@ def _schedule_log_profile(diagnostics: Diagnostics, *, include_script: bool) -> 
 
 def _schedule_script_log_profile(diagnostics: Diagnostics) -> RunLogProfile:
     return RunLogProfile(
-        max_output_chunks=3000,
         source_for_stream=lambda stream: f"script:{stream}",
         diagnostic_sink=diagnostics.stream_sink("scripts"),
     )

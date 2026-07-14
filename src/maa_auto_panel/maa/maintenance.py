@@ -12,7 +12,7 @@ import requests
 from maa_auto_panel.config.app_settings import FrameworkSettingsManager
 from maa_auto_panel.diagnostics import Diagnostics, get_logger
 from maa_auto_panel.errors import InvalidRequest
-from maa_auto_panel.maa.log_templates import register_maa_log_sources
+from maa_auto_panel.maa.log_templates import configure_maa_log_template, maa_log_source_specs
 from maa_auto_panel.maa.runtime import MaaRuntime
 from maa_auto_panel.run_manager.command import CommandSpec
 from maa_auto_panel.run_manager.contracts import RunStartPlan, RunTextTemplates
@@ -128,8 +128,8 @@ class MaintenanceActionManager:
 
 def _maa_cli_log_profile(diagnostics: Diagnostics) -> RunLogProfile:
     return RunLogProfile(
-        max_output_chunks=1000,
-        register_sources=register_maa_log_sources,
+        source_specs=maa_log_source_specs(),
+        configure_buffer=configure_maa_log_template,
         source_for_stream=lambda stream: f"maa-cli:{stream}",
         diagnostic_sink=diagnostics.stream_sink("maa-cli"),
     )

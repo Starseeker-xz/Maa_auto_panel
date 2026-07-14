@@ -931,8 +931,8 @@ class GenericRunManager:
 def _script_profile(plan: RunStartPlan, script: RunScriptSpec, hook: str) -> RunLogProfile:
     base = script.log_profile or plan.script_log_profile
     return RunLogProfile(
-        max_output_chunks=base.max_output_chunks,
-        register_sources=base.register_sources,
+        source_specs=base.source_specs,
+        configure_buffer=base.configure_buffer,
         source_for_stream=lambda stream: f"{script.source_prefix}:{hook}:{stream}",
         diagnostic_sink=base.diagnostic_sink,
     )

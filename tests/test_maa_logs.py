@@ -2,18 +2,17 @@ from __future__ import annotations
 
 from maa_auto_panel.logs.pipeline import LogSourceSpec, plain_translate_line
 from maa_auto_panel.logs.state import RunLogBuffer
-from maa_auto_panel.maa.log_templates import register_maa_log_sources
+from maa_auto_panel.maa.log_templates import begin_maa_task_sequence, configure_maa_log_template, maa_log_source_specs
 from maa_auto_panel.maa.results import MaaTaskDescriptor, MaaTaskResultCollector, retry_result_summary
+from maa_auto_panel.run_manager.logs import RunLogProfile
 
 
 def maa_log(**kwargs: object) -> RunLogBuffer:
     log = RunLogBuffer(**kwargs)
-    register_maa_log_sources(log)
+    for source_spec in maa_log_source_specs():
+        log.register_source(source_spec)
+    configure_maa_log_template(log)
     return log
-
-
-def _strip_time_prefix(value: str) -> str:
-    return value[9:] if len(value) > 9 and value[2] == ":" and value[5] == ":" and value[8] == " " else value
 
 
 def test_task_result_collector_reads_raw_stderr_task_events() -> None:
@@ -118,9 +117,8 @@ def test_groups_completed_and_failed_tasks_as_blocks() -> None:
 
 def test_collapses_terminal_carriage_return_updates() -> None:
     log = maa_log()
-    log.pipeline.terminal_update_interval_seconds = 999
 
-    output = log.pipeline.append(
+    changed = log.pipeline.append(
         "  3%|▎         | 64.0M/2.08G [00:17<08:59, 3.74MiB/s]\r"
         "  3%|▎         | 66.1M/2.08G [00:17<07:49, 4.29MiB/s]\r"
         "  4%|▍         | 84.9M/2.08G [00:22<06:59, 4.75MiB/s]\n",
@@ -128,9 +126,7 @@ def test_collapses_terminal_carriage_return_updates() -> None:
     )
     entries = log.entries()
 
-    assert output.count("\n") == 2
-    assert "64.0M/2.08G" in output
-    assert "84.9M/2.08G" in output
+    assert changed is True
     assert len(entries) == 1
     assert entries[0]["kind"] == "line"
     assert entries[0]["messages"][0]["text"] == "4%|▍         | 84.9M/2.08G [00:22<06:59, 4.75MiB/s]"
@@ -140,10 +136,9 @@ def test_plain_source_does_not_trigger_maa_task_grouping() -> None:
     log = RunLogBuffer()
     log.register_source(LogSourceSpec("script:stderr", "warning", plain_translate_line))
 
-    output = log.pipeline.append("Summary\nFight Start\nplain stderr\n", source="script:stderr")
+    log.pipeline.append("Summary\nFight Start\nplain stderr\n", source="script:stderr")
     entries = log.entries()
 
-    assert [_strip_time_prefix(line) for line in output.splitlines()] == ["Summary", "Fight Start", "plain stderr"]
     assert [entry["kind"] for entry in entries] == ["line", "line", "line"]
     assert [entry["messages"][0]["text"] for entry in entries] == ["Summary", "Fight Start", "plain stderr"]
     assert all(entry["tone"] == "warning" for entry in entries)
@@ -164,10 +159,9 @@ def test_task_result_collector_marks_unfinished_on_finish_and_user_interrupt() -
 def test_translates_screencap_method_and_cost() -> None:
     log = maa_log()
 
-    output = log.pipeline.append("[2026-06-30 18:18:44 INFO ] FastestWayToScreencap RawWithGzip 203\n", source="maa-cli:stderr")
+    log.pipeline.append("[2026-06-30 18:18:44 INFO ] FastestWayToScreencap RawWithGzip 203\n", source="maa-cli:stderr")
     entry = log.entries()[0]
 
-    assert "18:18:44 已选择截图方式: RawWithGzip, 最短耗时 203 ms" in output
     assert entry["type"] == "block"
     assert entry["kind"] == "line"
     assert str(entry["time"]).startswith("2026-06-30T18:18:44")
@@ -188,7 +182,7 @@ def test_translates_screencap_method_and_cost() -> None:
 def test_translates_fight_sanity_medicine_lines_with_observation_tones() -> None:
     log = maa_log()
 
-    output = log.pipeline.append(
+    log.pipeline.append(
         "[2026-07-04 08:17:58 INFO ] Fight Start\n"
         "[2026-07-04 08:18:15 INFO ] Current sanity: 17/210\n"
         "[2026-07-04 08:18:22 INFO ] Use 1 expiring medicine\n"
@@ -197,9 +191,11 @@ def test_translates_fight_sanity_medicine_lines_with_observation_tones() -> None
     )
     messages = log.entries()[0]["messages"]
 
-    assert "当前理智: 17/210" in output
-    assert "使用 1 个临期理智药" in output
-    assert "开始行动 (6次，-36理智)" in output
+    assert [message["text"] for message in messages] == [
+        "当前理智: 17/210",
+        "使用 1 个临期理智药",
+        "开始行动 (6次，-36理智)",
+    ]
     assert [message["tone"] for message in messages] == ["theme", "warning", "theme"]
     assert "raw" not in messages[1]
 
@@ -262,14 +258,13 @@ def test_formats_infrast_and_recruit_actions() -> None:
 def test_adds_framework_event_as_block() -> None:
     log = maa_log()
 
-    output = log.pipeline.append(
+    log.pipeline.append(
         "选择战斗关卡: 1-7\n",
         source="framework:event",
         metadata={"time": "18:37:14", "tone": "info", "event_key": "stage-selected"},
     )
     entry = log.entries()[0]
 
-    assert output == "18:37:14 选择战斗关卡: 1-7\n"
     assert entry["type"] == "block"
     assert entry["kind"] == "event"
     assert entry["messages"][0]["text"] == "选择战斗关卡: 1-7"
@@ -279,7 +274,7 @@ def test_adds_framework_event_as_block() -> None:
 def test_append_metadata_overrides_fallback_line_state() -> None:
     log = RunLogBuffer()
 
-    output = log.pipeline.append(
+    log.pipeline.append(
         "raw framework text\n",
         source="framework:event",
         metadata={
@@ -293,7 +288,6 @@ def test_append_metadata_overrides_fallback_line_state() -> None:
     )
     entry = log.entries()[0]
 
-    assert output == "18:37:14 展示文本\n"
     assert entry["kind"] == "event"
     assert entry["status"] == "warning"
     assert entry["messages"][0]["tone"] == "warning"
@@ -342,17 +336,17 @@ def test_groups_summary_tail_into_one_block() -> None:
     assert entry["messages"][3]["segments"][0] == {"text": "1.", "tone": "theme", "strong": True}
     assert entry["messages"][4]["text"] == "合计掉落: 固源岩 × 2"
     assert entry["messages"][4]["tone"] == "theme"
-    assert entry["messages"][5]["text"] == "存在失败任务，maa-cli 返回错误。"
+    assert entry["messages"][5]["text"] == "Error: Some error occurred during running task!"
+    assert entry["messages"][5]["raw"] == "Error: Some error occurred during running task!"
     assert [message.get("indent", 0) for message in entry["messages"]] == [0, 0, 1, 1, 1, 1]
 
 
 def test_keeps_summary_open_when_other_source_emits_timestamped_lines() -> None:
     log = maa_log()
 
-    output = ""
-    output += log.pipeline.append("Summary\n", source="maa-cli:stdout")
-    output += log.pipeline.append("[2026-07-02 18:17:22 INFO ] AllTasksCompleted\n", source="maa-cli:stderr")
-    output += log.pipeline.append(
+    log.pipeline.append("Summary\n", source="maa-cli:stdout")
+    log.pipeline.append("[2026-07-02 18:17:22 INFO ] AllTasksCompleted\n", source="maa-cli:stderr")
+    log.pipeline.append(
         "----------------------------------------\n"
         "[刷理智] 18:12:58 - 18:17:21 (4m 23s) Completed\n"
         "Fight 1-7 11 times, drops:\n",
@@ -360,7 +354,6 @@ def test_keeps_summary_open_when_other_source_emits_timestamped_lines() -> None:
     )
     entries = log.entries()
 
-    assert "运行摘要" in output
     assert entries[0]["kind"] == "summary"
     assert entries[0]["messages"][0]["text"] == "刷理智: 完成, 用时 4m 23s"
     assert entries[1]["messages"][0]["text"] == "全部任务结束"
@@ -369,7 +362,7 @@ def test_keeps_summary_open_when_other_source_emits_timestamped_lines() -> None:
 def test_groups_stderr_git_fetch_diagnostics_by_source() -> None:
     log = maa_log()
 
-    output = log.pipeline.append(
+    log.pipeline.append(
         "From https://github.com/MaaAssistantArknights/MaaResource\n"
         " * branch            main       -> FETCH_HEAD\n"
         "   8bcb4e1..a773275  main       -> origin/main\n"
@@ -378,7 +371,6 @@ def test_groups_stderr_git_fetch_diagnostics_by_source() -> None:
     )
     entries = log.entries()
 
-    assert "资源拉取诊断" in output
     assert entries[0]["kind"] == "output"
     assert entries[0]["title"] == "资源拉取诊断"
     assert [message["text"] for message in entries[0]["messages"]] == [
@@ -387,6 +379,43 @@ def test_groups_stderr_git_fetch_diagnostics_by_source() -> None:
         "   8bcb4e1..a773275  main       -> origin/main",
     ]
     assert entries[1]["messages"][0]["text"] == "已连接"
+
+
+def test_silences_multiline_operbox_and_depot_json_payloads() -> None:
+    log = maa_log()
+
+    log.pipeline.append(
+        "[2026-07-14 03:00:00 INFO ] OperBox Start\n"
+        "[2026-07-14 03:00:01 INFO ] OperBox: {\n"
+        '[2026-07-14 03:00:01 INFO ]   "details": {\n'
+        '    "done": true,\n'
+        '    "own_opers": [{"id": "char_001", "name": "能天使", "note": "} inside string"}]\n'
+        "  }\n"
+        "}\n"
+        "[2026-07-14 03:00:02 INFO ] OperBox Completed\n"
+        "[2026-07-14 03:00:03 INFO ] Depot: {\"details\": {\"done\": true}}\n"
+        "[2026-07-14 03:00:04 INFO ] Connected\n",
+        source="maa-cli:stderr",
+    )
+
+    entries = log.entries()
+    assert entries[0]["kind"] == "task"
+    assert entries[0]["status"] == "succeeded"
+    assert entries[0]["messages"] == []
+    assert entries[1]["messages"][0]["text"] == "已连接"
+    assert all("own_opers" not in line for entry in entries for line in entry["lines"])
+
+
+def test_json_suppression_state_is_isolated_per_log_buffer() -> None:
+    profile = RunLogProfile(source_specs=maa_log_source_specs(), configure_buffer=configure_maa_log_template)
+    first = profile.new_buffer()
+    second = profile.new_buffer()
+
+    first.pipeline.append("[2026-07-14 03:00:00 INFO ] Depot: {\n", source="maa-cli:stderr")
+    second.pipeline.append("[2026-07-14 03:00:01 INFO ] Connected\n", source="maa-cli:stderr")
+
+    assert first.entries() == []
+    assert second.entries()[0]["messages"][0]["text"] == "已连接"
 
 
 def test_summary_after_git_up_to_date_starts_run_summary_block() -> None:
@@ -461,7 +490,8 @@ def test_task_result_collector_labels_duplicate_task_types_from_expected_sequenc
 
 def test_visible_task_blocks_use_expected_sequence_for_duplicate_task_types() -> None:
     log = maa_log()
-    log.begin_task_sequence(
+    begin_maa_task_sequence(
+        log,
         [
             {"task_id": "fight-a", "source_name": "Fight", "name": "剿灭"},
             {"task_id": "fight-b", "source_name": "Fight", "name": "刷理智"},

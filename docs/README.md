@@ -9,6 +9,7 @@ This directory keeps both mirrored upstream references and project-owned notes/d
 
 ## Project Notes
 
+- `log-templates.md`: declarative visible-log translation groups, syntax, and validation workflow.
 - `maa-reading-notes.md`: first-pass reading notes for the MAA/maa-cli integration model, focused on this project's planned retry/fallback/scheduling wrapper.
 - `architecture-direction.md`: handoff-oriented direction notes for the planned Web UI orchestration framework.
 - `maa-runtime.md`: current project-local `maa-cli`/MaaCore runtime, managed config layout, run/retry history and SSE behavior, and operational notes.
