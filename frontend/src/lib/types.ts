@@ -306,6 +306,7 @@ export type MaaLogMessage = {
   raw?: string | null;
   segments?: MaaLogSegment[];
   image?: MaaLogImage | null;
+  indent?: number;
   metadata?: Record<string, unknown>;
 };
 

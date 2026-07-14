@@ -309,8 +309,13 @@ def _translate_task_body_line(active: ActiveBlock, line: LogLineInput, session: 
     time_text = parsed["time"] or line.time
     level = parsed["level"]
     default_tone = LEVEL_TONE.get(str(level), session.source_spec(line.source).default_tone) if level is not None else line.tone
-    translated_task_line = translate_task_message(body)
     active.entry.lines.append(line.raw)
+    report_message = _translate_report_message(active, body)
+    if report_message is not None:
+        translated_task_line = report_message
+    else:
+        active.context.pop("report_success_emitted", None)
+        translated_task_line = translate_task_message(body)
     if not translated_task_line.text:
         return ""
     message = LogMessage(
@@ -319,6 +324,13 @@ def _translate_task_body_line(active: ActiveBlock, line: LogLineInput, session: 
         tone=translated_task_line.tone or default_tone,
         raw=None if translated_task_line.translated else line.raw,
         segments=translated_task_line.segments,
+        indent=(
+            1
+            if body.startswith(
+                ("Drops: ", "ProductOfFacility: ", "CustomInfrastRoomOperators: ", "Successfully ReportTo")
+            )
+            else 0
+        ),
     )
     active.entry.messages.append(message)
     return f"{format_time_prefix(message.time)}{message.text}\n"
@@ -375,6 +387,8 @@ def _translate_summary_line(active: ActiveBlock, line: LogLineInput, session: Lo
     active.entry.lines.append(line.raw)
     if message is None:
         return ""
+    if SUMMARY_TASK_RE.match(body) is None:
+        message.indent = 1
     active.entry.messages.append(message)
     if message.tone == "danger":
         active.entry.status = "failed"
@@ -474,10 +488,20 @@ def translate_task_message(body: str) -> TranslatedMessage:
         "MissionStart": "作战开始",
         "MissionCompleted": "作战完成",
         "MissionFailed": "作战失败",
-        "Refresh Tags": "刷新公招标签",
-        "Recruit": "确认招募",
         "InfrastDormDoubleConfirmed": "宿舍换班二次确认",
     }
+
+    recruit_actions = {
+        "Refresh Tags": "刷新公招标签",
+        "Recruit": "确认招募",
+    }
+    if body in recruit_actions:
+        action = recruit_actions[body]
+        return TranslatedMessage(
+            action,
+            translated=True,
+            segments=[{"text": action, "tone": "theme", "strong": True}],
+        )
 
     mission_match = MISSION_STARTED_RE.match(body)
     if mission_match is not None:
@@ -490,10 +514,10 @@ def translate_task_message(body: str) -> TranslatedMessage:
             segments=[
                 {"text": "开始行动", "tone": "theme", "strong": True},
                 {"text": " ("},
-                {"text": f"{times}次", "tone": "theme", "strong": True},
-                {"text": "，-"},
-                {"text": f"{sanity}理智", "tone": "theme", "strong": True},
-                {"text": ")"},
+                {"text": f"{times}"},
+                {"text": "次，-"},
+                {"text": f"{sanity}"},
+                {"text": "理智)"},
             ],
         )
 
@@ -506,7 +530,7 @@ def translate_task_message(body: str) -> TranslatedMessage:
             translated=True,
             tone="theme",
             segments=[
-                {"text": "当前理智: ", "tone": "theme", "strong": True},
+                {"text": "当前理智: "},
                 {"text": f"{current}/{total}", "tone": "theme", "strong": True},
             ],
         )
@@ -532,11 +556,6 @@ def translate_task_message(body: str) -> TranslatedMessage:
         return TranslatedMessage(
             f"掉落统计: {drops}",
             translated=True,
-            tone="theme",
-            segments=[
-                {"text": "掉落统计: ", "tone": "theme", "strong": True},
-                {"text": drops},
-            ],
         )
 
     if RECRUIT_TAGS_REFRESHED_RE.match(body):
@@ -554,7 +573,15 @@ def translate_task_message(body: str) -> TranslatedMessage:
     if facility_match is not None:
         facility = facility_label(facility_match.group("facility"))
         index = facility_match.group("index")
-        return TranslatedMessage(f"进入设施: {facility}{f' {index}' if index else ''}", translated=True)
+        facility_name = f"{facility}{f' {index}' if index else ''}"
+        return TranslatedMessage(
+            f"进入设施: {facility_name}",
+            translated=True,
+            segments=[
+                {"text": "进入设施: "},
+                {"text": facility_name, "tone": "theme", "strong": True},
+            ],
+        )
 
     if body.startswith("ProductOfFacility: "):
         product = body.split(": ", 1)[1]
@@ -583,9 +610,9 @@ def translate_summary_message(body: str) -> LogMessage | None:
             tone=tone,
             raw=body,
             segments=[
-                {"text": task_name, "strong": True},
-                {"text": ": "},
-                {"text": status_label, "tone": tone, "strong": True},
+                {"text": task_name, "tone": tone, "strong": True},
+                {"text": ": ", "tone": tone},
+                {"text": status_label, "tone": tone},
                 {"text": f", 用时 {elapsed}"},
             ],
         )
@@ -597,37 +624,14 @@ def translate_summary_message(body: str) -> LogMessage | None:
         medicine = fight_match.group("medicine")
         expiring = fight_match.group("expiring")
         medicine_text = ""
-        medicine_segments: list[dict[str, object]] = []
         if medicine:
             if expiring:
                 medicine_text = f"，使用 {medicine} 个理智药（{expiring} 个临期）"
-                medicine_segments = [
-                    {"text": "，使用 "},
-                    {"text": medicine, "tone": "warning", "strong": True},
-                    {"text": " 个理智药（"},
-                    {"text": expiring, "tone": "warning", "strong": True},
-                    {"text": " 个临期）"},
-                ]
             else:
                 medicine_text = f"，使用 {medicine} 个理智药"
-                medicine_segments = [
-                    {"text": "，使用 "},
-                    {"text": medicine, "tone": "warning", "strong": True},
-                    {"text": " 个理智药"},
-                ]
         return LogMessage(
             text=f"作战 {stage} {times} 次{medicine_text}，掉落：",
-            tone="theme",
             raw=body,
-            segments=[
-                {"text": "作战 "},
-                {"text": stage, "tone": "theme", "strong": True},
-                {"text": " "},
-                {"text": times, "tone": "theme", "strong": True},
-                {"text": " 次"},
-                *medicine_segments,
-                {"text": "，掉落："},
-            ],
         )
 
     drop_item_match = SUMMARY_DROP_ITEM_RE.match(body)
@@ -674,6 +678,19 @@ def translate_summary_message(body: str) -> LogMessage | None:
     if body.startswith("Warning:"):
         return LogMessage(text=body.replace("Warning:", "警告:", 1), tone="warning", raw=body)
     return LogMessage(text=replace_common_terms(body), tone="default")
+
+
+def _translate_report_message(active: ActiveBlock, body: str) -> TranslatedMessage | None:
+    is_report_start = body.startswith(("ReportToPenguinStats:", "ReportToYituliu:"))
+    is_report_success = body in {"Successfully ReportToPenguinStats", "Successfully ReportToYituliu"}
+    if not is_report_start and not is_report_success:
+        return None
+
+    if is_report_start or active.context.get("report_success_emitted"):
+        return TranslatedMessage("", translated=True)
+
+    active.context["report_success_emitted"] = True
+    return TranslatedMessage("汇报成功", translated=True, tone="success")
 
 
 def summary_status(status: str) -> tuple[str, LogTone]:

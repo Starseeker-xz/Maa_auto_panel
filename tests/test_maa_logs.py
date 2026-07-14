@@ -204,6 +204,61 @@ def test_translates_fight_sanity_medicine_lines_with_observation_tones() -> None
     assert "raw" not in messages[1]
 
 
+def test_formats_fight_details_and_collapses_report_messages() -> None:
+    log = maa_log()
+
+    log.pipeline.append(
+        "[2026-07-04 08:17:58 INFO ] Fight Start\n"
+        "[2026-07-04 08:18:15 INFO ] Current sanity: 64/210\n"
+        "[2026-07-04 08:18:29 INFO ] Mission started (5 times, use 30 sanity)\n"
+        "[2026-07-04 08:20:29 INFO ] Drops: 固源岩 × 8\n"
+        "[2026-07-04 08:20:30 INFO ] ReportToPenguinStats: https://penguin-stats.io/PenguinStats/api/v2/report\n"
+        "[2026-07-04 08:20:31 INFO ] Successfully ReportToPenguinStats\n"
+        "[2026-07-04 08:20:31 INFO ] ReportToYituliu: https://backend.yituliu.cn/maa/upload/stageDrop\n"
+        "[2026-07-04 08:20:32 INFO ] Successfully ReportToYituliu\n",
+        source="maa-cli:stderr",
+    )
+    messages = log.entries()[0]["messages"]
+
+    assert [message["text"] for message in messages] == [
+        "当前理智: 64/210",
+        "开始行动 (5次，-30理智)",
+        "掉落统计: 固源岩 × 8",
+        "汇报成功",
+    ]
+    assert messages[0]["segments"] == [
+        {"text": "当前理智: "},
+        {"text": "64/210", "tone": "theme", "strong": True},
+    ]
+    assert messages[2]["indent"] == 1
+    assert "segments" not in messages[2]
+    assert messages[3]["indent"] == 1
+
+
+def test_formats_infrast_and_recruit_actions() -> None:
+    log = maa_log()
+
+    log.pipeline.append(
+        "[2026-07-04 08:17:58 INFO ] Infrast Start\n"
+        "[2026-07-04 08:18:15 INFO ] EnterFacility Mfg #0\n"
+        "[2026-07-04 08:18:16 INFO ] ProductOfFacility: PureGold\n"
+        "[2026-07-04 08:18:17 INFO ] CustomInfrastRoomOperators: 迷迭香, 槐琥\n"
+        "[2026-07-04 08:18:18 INFO ] Infrast Completed\n"
+        "[2026-07-04 08:18:19 INFO ] Recruit Start\n"
+        "[2026-07-04 08:18:20 INFO ] Refresh Tags\n"
+        "[2026-07-04 08:18:21 INFO ] Recruit\n",
+        source="maa-cli:stderr",
+    )
+    infrast, recruit = log.entries()
+
+    assert infrast["messages"][0]["segments"] == [
+        {"text": "进入设施: "},
+        {"text": "制造站 #0", "tone": "theme", "strong": True},
+    ]
+    assert [message.get("indent", 0) for message in infrast["messages"]] == [0, 1, 1]
+    assert [message["segments"][0]["strong"] for message in recruit["messages"]] == [True, True]
+
+
 def test_adds_framework_event_as_block() -> None:
     log = maa_log()
 
@@ -278,13 +333,17 @@ def test_groups_summary_tail_into_one_block() -> None:
     assert entry["status"] == "failed"
     assert len(entry["messages"]) == 6
     assert entry["messages"][0]["text"] == "启动 B 服: 完成, 用时 43s"
+    assert entry["messages"][0]["segments"][2] == {"text": "完成", "tone": "success"}
     assert entry["messages"][1]["tone"] == "danger"
+    assert entry["messages"][1]["segments"][2] == {"text": "失败", "tone": "danger"}
     assert entry["messages"][2]["text"] == "作战 1-7 72 次，使用 4 个理智药（4 个临期），掉落："
-    assert entry["messages"][2]["tone"] == "theme"
+    assert entry["messages"][2]["tone"] == "default"
+    assert "segments" not in entry["messages"][2]
     assert entry["messages"][3]["segments"][0] == {"text": "1.", "tone": "theme", "strong": True}
     assert entry["messages"][4]["text"] == "合计掉落: 固源岩 × 2"
     assert entry["messages"][4]["tone"] == "theme"
     assert entry["messages"][5]["text"] == "存在失败任务，maa-cli 返回错误。"
+    assert [message.get("indent", 0) for message in entry["messages"]] == [0, 0, 1, 1, 1, 1]
 
 
 def test_keeps_summary_open_when_other_source_emits_timestamped_lines() -> None:

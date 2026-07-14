@@ -22,6 +22,15 @@
 
 ## Current architecture
 
+- Confirmed (`2026-07-14_0051-audit-maa-log-templates`): 当前 MAA visible-log 模板约 804 行，同时承担 MAA 行协议解析、领域翻译/折叠、展示策略和通用 block 记录装配。生产 live/history/API 只消费结构化 `log_entries`；`RunLogBuffer.output` 及 pipeline callback 的字符串 output 投影无生产消费者，主要遗留在内部返回值与测试中。MAA 成功判断并非无日志消费者：它通过独立 `on_raw_line` 分支把原始 stderr 行交给 `MaaTaskResultCollector`，再结合进程 return code 判定 attempt；删除旧 output 投影时必须保留此权威 raw-result 分支。
+- Confirmed (`2026-07-14_0051-audit-maa-log-templates`): `max_record_messages`/`max_record_lines` 只在 `append_block()` 创建 entry 时经 `_trim()` 执行；模板直接向 active entry 列表追加，单个长 block 在关闭/flush 后仍可越过上限。实测上限设为 3 时，5 条 task detail 最终保留 5 messages/5 lines。
+- Likely (`2026-07-14_0051-audit-maa-log-templates`): 下一步最健康的日志边界是让通用 pipeline 唯一负责 raw line/message 追加、默认 time/tone/raw、即时有界裁剪与 generation 更新，并删除未消费的纯文本 output 投影；MAA 层只保留 source parser、block 匹配/状态语义、领域翻译、折叠和展示注解。
+- Confirmed (`2026-07-14_0004-optimize-maa-log-format`): 可见日志消息支持可选整数 `indent`，前端每级按 `4ch` 呈现；MAA 翻译器直接为作战掉落/汇报结果、设施产物/换班干员和运行摘要详情标记一级缩进，不维护段落父子关系。富文本片段未指定 tone 时使用默认文字色，不再继承整行 tone；设施名、公招动作、理智数值及摘要序号/合计标签按模板局部强调。
+- Confirmed (`2026-07-14_0004-optimize-maa-log-format`): 运行摘要子任务标题中的状态词继续保留语义颜色（完成 success、失败 danger、停止/未知 warning），但不加粗；任务名和耗时使用普通文字。不要把“减少强调”误解为删除状态色。
+- Confirmed (`2026-07-14_0004-optimize-maa-log-format`): 连续的企鹅物流/一图流成功汇报日志在同一任务块内折叠为一条“汇报成功”，隐藏平台名和上传 URL；遇到非汇报行后开始新的汇报组。
+- Confirmed (`2026-07-14_0004-optimize-maa-log-format`): 状态色修正前确认 current run 已 succeeded 后再次重启 `maa-auto-panel-webui.service`，当前 MainPID 11038；服务 active，`/api/runs/current` 返回 idle。新的后端翻译与前端构建均已加载；旧 history 不回写结构化翻译/缩进。
+- Confirmed (`2026-07-14_0004-optimize-maa-log-format`): 应用户要求，本机历史 Run ID `bbd5616d586c` 的两个 retry 已用当前 MAA 翻译规则定向重建 task/summary messages；只修改该 history JSON，原文件备份在本会话 scratch。API `/api/history/runs/bbd5616d586c` 已回读确认新版汇报折叠、缩进与状态色。
+
 - Confirmed (`2026-07-13_2243-frontend-retry-block`): 前端部署可在旧 Python 进程仍运行时先显示新 retry Accordion，但旧进程不会生成 `summary_messages`。用户 smoke 暴露该版本错配后，确认无 active run，并于 2026-07-13 23:08 UTC 重启 `maa-auto-panel-webui.service`；新 MainPID 6379，服务 active/idle。重启前生成的历史不回填摘要，后续新 run 使用完整新链路。
 - Confirmed (`2026-07-13_2243-frontend-retry-block`): retry 日志在 `max_retries > 1` 时使用 Radix 单选 Accordion；首次进入/切换历史默认展开最后一项，新 retry 追加时展开新项，普通 SSE、状态变化与 retry 完成均不改变选择。`max_retries = 1` 直接渲染原日志。展开内容无 retry 外框，摘要留在可折叠标题区域。
 - Confirmed (`2026-07-13_2243-frontend-retry-block`): `RetryDecision.retry_summary_messages` 通过 `LiveRetry.summary_messages` 进入 SSE、retry index 和完整历史。MAA 手动/定时运行按整次 run 的初始任务清单生成 retry 结果摘要；本 retry 成功/失败/停止/未完成用勾叉和 tone 表示，未执行任务淡化。通用 retry-start 占位事件已清除，避免与 retry 标题重复。

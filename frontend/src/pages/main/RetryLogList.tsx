@@ -156,10 +156,13 @@ function TimeStamp({ time }: { time?: string | null }) {
 function MessageContent({ message }: { message: MaaLogMessage }) {
   const toneClass = MESSAGE_TONE_CLASS[message.tone || "default"] || MESSAGE_TONE_CLASS.default;
   return (
-    <div className={`break-anywhere ${toneClass}`}>
+    <div
+      className={`box-border break-anywhere ${toneClass}`}
+      style={message.indent ? { paddingInlineStart: `${message.indent * 3}ch` } : undefined}
+    >
       {message.segments?.length ? (
         message.segments.map((segment, index) => (
-          <span key={index} className={`${MESSAGE_TONE_CLASS[segment.tone || message.tone || "default"] || toneClass} ${segment.strong ? "font-medium" : ""}`}>
+          <span key={index} className={`${MESSAGE_TONE_CLASS[segment.tone || "default"] || MESSAGE_TONE_CLASS.default} ${segment.strong ? "font-medium" : ""}`}>
             {segment.text}
           </span>
         ))

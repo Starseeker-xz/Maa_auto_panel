@@ -20,6 +20,7 @@ class LogMessage:
     raw: str | None = None
     segments: list[dict[str, object]] = field(default_factory=list)
     image: dict[str, object] | None = None
+    indent: int = 0
     metadata: dict[str, object] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, object]:
@@ -35,6 +36,8 @@ class LogMessage:
             data["segments"] = list(self.segments)
         if self.image:
             data["image"] = dict(self.image)
+        if self.indent:
+            data["indent"] = self.indent
         if self.metadata:
             data["metadata"] = dict(self.metadata)
         return data

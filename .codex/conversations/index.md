@@ -4,6 +4,9 @@
 
 ## Active sessions
 
+- `2026-07-14_0051-audit-maa-log-templates`: 只读审计 MAA 日志模板与通用管线边界；确认纯文本 output 投影无生产消费者、active block 记录上限未即时执行，并提出 pipeline-owned 结构化追加重构方向。
+- `2026-07-14_0004-optimize-maa-log-format`: 优化 MAA 日志翻译、详情四字符缩进和局部富文本强调；汇报平台噪声折叠为单条成功提示。
+
 - `2026-07-13_2243-frontend-retry-block`: 实现完整 retry 日志折叠层、持久化富文本摘要与 MAA 逐次任务结果展示；展开状态只响应首次进入、新 retry 和用户操作。
 - `2026-07-13_1541-review-incomplete-session`: 复核并完成上一 run-architecture 会话收尾；实现 durable-first 终态提交、MAA 领域 debug cleanup、完整 channel diagnostics 与 corrupt-state 边界，完整后端 119 passed。
 - `2026-07-13_1500-audit-run-architecture`: 审计并实施 run core/path/异常重构；process/manager/store/diagnostics 已脱离 MaaRuntime，新增通用 retry-scoped 增量文件诊断捕捉与五类应用异常 handlers；其“110 tests passed”记录已由后续复核纠正。

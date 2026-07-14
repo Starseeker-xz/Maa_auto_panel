@@ -20,6 +20,7 @@
 
 ## State and diagnostics
 
+- `2026-07-14_0051-audit-maa-log-templates`: 可见日志模板不应直接 `entry.messages.append()` / `entry.lines.append()`；否则有界裁剪、generation/touch 和 raw/default 装配容易漏在不同 callback。由通用 pipeline 提供唯一的结构化追加入口，并在每次追加时即时执行 record 上限。
 - `2026-07-13_1500-audit-run-architecture`: 通用增量日志捕捉应原样保存 bytes，以实际读取后的 `tell()` 作为 next offset；source 缺失返回 offset 0，size 小于旧 offset 时按截断从头捕捉。若未来必须识别“替换后新文件仍大于旧 offset”，需由领域层额外记录 file identity，单一数值 offset 不足。
 - `2026-07-13_1500-audit-run-architecture`: 日志目标位于 framework tree 不代表日志源/retention 也属于 framework；MAACore source、generated configs 与 MAA legacy logs 必须留在 MAA installation 边界，不能靠窄类型 facade 隐藏真实依赖。
 - `2026-07-13_1500-audit-run-architecture`: HTTP 状态必须由语义异常决定，绝不能全局把 `ValueError`/`KeyError`/`FileNotFoundError`/`RuntimeError` 映射为 400/404/409；同一 builtin 可能分别表示用户输入、runtime 缺失、corrupt state 或程序缺陷。
