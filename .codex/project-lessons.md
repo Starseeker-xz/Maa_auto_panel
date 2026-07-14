@@ -21,6 +21,8 @@
 
 ## State and diagnostics
 
+- `2026-07-14_1304-investigate-9am-schedule`: 不要把 MaaCore 所有 `ProductOfFacility` 值都解释成按时间发生的“设施产物”。`SkillLevel`、`MoodAddition`、`Drone`、`General`、`HR` 是非生产房间占位类型，而且可早于 `EnterFacility` 输出；应精确 drop，不能依赖 lookup 改名来制造错误语义或顺序。
+- `2026-07-14_1304-investigate-9am-schedule`: block 容器 tone 与内部 message tone 是两层状态；未匹配规则的原始 `*:stderr` message 会继承 source warning，即使 block 声明 `message_tone=info`。若只有已知、无错误语义的 stderr 行需要改色，优先在对应 block 添加精确 tone 规则，不要扩大修改通用 stderr 默认逻辑，也不要增加 catch-all 掩盖未知上游格式。
 - `2026-07-14_0244-optimize-log-template-migration`: 模板末尾的无语义全匹配规则会把未知上游格式伪装成“已覆盖”，并丢失 fallback 的 raw 证据。未知行应由通用 fallback 原样展示；覆盖率审计必须单列或禁止 catch-all。
 - `2026-07-14_0244-optimize-log-template-migration`: 有状态的可见日志预处理（例如吞掉 OperBox/Depot pretty JSON）必须把状态保存在单个 pipeline buffer 的 source state 中，不能放在可跨 retry/run 复用的 `RunLogProfile` 或 `LogSourceSpec` 对象上；静默可见日志时仍须保留 diagnostics 与 raw-result 分支。
 - `2026-07-14_0051-audit-maa-log-templates`: 可见日志模板不应直接 `entry.messages.append()` / `entry.lines.append()`；否则有界裁剪、generation/touch 和 raw/default 装配容易漏在不同 callback。由通用 pipeline 提供唯一的结构化追加入口，并在每次追加时即时执行 record 上限。

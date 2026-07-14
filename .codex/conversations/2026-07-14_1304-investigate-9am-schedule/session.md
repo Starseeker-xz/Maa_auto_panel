@@ -41,3 +41,17 @@
 - 回归覆盖：错误 boundary `tone` 被忽略但 boundary/其他翻译保留；单条坏 rule 不影响后一规则；新 buffer 读取保存后的新模板；语法损坏复用 last-known-good；首次损坏显示 raw；通用配置器抛错后真实 GenericRunManager command 仍 succeeded；固定错误 event 与后续日志同 buffer 可见。
 - 重启前再次确认 `12d74b2400e4` 无 maa-cli/MaaCore/adb 进程。`maa-auto-panel-webui.service` 于 2026-07-14 13:22 UTC 重启，MainPID `26741 -> 9945`，当前 active/running，schedule API idle。
 - 启动恢复已将僵尸 run `12d74b2400e4` 封口为 stopped，summary 为 `recovered_reason=backend restarted before run finalized`；没有补跑已错过的 12:30 档，也没有启动游戏任务。
+
+## 后续 fetch tone 修正
+
+- 用户指出“资源拉取诊断”内 Git stderr 两行显示为 warning，并说明此前误加 boundary `tone` 是为修复该展示。
+- 复现确认 block 容器使用成功/信息语义色，但 message 因 `maa-cli:stderr` source 默认 tone 被渲染为 warning；历史 maintenance 数据表明旧展示曾为 info。
+- 按用户要求不修改通用 tone 优先级，只在 `blocks.fetch.rules` 为 `From https://github.com/{repository}` 和 ` * branch ... -> FETCH_HEAD` 增加两条精确规则并声明 `tone = "info"`。未增加 catch-all，未知 fetch stderr 仍保留默认 warning/raw 证据。
+- 截图等价输入回放确认两条 message 均为 info；完整测试更新为 141 passed，compileall 与 `git diff --check` 通过。模板按每个新 retry 热读取，无需重启服务。
+
+## 后续基建伪产物清理
+
+- 用户在 product lookup 中标记 `SkillLevel`、`MoodAddition`、`Drone`、`General`、`HR`，指出这些不是有实际含义的生产产物且原始日志顺序错误。
+- raw stderr 审计确认这些值分别在训练室、控制中枢/宿舍、发电站、会客室、办公室的 `EnterFacility` 之前出现；是 MaaCore 复用 `ProductOfFacility` 携带房间占位类型，不应展示成按时间顺序的“设施产物”。stdout summary 未发现对应伪产物。
+- 删除五项注释 lookup，并在通用 `ProductOfFacility: {product}` 规则之前加入五条精确 `action = "drop"`；保留 PureGold、SyntheticJade、Money、OriginStone 等真实产物翻译。未使用宽泛 catch-all。
+- 严格模板校验为 4 blocks / 42 rules；回放确认伪产物无 message、真实赤金/龙门币保留。完整测试 142 passed，compileall 与 `git diff --check` 通过；热读取无需重启。

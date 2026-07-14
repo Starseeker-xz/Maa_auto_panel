@@ -15,12 +15,7 @@ external = true
 [global.lookups.product]
 PureGold = "赤金"
 SyntheticJade = "合成玉"
-SkillLevel = "技能专精"
 Money = "龙门币"
-MoodAddition = "心情增益"
-Drone = "无人机"
-General = "线索收集"
-HR = "公招刷新"
 OriginStone = "源石碎片"
 
 [global.lookups.facility]
@@ -170,7 +165,7 @@ indent = 1
 fold_group = "report"
 fold_role = "emit_once"
 
-# 基建换班
+## 基建换班
 
 [[blocks.task.rules]]
 match = "EnterFacility {facility:word} {index:word}"
@@ -180,6 +175,28 @@ segments = [
     { text = "进入设施: " },
     { text = "{facility} {index}", tone = "theme", strong = true },
 ]
+
+### MaaCore 使用 ProductOfFacility 携带非生产房间的占位类型；这些行早于实际 EnterFacility，且没有产物语义。
+
+[[blocks.task.rules]]
+match = "ProductOfFacility: SkillLevel"
+action = "drop"
+
+[[blocks.task.rules]]
+match = "ProductOfFacility: MoodAddition"
+action = "drop"
+
+[[blocks.task.rules]]
+match = "ProductOfFacility: Drone"
+action = "drop"
+
+[[blocks.task.rules]]
+match = "ProductOfFacility: General"
+action = "drop"
+
+[[blocks.task.rules]]
+match = "ProductOfFacility: HR"
+action = "drop"
 
 [[blocks.task.rules]]
 match = "ProductOfFacility: {product:text}"
@@ -375,6 +392,16 @@ panel_kind = "summary"
 capture_start = true
 emit_start = true
 close_on_metadata = "enveloped"
+
+[[blocks.fetch.rules]]
+match = "From https://github.com/{repository:text}"
+text = "From https://github.com/{repository}"
+tone = "info"
+
+[[blocks.fetch.rules]]
+match = " * branch {branch:text} -> FETCH_HEAD"
+text = " * branch {branch} -> FETCH_HEAD"
+tone = "info"
 
 [[blocks.fetch.start]]
 source = "maa-cli:stderr"

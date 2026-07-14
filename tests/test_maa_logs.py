@@ -260,6 +260,28 @@ def test_formats_infrast_and_recruit_actions() -> None:
     assert [message["segments"][0]["strong"] for message in recruit["messages"]] == [True, True]
 
 
+def test_drops_infrast_pseudo_products_but_keeps_real_products() -> None:
+    log = maa_log()
+
+    log.pipeline.append(
+        "[2026-07-04 08:17:58 INFO ] Infrast Start\n"
+        "[2026-07-04 08:18:15 INFO ] ProductOfFacility: PureGold\n"
+        "[2026-07-04 08:18:16 INFO ] ProductOfFacility: Drone\n"
+        "[2026-07-04 08:18:17 INFO ] ProductOfFacility: MoodAddition\n"
+        "[2026-07-04 08:18:18 INFO ] ProductOfFacility: General\n"
+        "[2026-07-04 08:18:19 INFO ] ProductOfFacility: HR\n"
+        "[2026-07-04 08:18:20 INFO ] ProductOfFacility: SkillLevel\n"
+        "[2026-07-04 08:18:21 INFO ] ProductOfFacility: Money\n"
+        "[2026-07-04 08:18:22 INFO ] Infrast Completed\n",
+        source="maa-cli:stderr",
+    )
+
+    assert [message["text"] for message in log.entries()[0]["messages"]] == [
+        "设施产物: 赤金",
+        "设施产物: 龙门币",
+    ]
+
+
 def test_adds_framework_event_as_block() -> None:
     log = maa_log()
 
@@ -580,6 +602,24 @@ def test_git_fast_forward_output_is_one_resource_update_block() -> None:
         " resource/global/YoStarKR/resource/version.json | 6 +++---",
         " 2 files changed, 6 insertions(+), 6 deletions(-)",
     ]
+
+
+def test_git_fetch_stderr_uses_explicit_template_rule_tones() -> None:
+    log = maa_log()
+
+    log.pipeline.append(
+        "From https://github.com/MaaAssistantArknights/MaaResource\n"
+        " * branch            main       -> FETCH_HEAD\n",
+        source="maa-cli:stderr",
+    )
+
+    entry = log.entries()[0]
+    assert entry["title"] == "资源拉取诊断"
+    assert [message["text"] for message in entry["messages"]] == [
+        "From https://github.com/MaaAssistantArknights/MaaResource",
+        " * branch            main       -> FETCH_HEAD",
+    ]
+    assert [message["tone"] for message in entry["messages"]] == ["info", "info"]
 
 
 def test_task_result_collector_labels_duplicate_task_types_from_expected_sequence() -> None:
