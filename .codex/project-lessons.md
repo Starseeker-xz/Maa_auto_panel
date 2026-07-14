@@ -1,58 +1,37 @@
 # Project Lessons
 
-仅记录未来仍容易复发的项目级陷阱。每项带来源会话。
+只记录未来仍容易复发的项目级陷阱。每项带来源会话。
 
-## Runtime and process control
+## Run lifecycle and persistence
 
-- `2026-07-14_1304-investigate-9am-schedule`: run 的异常报告与终态收尾不能依赖导致主路径失败的可插拔日志 profile。`RunLogProfile.new_buffer()` 必须把配置器当非关键展示扩展：异常时回滚部分注册、使用 plain buffer、写固定 framework event 并继续；否则错误报告会二次抛错并留下无 worker 的永久 `running`。运行模板应片段容错并保留 strict 离线校验，语法级损坏使用 last-known-good/plain fallback。
-- `2026-07-13_1541-review-incomplete-session`: durable run state 是恢复权威；终态必须先持久化成功再发布 live/SSE。短暂写失败可幂等有限重试，持续失败应 fail-closed 保持 durable/live 非终态与资源 lease，不能先展示 succeeded 再留下磁盘 running。retention/notification 等 post-finish maintenance 必须与核心终态提交隔离。
-- `2026-07-13_1500-audit-run-architecture`: `GenericRunManager` 必须继续独占 live state、retry loop 与锁；实现协作者只能接收不可变输入/回调，不能直接突变 `LiveRun`。避免在 manager 锁内写 store/diagnostics，并确保 thread 已绑定后才把 run 发布给 shutdown/join 观察者。
-- `2026-07-13_1500-audit-run-architecture`: 通用 run manager 不得按 manual/schedule/maintenance/tool/MAA 等分类分支，也不得依赖某 integration 的 log capture/cleanup。专项逻辑留在领域 plan builder/callback；manager 只处理 opaque kind、command、decision、metadata 与 artifacts。
+- `2026-07-13_1541-review-incomplete-session`: durable run state 是恢复权威；终态必须先持久化再发布 live/SSE。持续写失败应 fail-closed，post-finish retention/notification 必须与核心提交隔离。
+- `2026-07-13_1500-audit-run-architecture`: `GenericRunManager` 唯一拥有 live state、retry loop、锁和资源申请时序；领域 callback 只接收受限上下文。通用 manager 不得按 manual/schedule/tool/maintenance/MAA 分支。
+- `2026-07-10_0416-full-project-audit`: pipe 可读不代表 `TextIOWrapper.readline()` 不阻塞。流式进程必须 non-blocking 读 bytes、增量解码、自行分行，并覆盖 partial output、timeout、stop 和 process-group descendant。
+- `2026-07-10_2207-graceful-shutdown`: 应用关闭使用共享 absolute deadline；先广播停止语义并唤醒 SSE/资源等待，再 join，最后 force-stop。不要给每个 manager 顺序分配完整 timeout。
+- `2026-07-12_0055-fix-retention-frontend-split`: retention 以 run 为 ownership 单元；先原子移除索引，再删除明确 owned artifact。unknown/shared/external path 不得仅因“看起来是本地路径”而删除。
+- `2026-07-14_2057-full-code-audit`: scheduler 触发不能只比较轮询瞬间的当前分钟。高可用调度必须持久化 scan cursor、扫描 due window，并以 schedule/entry/game-day/scheduled-at 幂等去重。
 
-- `2026-07-10_2207-graceful-shutdown`: Uvicorn 0.49 的 graceful timeout 会取消未退出 SSE 并记录 traceback；只设置 timeout 不算干净关闭。SIGTERM 到达时先广播应用 shutdown token，SSE 用短轮询主动结束，timeout 仅作兜底。
-- `2026-07-10_2207-graceful-shutdown`: Uvicorn 0.49 清理后会重新 raise 捕获的 SIGTERM；经 `uv run` 会成为 status 143，并让 systemd 记录 failed。容器入口需要 shutdown-aware Server：保留信号捕获和清理，但成功后不重新 raise SIGTERM。
-- `2026-07-10_2207-graceful-shutdown`: 容器关闭预算必须使用共享 absolute deadline；先同时通知所有 manager，再按同一 deadline join，不能给每个 manager 顺序分配完整 timeout。
-- `2026-07-10_0416-full-project-audit`: pipe 可读不代表 `TextIOWrapper.readline()` 不阻塞。流式进程必须 non-blocking 读 bytes、自行增量解码/分行，并测试无换行 partial output 下的 timeout/stop/force-stop。
-- `2026-07-10_0416-full-project-audit`: runtime 更新动作必须与使用该 runtime 的 run 互斥；需要 shared/exclusive resource claim，不能只锁 ADB device。
-- `2026-07-10_0416-full-project-audit`: daemon thread 不是 shutdown 方案。FastAPI lifespan/CLI signal 必须停止 scheduler、收尾 active run、杀 process group、持久化后 join。
-- `2026-07-06_0037-callback-run-manager`: 通用 manager 拥有 lifecycle/command/retry loop；领域 callbacks 只提供差异和 `RetryDecision`。不要恢复 driver-owned retry loop。
-- `2026-07-05_1823-check-history-chunking`: retry seal 后再写 event 会产生额外 log-only retry；retry-next/limit 等事件必须在 seal 前写入。stop/force-stop 对终态必须幂等。
-- `2026-07-04_1003-audit-log-pipeline`: 不要在持有非重入锁时调用会再次通知状态的 helper；scheduler 曾因此死锁。保持相关路径可重入或把 callback 移到锁外。
+## Logs, state and configuration
 
-## State and diagnostics
+- `2026-07-14_1304-investigate-9am-schedule`: 可插拔展示配置永远不能阻止 run 执行、错误报告或终态收尾。模板保持 strict 离线校验，同时在 runtime 使用片段容错与 last-known-good/plain fallback。
+- `2026-07-14_0244-optimize-log-template-migration`: 可见日志与结果判定必须分支：模板/pipeline 可翻译、折叠或静默展示，但 diagnostics 和 raw result collector 保留原始证据。未知行走 raw fallback，不用 catch-all 伪装覆盖。
+- `2026-07-14_0051-audit-maa-log-templates`: 结构化日志只能通过 pipeline 的统一 append API 更新，以保证 generation/touch/有界裁剪一致；不要由模板 runtime 直接突变 entry 列表。
+- `2026-07-13_1500-audit-run-architecture`: HTTP 状态由语义异常决定，不能全局把 builtin `ValueError/KeyError/FileNotFoundError/RuntimeError` 映射成 4xx。
+- `2026-07-10_0416-full-project-audit`: durable JSON/TOML parse failure 不能静默当空状态后覆盖。隔离 corrupt 文件、记录诊断并阻止破坏性写入；APK manifest 同样适用。
+- `2026-07-10_1752-audit-data-paths`: 项目未发布时不为旧布局/API/数据添加 migration 或兼容读取；对本机数据做一次性调整，并直接收敛到最终结构。
 
-- `2026-07-14_1304-investigate-9am-schedule`: 不要把 MaaCore 所有 `ProductOfFacility` 值都解释成按时间发生的“设施产物”。`SkillLevel`、`MoodAddition`、`Drone`、`General`、`HR` 是非生产房间占位类型，而且可早于 `EnterFacility` 输出；应精确 drop，不能依赖 lookup 改名来制造错误语义或顺序。
-- `2026-07-14_1304-investigate-9am-schedule`: block 容器 tone 与内部 message tone 是两层状态；未匹配规则的原始 `*:stderr` message 会继承 source warning，即使 block 声明 `message_tone=info`。若只有已知、无错误语义的 stderr 行需要改色，优先在对应 block 添加精确 tone 规则，不要扩大修改通用 stderr 默认逻辑，也不要增加 catch-all 掩盖未知上游格式。
-- `2026-07-14_0244-optimize-log-template-migration`: 模板末尾的无语义全匹配规则会把未知上游格式伪装成“已覆盖”，并丢失 fallback 的 raw 证据。未知行应由通用 fallback 原样展示；覆盖率审计必须单列或禁止 catch-all。
-- `2026-07-14_0244-optimize-log-template-migration`: 有状态的可见日志预处理（例如吞掉 OperBox/Depot pretty JSON）必须把状态保存在单个 pipeline buffer 的 source state 中，不能放在可跨 retry/run 复用的 `RunLogProfile` 或 `LogSourceSpec` 对象上；静默可见日志时仍须保留 diagnostics 与 raw-result 分支。
-- `2026-07-14_0051-audit-maa-log-templates`: 可见日志模板不应直接 `entry.messages.append()` / `entry.lines.append()`；否则有界裁剪、generation/touch 和 raw/default 装配容易漏在不同 callback。由通用 pipeline 提供唯一的结构化追加入口，并在每次追加时即时执行 record 上限。
-- `2026-07-13_1500-audit-run-architecture`: 通用增量日志捕捉应原样保存 bytes，以实际读取后的 `tell()` 作为 next offset；source 缺失返回 offset 0，size 小于旧 offset 时按截断从头捕捉。若未来必须识别“替换后新文件仍大于旧 offset”，需由领域层额外记录 file identity，单一数值 offset 不足。
-- `2026-07-13_1500-audit-run-architecture`: 日志目标位于 framework tree 不代表日志源/retention 也属于 framework；MAACore source、generated configs 与 MAA legacy logs 必须留在 MAA installation 边界，不能靠窄类型 facade 隐藏真实依赖。
-- `2026-07-13_1500-audit-run-architecture`: HTTP 状态必须由语义异常决定，绝不能全局把 `ValueError`/`KeyError`/`FileNotFoundError`/`RuntimeError` 映射为 400/404/409；同一 builtin 可能分别表示用户输入、runtime 缺失、corrupt state 或程序缺陷。
+## Frontend
 
-- `2026-07-12_0055-fix-retention-frontend-split`: retention 必须以 run 作为 ownership 单元；索引应先原子移除，再删除可重建 orphan，避免崩溃后留下仍引用已删文件的记录。artifact 只能按显式角色白名单级联，不能看到本地路径就删除 unknown/shared/external artifact。
-- `2026-07-04_1047-audit-log-pipeline-audit`: 不要用有界日志列表长度当持久 cursor；裁剪后会错位。retry/history 使用独立持久结构或单调序号。
-- `2026-07-01_2153-manage-service-history`: 保持状态、结构化 history、外部诊断日志和 Python framework logging 分离；不要重新合成一个大而含糊的 history/log service。
-- `2026-07-10_0416-full-project-audit`: recent index retention 不等于 history retention。淘汰 index 时必须同步处理 history/artifacts；完成 run 后释放 manager plan/callback 引用。
-- `2026-07-10_0416-full-project-audit`: JSON parse failure不能静默当空状态后继续覆盖。隔离 corrupt 文件、记录诊断并阻止破坏性写入。
-
-## Configuration and frontend
-
-- `2026-07-11_1805-consolidate-audits`: 实现前端交互前先检查现有 shadcn/Radix/Sonner 通用组件；缺失时优先按项目 `components.json` 引入官方组件到 `components/ui`，不要手搓 Toast 生命周期、动画、Dialog/Drawer/Tabs 等基础设施。业务组件应主要组合通用 primitives，只保留领域状态与薄样式封装。
-- `2026-07-10_1752-audit-data-paths`: 项目尚未发布时不设计旧布局、旧 API 或旧数据的前向/向后兼容，不添加 migration CLI、layout version、兼容读取或过渡 facade。直接修改为最终结构，并对本机开发数据做一次性调整；只有用户明确提出发布兼容需求后才增加兼容层。
-- `2026-07-12_0216-fix-scrcpy-url`: 需要协议校验的 request_id 必须始终生成规范 UUID v4；`crypto.randomUUID()` 的降级路径也要输出 canonical UUID 字符串，不能用时间戳+随机片段替代。
-- `2026-07-10_0004-complete-rename-maa-auto-panel`: 重命名不能无上下文全局替换 `maa_auto_panel`；包名、metadata namespace、placeholder、schema key、运行目录必须分别核对。
-- `2026-07-04_1115-review-cleanup`: 删除 re-export 时搜索所有 helper/包级间接导入，并把调用方改到真实定义模块。
-- `2026-07-02_1933-config-sync-ui-schema`: 删除 task editor schema 字段时同步模板 general/advanced keys，避免悬挂 JSON Forms 控件。
-- `2026-06-30_1743-fix-infrast-plan-select`: 同一 UI 事件同时修改 params 与 framework managed metadata 时使用一次合并 patch，避免双更新覆盖。
-- `2026-07-01_1506-sse-log-delta`: Playwright 不要等待含 EventSource 页面的 `networkidle`；使用 `domcontentloaded` + 目标 DOM 断言。
+- `2026-07-14_2057-full-code-audit`: 同一 manager 的 run 可按实体过滤“显示内容”，但 start/stop availability 必须依据未过滤的 global manager state，不能把其他实体的 active run 投影成 idle。
+- `2026-07-14_2057-full-code-audit`: 通用 `LogPane` 不得从翻译后的人类日志反解析领域状态；运行详情来自结构化 metadata/artifact/detail descriptor。
+- `2026-07-14_2057-full-code-audit`: 动态 option descriptor 必须有真实的 API 失败/空结果 fallback；无选项 Select 不等于 free-text。需要可输入选择时复用成熟 combobox primitive。
+- `2026-07-14_2057-full-code-audit`: descriptor 字段必须有实际 renderer/行为消费者。未实现的 `kind` 应删除，不保留“看似通用”的半成品契约。
+- `2026-07-11_1805-consolidate-audits`: 实现基础交互前先检查现有 shadcn/Radix/Sonner；Dialog/Popover/Tabs/Sheet/Toast/Tooltip 等基础设施优先复用组件库，业务组件只保留领域状态和薄样式。
+- `2026-07-01_1506-sse-log-delta`: Playwright 不要等待含 EventSource 页面的 `networkidle`；使用 `domcontentloaded` 与目标状态断言。
 
 ## Environment
 
-- `2026-07-13_2243-frontend-retry-block`: 修改后端 Python 代码后必须在确认没有 active run 的前提下重启 `maa-auto-panel-webui.service`，并复查新 PID、`active` 状态和 API；仅重建前端会造成新 UI 连接旧 Python 进程，例如 retry Accordion 已出现但旧后端不生成 `summary_messages`。
-- `2026-07-11_1805-consolidate-audits`: 不要直接执行 `runtime/maa/bin/maa version` 判断面板 runtime；缺少 `MAA_CONFIG_DIR` 与 XDG_DATA/CACHE/STATE 环境时会误报无法读取 MaaCore。使用 `scripts/maa-env maa version` 或 `MaaRuntime.env()` 等价环境。本次直接执行曾误判更新后 Core 损坏，正确环境确认 MaaCore v6.14.1 且用户 smoke 任务可运行。
-- `2026-07-10_0416-full-project-audit`: 仓库移动/重命名后，venv console script shebang 和 editable install 元数据可能仍指向旧路径。优先重建/重装 `.venv`；临时验证用 `.venv/bin/python -m pytest`，不要仅信 `which pytest`。
-- `2026-07-10_0416-full-project-audit`: Docker multi-stage 复制 venv 时 builder/runtime 必须保持相同绝对路径，或使用 wheel 安装；否则 console-script shebang 会指向 builder 路径。`tini` 与 Compose `init: true` 二选一。
-- `2026-07-10_0416-full-project-audit`: 当前 scheduler/coordinator/store 仅支持单进程；容器化时禁止副本扩容、滚动双实例和 systemd/Compose 同时运行，否则会重复触发 schedule 且资源锁不跨进程。
-- `2026-07-10_2207-graceful-shutdown`: 当前 Starlette `TestClient` 要求未安装的 `httpx2`。生命周期测试直接使用 `app.router.lifespan_context(app)`；不要仅为该测试引入新 HTTP client 依赖。
-- `2026-06-30_2056-scheduled-execution`: 仓库搜索排除 `frontend/node_modules`、`docs/maa-upstream`、`runtime`、`external` 和运行日志目录；系统级一次性脚本使用 `python3`，项目命令使用项目解释器。
+- `2026-07-13_2243-frontend-retry-block`: 后端代码变化后，只有在确认无 active run 时才重启 `maa-auto-panel-webui.service`；仅构筑前端会造成新 UI 连接旧 Python 进程。
+- `2026-07-11_1805-consolidate-audits`: 判断 MAA runtime 使用 `scripts/maa-env maa version` 或 `MaaRuntime.env()` 等价环境；直接运行 binary 会因缺少 MAA/XDG 环境误报损坏。
+- `2026-07-10_0416-full-project-audit`: 仓库移动后 venv console-script shebang/editable metadata 可能仍指向旧路径；验证优先用 `.venv/bin/python -m ...`，必要时重建 venv。
+- `2026-07-10_0416-full-project-audit`: systemd/dev 与 Compose 不得并行连接同一设备或共享持久根；scheduler/coordinator/store 当前不支持多进程副本。
