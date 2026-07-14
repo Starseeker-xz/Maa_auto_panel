@@ -4,7 +4,9 @@
 
 ## Active sessions
 
-- `2026-07-14_0051-audit-maa-log-templates`: 只读审计 MAA 日志模板与通用管线边界；确认纯文本 output 投影无生产消费者、active block 记录上限未即时执行，并提出 pipeline-owned 结构化追加重构方向。
+- `2026-07-14_0244-optimize-log-template-migration`: 完成 TemplateBlockRuntime、profile source_specs、有状态 raw 预处理和 output 投影删除；模板实现拆为 model/engine/loader/runtime 子包，MAA 仅填 task 字段并解析 envelope/JSON。
+- `2026-07-14_0145-audit-gui-tools`: 下一轮 tools 实施 handoff；范围已收敛为公招识别 + 牛杂，完整记录 Recruit callback 缺口、五个 Custom 入口/副作用、隐秘战线路线算法及动态限时条目机制。
+- `2026-07-14_0051-audit-maa-log-templates`: MAA 可见日志迁移到严格 TOML；根层仅 global/blocks，block 只声明 start/end/rules，无 id/event，轻量 MAA 监视器补 task 字段。
 - `2026-07-14_0004-optimize-maa-log-format`: 优化 MAA 日志翻译、详情四字符缩进和局部富文本强调；汇报平台噪声折叠为单条成功提示。
 
 - `2026-07-13_2243-frontend-retry-block`: 实现完整 retry 日志折叠层、持久化富文本摘要与 MAA 逐次任务结果展示；展开状态只响应首次进入、新 retry 和用户操作。

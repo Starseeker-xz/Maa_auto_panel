@@ -22,10 +22,59 @@
 
 ## Current architecture
 
-- Confirmed (`2026-07-14_0051-audit-maa-log-templates`): 当前 MAA visible-log 模板约 804 行，同时承担 MAA 行协议解析、领域翻译/折叠、展示策略和通用 block 记录装配。生产 live/history/API 只消费结构化 `log_entries`；`RunLogBuffer.output` 及 pipeline callback 的字符串 output 投影无生产消费者，主要遗留在内部返回值与测试中。MAA 成功判断并非无日志消费者：它通过独立 `on_raw_line` 分支把原始 stderr 行交给 `MaaTaskResultCollector`，再结合进程 return code 判定 attempt；删除旧 output 投影时必须保留此权威 raw-result 分支。
-- Confirmed (`2026-07-14_0051-audit-maa-log-templates`): `max_record_messages`/`max_record_lines` 只在 `append_block()` 创建 entry 时经 `_trim()` 执行；模板直接向 active entry 列表追加，单个长 block 在关闭/flush 后仍可越过上限。实测上限设为 3 时，5 条 task detail 最终保留 5 messages/5 lines。
-- Likely (`2026-07-14_0051-audit-maa-log-templates`): 下一步最健康的日志边界是让通用 pipeline 唯一负责 raw line/message 追加、默认 time/tone/raw、即时有界裁剪与 generation 更新，并删除未消费的纯文本 output 投影；MAA 层只保留 source parser、block 匹配/状态语义、领域翻译、折叠和展示注解。
-- Confirmed (`2026-07-14_0004-optimize-maa-log-format`): 可见日志消息支持可选整数 `indent`，前端每级按 `4ch` 呈现；MAA 翻译器直接为作战掉落/汇报结果、设施产物/换班干员和运行摘要详情标记一级缩进，不维护段落父子关系。富文本片段未指定 tone 时使用默认文字色，不再继承整行 tone；设施名、公招动作、理智数值及摘要序号/合计标签按模板局部强调。
+- Confirmed (`2026-07-14_0244-optimize-log-template-migration`): MAA 可见日志已完成 block-runtime 迁移。通用 `TemplateBlockRuntime` 从严格 TOML 自动注册 block、匹配/reprocess start/end、翻译与 fallback、追加有界 record、派生状态和关闭策略；模板不使用人工 rule/event id。`maa/log_templates.py` 从 510 行降至 141 行，不再手工构造 `BlockDefinition`。
+- Confirmed (`2026-07-14_0244-optimize-log-template-migration`): `LogSourceSpec` 支持每 source 有状态 raw-line preprocessor；`LogLineInput` 同时保留原始 raw 与处理后 content/metadata。MAA 预处理器只负责移除 maa-cli envelope、提取 time/level/tone，并在检测到 OperBox/Depot pretty JSON 后持续静默到对象闭合；状态属于单个 buffer/source，不跨 retry/run，共享 diagnostics/raw-result 仍保留原文。
+- Confirmed (`2026-07-14_0244-optimize-log-template-migration`): `RunLogProfile` 直接携带 `source_specs`，运行注册处声明可见 source；`configure_buffer` 只初始化每 buffer 独立的模板 runtime/字段监视器。通用 manager 不含 MAA 分支。
+- Confirmed (`2026-07-14_0244-optimize-log-template-migration`): MAA 专用可见日志状态只剩按 source FIFO 填充模板无法推断的 `task.id/name/source_name`。任务成功判定仍由独立 `MaaTaskResultCollector` 消费 raw stderr，不受展示模板或 JSON 静默影响。
+- Confirmed (`2026-07-14_0244-optimize-log-template-migration`): 对 88 stderr + 86 stdout、共 7,866 行 raw 留存审计后，已删除 summary catch-all、无冒号 RecruitResult、无 index EnterFacility、空 total drops 及 summary Error/Warning 旧规则；未知行统一走保留 raw 的通用 fallback。完整后端 133 passed，174 个 raw 文件 replay 无异常；未重启服务。
+
+- Confirmed (`2026-07-14_0145-audit-gui-tools`): MAA GUI 的公招识别、干员识别、仓库识别分别调用 MaaCore `Recruit`（calc-only 参数 `times=0, confirm=[-1]`）、`OperBox`、`Depot`。公招 calc-only 不确认招募，但会按 GUI 选项设置时长并点击 Tags；OperBox/Depot 会自动尝试导航并逐页横向识别，结果由 `SubTaskExtraInfo` callback 返回并由 GUI 单独持久化。
+- Confirmed (`2026-07-14_0145-audit-gui-tools`): GUI“牛杂”不是独立 Core 类型，而是 `Custom.task_names` 选择器。五个常驻入口为 `SS@Store@Begin`、`GreenTicket@Store@Begin`、`YellowTicket@Store@Begin`、`RA@Store@Begin`、`MiniGame@SecretFront@Begin@Ending{A-E}[@事件名]`；另从缓存/在线 `StageActivityV2.json` 动态插入当前开放限时入口。前四项会真实购买，不能当作无副作用识别工具。
+- Confirmed (`2026-07-14_0145-audit-gui-tools`): maa-cli v0.7.5 支持 `Recruit`/`Depot`/`OperBox`/`Custom`，但 callback 日志不是统一结构化产品结果：Depot/OperBox 输出完整 pretty JSON，Recruit 只输出最高星级与原始五 Tags，丢弃 WPF 结果页使用的组合及候选干员数组。面板复刻 GUI 结果页前应先建立 MAA 领域结构化 callback/result 边界，不能只依赖当前 visible-log 文本。
+- Confirmed (`2026-07-14_0145-audit-gui-tools`): 用户明确后续 GUI tools 范围排除牛牛抽卡（真实消费风险）和牛牛监控（已在别处实现）。上游 WPF 的识别数据由 GUI 进程写入安装目录 `data/OperBoxData.json`、`data/DepotData.json`，Core 不持久化；面板实现应由后端领域状态保存并通过 API 下发，不能依赖浏览器 localStorage。OperBox 只需持久化 own_opers+syncTime，未拥有列表和潜能映射可派生；Depot 持久化 itemId→count+syncTime。
+
+## Next tools implementation handoff
+
+来源会话：`2026-07-14_0145-audit-gui-tools`。本节是下一会话实施“公招识别 + 牛杂”时的权威上游行为记录。
+
+### Confirmed scope
+
+- Confirmed: 用户最终将下一轮范围收敛为公招识别和牛杂功能；不实施干员识别、仓库识别、牛牛抽卡或牛牛监控。
+- Confirmed: 这些功能仍应在面板 `tools` 中作为并列工具展示；“牛杂”只是上游 WPF 的分组名，不应在面板领域模型中创建一种 `牛杂`/`MiniGame` Core task type。
+
+### Public recruitment recognition
+
+- Confirmed: 使用 maa-cli/Core 正式任务类型 `Recruit`。WPF 精确构造：`times=0`、`confirm=[-1]`、`select` 为用户勾选的 3/4/5/6 星列表、`set_time` 为“自动设置时间”、`recruitment_time.3/.4` 为用户时间、`.5/.6=540`，并传当前 server；其余刷新、加急、汇报等参数保持默认关闭。
+- Confirmed: `confirm` 包含 `-1` 是 Core 的 calc-only 开关。用户必须手动停在某个公招槽的 Tags 选择页；Core OCR 五个 Tags、计算所有组合，不点击最终确认招募。但 calc-only 仍会依照 `set_time` 调整招募时长，并依照 `select` 点击推荐 Tags，因此不是无副作用截图识别。
+- Confirmed: WPF 默认配置中 3/4/5/6 星选择均为 true、自动设时为 true；3/4 星允许 1:00–9:00、10 分钟粒度，越界时在 1:00 与 9:00 间回绕；5/6 星固定 9:00。面板是否照搬回绕交互可由自身表单规范决定，但提交给 Core 的分钟数需保持 60–540。
+- Confirmed: MaaCore `RecruitResult.details` 包含 `tags`（识别到的五 Tags）、`level`（排序后最佳组合的保底星级）和 `result[]`（全部组合；每项含组合 `tags`、保底 `level`、候选 `opers[{id,name,level}]`）。WPF “显示所有可招募组合”直接渲染 `result[]`。
+- Confirmed: 当前 maa-cli v0.7.5 虽收到完整 callback，却只读取 `details.level` 和 `details.tags`，日志/summary 均丢弃 `details.result`；提高 `-v` 不会恢复。实施完整 GUI 结果页前必须先补机器可读的完整 Recruit callback/result 边界，不能从当前 `RecruitResult: ★...五Tags` 可见日志推导所有组合。
+- Confirmed: 下一轮范围排除了 OperBox，因此公招结果不需要先实现潜能/MAX/NEW 增强；没有持久化干员数据时应只展示 Core 返回的组合与候选干员，不制造潜能状态。
+
+### Common execution shape for mini-game tools
+
+- Confirmed: 所有牛杂入口均通过 maa-cli/Core `Custom` 运行，params 形态为 `{enable: true, task_names: [<exact task name>]}`，每次只传一个入口。它们使用普通 profile/device 连接及相同 ADB 资源锁；面板应复用 MAA 领域的临时 task config、环境、日志、MAACore diagnostics、结果判断和 cleanup，而不是把 MAA 专项逻辑塞进 `GenericRunManager`。
+- Confirmed: 四个商店任务会真实消费游戏货币并购买商品。UI 必须清楚显示前置页面与购买策略；自动 retry 会再次进入消费流程，下一轮需显式决定禁用 retry 或对各任务证明幂等后再开放，不能无条件继承当前工具页 1–50 次重试控件。
+
+### Permanent mini-game entries
+
+- Confirmed: 活动商店兑换入口为 `SS@Store@Begin`。必须在当期活动商店页开始；任务检测可购买商品，选择最大数量并付款、处理新干员/时装获得动画，购买后继续扫描并向右滑动（最多 10 次），资金不足或遍历完成停止；通过无限池检测节点跳过无限池。
+- Confirmed: 绿票商店入口为 `GreenTicket@Store@Begin`。可从常规主界面尝试进入商店→凭证交易所→资质凭证区；一层依次识别并最大数量购买寻访凭证、合成玉、龙门币、家具零件、招聘许可、战斗记录、赤金，然后进入二层，仅购买寻访凭证和招聘许可，买不到或目标耗尽后停止。
+- Confirmed: 黄票商店入口为 `YellowTicket@Store@Begin`。可尝试进入凭证交易所→高级凭证区并滑动查找，只购买单抽寻访凭证和十连寻访凭证，每次购买后继续扫描直至目标耗尽/无法购买。WPF 唯一前置提示为“请确保至少有 258 张黄票”。
+- Confirmed: 生息演算商店入口为 `RA@Store@Begin`。WPF 要求在生息演算活动商店页开始；任务识别商品、选择最大数量、付款、处理获得动画并横向遍历，资金不足或遍历完成停止。
+- Confirmed: 隐秘战线向 `Custom` 传动态名 `MiniGame@SecretFront@Begin@Ending{A|B|C|D|E}`，可选再追加 `@支援作战平台`、`@游侠` 或 `@诡影迷踪`。`CustomTask` 解析动态名、设置结局/优先事件、注册 `SecretFrontTaskPlugin`，实际执行资源入口 `MiniGame@SecretFront@Begin`。默认结局为 E。
+- Confirmed: 隐秘战线必须在选小队页开始；若有存档须先手动删除，首次教程须手动完成/关闭，上游建议勾选“继承上一支队伍发回的数据”。插件按结局自动选分队：A/B 物资、C 情报、D/E 医疗；固定路线分别为 A=`1A→2A→3A→4A`、B=`1A→2A→3A→4B`、C=`1A→2A→3B→4C`、D=`1A→2B→3C→4D`、E=`1A→2B→3C→4E`。
+- Confirmed: 隐秘战线在普通行动卡上 OCR 当前物资/情报/医疗与最多三页卡牌收益和成功率，按距当前阶段/最终结局目标的缺口加权，使用 `收益 × 成功率²` 评分并选择全局最高项；事件页 OCR `1A/2B/...` 并选择目标路线内卡片，否则兜底第一张。配置了优先事件时会先在当前页找该事件；命中后只在当前页做数值选择。流程持续推进、处理危机/结果/重开，直至结局完成节点停止。
+
+### Dynamic entries and unresolved product choice
+
+- Confirmed: WPF 还从 Maa API 缓存 `gui/StageActivityV2.json` 的当前 client（Bilibili 映射 Official）读取 `miniGame` 数组，仅把 UTC 时间窗内 `BeingOpen` 的条目插到常驻项之前；条目携带 Display/DisplayKey、Value（直接作为 Custom task name）、Tip/TipKey、MinimumRequired 和时间窗。截图对应时刻 CN 条目已过期，故只有五个常驻项。
+- Unknown: 用户所说“牛杂里的功能”是否要求下一轮同时实现这种随 Maa API 动态变化的限时工具注册，还是先只实现截图中的五个常驻入口。下一会话应在审计现有 Maa API/cache 边界后做最小风险判断；若会明显改变 registry/API 结构，再向用户确认。
+
+- Confirmed (`2026-07-14_0244-optimize-log-template-migration`): active block 的 message/line 统一经 pipeline `append_active_record()` 追加并即时执行 record 上限；模板 runtime 不直接操作 entry 列表。
+- Confirmed (`2026-07-14_0244-optimize-log-template-migration`): 未消费的 `RunLogBuffer.output`、`max_output_chunks`、callback 字符串返回及 terminal 文本节流状态已删除；pipeline append/flush 只返回 `state_generation` 是否变化。raw stderr → `MaaTaskResultCollector` 权威结果分支未改变。
+- Confirmed (`2026-07-14_0244-optimize-log-template-migration`): 原 1,195 行 `logs/templates.py` 已改为 `logs/templates/` 子包，依赖方向为纯 `model.py`（160 行）→ `engine.py`（294 行）/`loader.py`（429 行）→ `runtime.py`（327 行）；调用方直接导入定义模块，`__init__.py` 不提供大规模 re-export。
+- Confirmed (`2026-07-14_0004-optimize-maa-log-format`): 可见日志消息支持可选整数 `indent`，前端每级按 `3ch` 呈现；MAA 翻译器直接为作战掉落/汇报结果、设施产物/换班干员和运行摘要详情标记一级缩进，不维护段落父子关系。富文本片段未指定 tone 时使用默认文字色，不再继承整行 tone；设施名、公招动作、理智数值及摘要序号/合计标签按模板局部强调。
 - Confirmed (`2026-07-14_0004-optimize-maa-log-format`): 运行摘要子任务标题中的状态词继续保留语义颜色（完成 success、失败 danger、停止/未知 warning），但不加粗；任务名和耗时使用普通文字。不要把“减少强调”误解为删除状态色。
 - Confirmed (`2026-07-14_0004-optimize-maa-log-format`): 连续的企鹅物流/一图流成功汇报日志在同一任务块内折叠为一条“汇报成功”，隐藏平台名和上传 URL；遇到非汇报行后开始新的汇报组。
 - Confirmed (`2026-07-14_0004-optimize-maa-log-format`): 状态色修正前确认 current run 已 succeeded 后再次重启 `maa-auto-panel-webui.service`，当前 MainPID 11038；服务 active，`/api/runs/current` 返回 idle。新的后端翻译与前端构建均已加载；旧 history 不回写结构化翻译/缩进。

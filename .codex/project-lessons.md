@@ -20,6 +20,8 @@
 
 ## State and diagnostics
 
+- `2026-07-14_0244-optimize-log-template-migration`: 模板末尾的无语义全匹配规则会把未知上游格式伪装成“已覆盖”，并丢失 fallback 的 raw 证据。未知行应由通用 fallback 原样展示；覆盖率审计必须单列或禁止 catch-all。
+- `2026-07-14_0244-optimize-log-template-migration`: 有状态的可见日志预处理（例如吞掉 OperBox/Depot pretty JSON）必须把状态保存在单个 pipeline buffer 的 source state 中，不能放在可跨 retry/run 复用的 `RunLogProfile` 或 `LogSourceSpec` 对象上；静默可见日志时仍须保留 diagnostics 与 raw-result 分支。
 - `2026-07-14_0051-audit-maa-log-templates`: 可见日志模板不应直接 `entry.messages.append()` / `entry.lines.append()`；否则有界裁剪、generation/touch 和 raw/default 装配容易漏在不同 callback。由通用 pipeline 提供唯一的结构化追加入口，并在每次追加时即时执行 record 上限。
 - `2026-07-13_1500-audit-run-architecture`: 通用增量日志捕捉应原样保存 bytes，以实际读取后的 `tell()` 作为 next offset；source 缺失返回 offset 0，size 小于旧 offset 时按截断从头捕捉。若未来必须识别“替换后新文件仍大于旧 offset”，需由领域层额外记录 file identity，单一数值 offset 不足。
 - `2026-07-13_1500-audit-run-architecture`: 日志目标位于 framework tree 不代表日志源/retention 也属于 framework；MAACore source、generated configs 与 MAA legacy logs 必须留在 MAA installation 边界，不能靠窄类型 facade 隐藏真实依赖。

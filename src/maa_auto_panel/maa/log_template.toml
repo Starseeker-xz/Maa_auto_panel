@@ -39,9 +39,6 @@ AllTasksCompleted = "全部任务结束"
 "Updating hot update files..." = "检查热更新资源..."
 "Hot update completed successfully" = "热更新资源检查完成"
 GameOffline = "游戏掉线"
-ProductUnknown = "产物识别失败"
-ProductIncorrect = "产物不匹配"
-ProductChanged = "产物已切换"
 NotEnoughStaff = "干员不足"
 MissionStart = "作战开始"
 MissionCompleted = "作战完成"
@@ -190,6 +187,21 @@ match = "ProductOfFacility: {product:text}"
 text = "设施产物: {product}"
 indent = 1
 lookups = { product = "product" }
+
+[[blocks.task.rules]]
+match = "ProductUnknown"
+text = "产物识别失败"
+indent = 1
+
+[[blocks.task.rules]]
+match = "ProductIncorrect"
+text = "产物不匹配"
+indent = 1
+
+[[blocks.task.rules]]
+match = "ProductChanged"
+text = "产物已切换"
+indent = 1
 
 [[blocks.task.rules]]
 match = "CustomInfrastRoomOperators: {operators:text}"
