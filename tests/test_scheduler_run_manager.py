@@ -2,6 +2,7 @@ from pathlib import Path
 
 from maa_auto_panel.diagnostics import Diagnostics
 from maa_auto_panel.maa.runtime import MaaRuntime
+from maa_auto_panel.maa.retry import MaaRetrySession
 from maa_auto_panel.run_manager.contracts import RunStartPlan
 from maa_auto_panel.run_manager.manager import GenericRunManager
 from maa_auto_panel.run_manager.store import RunStateStore
@@ -12,8 +13,8 @@ from maa_auto_panel.scheduler.state import SchedulerStateStore
 
 def test_scheduled_driver_skip_persists_sealed_retry(tmp_path: Path) -> None:
     runtime = MaaRuntime(tmp_path)
-    diagnostics = Diagnostics(runtime.layout.framework, runtime.path_references)
-    store = RunStateStore(runtime.layout.framework, runtime.path_references)
+    diagnostics = Diagnostics(runtime.layout.data, runtime.path_references)
+    store = RunStateStore(runtime.layout.data, runtime.path_references)
     scheduler_state = SchedulerStateStore(runtime)
     log_profile = _schedule_log_profile(diagnostics, include_script=False)
     entry = ScheduleEntry(id="t0400", name="04:00", time="04:00", task_ids=["startup"])
@@ -27,9 +28,16 @@ def test_scheduled_driver_skip_persists_sealed_retry(tmp_path: Path) -> None:
         entries=[entry],
     )
     callbacks = ScheduledMaaRunCallbacks(
-        runtime=runtime,
+        maa=MaaRetrySession(
+            runtime,
+            diagnostics,
+            task="daily",
+            profile_name="default",
+            log_level=1,
+            generated_run_id="schedule-skip",
+            profile_data={},
+        ),
         scheduler_state=scheduler_state,
-        diagnostics=diagnostics,
         config=config,
         entry=entry,
         client="Official",
@@ -48,9 +56,9 @@ def test_scheduled_driver_skip_persists_sealed_retry(tmp_path: Path) -> None:
             callbacks=callbacks.to_callbacks(),
             max_retries=3,
             log_profile=log_profile,
-            log_files=diagnostics.stream_log_files("maa-cli", "schedule-skip"),
+            log_files=diagnostics.stream_log_files(("maa", "maa-cli"), "schedule-skip"),
             event_log_file=diagnostics.event_log_file("schedule-skip"),
-            initial_attempt_payload={"task_ids": []},
+            initial_retry_payload={"task_ids": []},
             history_scope=("schedules", "daily"),
         ),
         run_id="schedule-skip",

@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from maa_auto_panel.errors import Conflict, ResourceNotFound
-from maa_auto_panel.paths import FrameworkPaths
+from maa_auto_panel.paths import DataPaths
 from maa_auto_panel.run_manager.state import RunKind
 from maa_auto_panel.storage.files import read_json_object, write_json_object
 from maa_auto_panel.storage.path_references import PathReferenceResolver
@@ -65,7 +65,7 @@ class StoredRun:
 class RunStateStore:
     def __init__(
         self,
-        paths: FrameworkPaths,
+        paths: DataPaths,
         references: PathReferenceResolver,
         retention: StateRetentionPolicy | None = None,
     ) -> None:
@@ -77,14 +77,9 @@ class RunStateStore:
 
     @property
     def run_records_path(self) -> Path:
-        return self.paths.run_state_dir / "recent-run-records.json"
-
-    @property
-    def retries_path(self) -> Path:
-        return self.paths.run_state_dir / "run-retries.json"
+        return self.paths.run_history_dir / "recent-run-records.json"
 
     def ensure_dirs(self) -> None:
-        self.paths.run_state_dir.mkdir(parents=True, exist_ok=True)
         self.paths.run_history_dir.mkdir(parents=True, exist_ok=True)
 
     def enforce_retention(self) -> list[dict[str, object]]:
@@ -95,18 +90,14 @@ class RunStateStore:
         """
         with self._lock:
             runs = self.runs(limit=0)
-            retries = self._retry_items()
-            retry_count_by_run: dict[str, int] = {}
-            for retry in retries:
-                run_id = str(retry.get("run_id") or "")
-                retry_count_by_run[run_id] = retry_count_by_run.get(run_id, 0) + 1
+            retries_by_run = {run.id: self._retry_items_for_run(run) for run in runs}
 
             retained_ids: set[str] = set()
             retained_retry_count = 0
             terminal_count = 0
             evicted: list[StoredRun] = []
             for run in runs:
-                retry_count = retry_count_by_run.get(run.id, 0)
+                retry_count = len(retries_by_run[run.id])
                 active = run.status in {"running", "stopping"}
                 fits_runs = terminal_count < max(0, self.retention.max_run_records)
                 fits_retries = retained_retry_count + retry_count <= max(0, self.retention.max_retry_records)
@@ -118,11 +109,8 @@ class RunStateStore:
                 else:
                     evicted.append(run)
 
-            orphan_retries = [item for item in retries if str(item.get("run_id") or "") not in retained_ids]
-            retained_retries = [item for item in retries if str(item.get("run_id") or "") in retained_ids]
             self._write_runs([run for run in runs if run.id in retained_ids])
-            self._write_retries(retained_retries)
-            return [self._delete_owned_run_data(run, [item for item in orphan_retries if item.get("run_id") == run.id]) for run in evicted]
+            return [self._delete_owned_run_data(run, retries_by_run[run.id]) for run in evicted]
 
     def recover_interrupted_runs(self) -> int:
         recovered = 0
@@ -223,7 +211,7 @@ class RunStateStore:
         log_files: dict[str, str] | None = None,
     ) -> None:
         with self._lock:
-            history_file = self._write_retry_history(
+            self._write_retry_history(
                 run_id=run_id,
                 retry_id=retry_id,
                 retry_index=retry_index,
@@ -239,26 +227,6 @@ class RunStateStore:
                 log_entries=log_entries,
                 log_files=log_files,
             )
-            retries = [item for item in self._retry_items() if item.get("id") != retry_id]
-            retries.append(
-                {
-                    "id": retry_id,
-                    "run_id": run_id,
-                    "retry_index": retry_index,
-                    "retry_group": retry_group,
-                    "status": status,
-                    "started_at": started_at,
-                    "updated_at": updated_at,
-                    "ended_at": ended_at,
-                    "return_code": return_code,
-                    "metadata": metadata,
-                    "artifacts": artifacts,
-                    "summary_messages": summary_messages or [],
-                    "log_entries_file": history_file,
-                    "log_files": log_files or {},
-                }
-            )
-            self._write_retries(retries)
 
     def runs(self, kind: RunKind | None = None, *, limit: int = 50) -> list[StoredRun]:
         records = [_stored_run_from_data(item) for item in self._run_items()]
@@ -281,22 +249,17 @@ class RunStateStore:
                 raise ResourceNotFound(f"Run not found: {run_id}")
             if run.status in {"running", "stopping"}:
                 raise Conflict(f"Run is still active: {run_id}")
+            owned_retries = self._retry_items_for_run(run)
             runs = [_stored_run_from_data(item) for item in self._run_items() if item.get("id") != run_id]
-            retries = [item for item in self._retry_items() if item.get("run_id") != run_id]
-            owned_retries = [item for item in self._retry_items() if item.get("run_id") == run_id]
             self._write_runs(runs)
-            self._write_retries(retries)
             return self._delete_owned_run_data(run, owned_retries)
 
     def owned_paths(self) -> set[Path]:
         """Return paths owned by currently retained run records."""
         with self._lock:
-            retries_by_run: dict[str, list[dict[str, object]]] = {}
-            for retry in self._retry_items():
-                retries_by_run.setdefault(str(retry.get("run_id") or ""), []).append(retry)
             paths: set[Path] = set()
             for run in self.runs(limit=0):
-                for _kind, reference in self._owned_references(run, retries_by_run.get(run.id, [])):
+                for _kind, reference in self._owned_references(run, self._retry_items_for_run(run)):
                     try:
                         paths.add(self.references.resolve(reference))
                     except ValueError:
@@ -353,9 +316,12 @@ class RunStateStore:
                 references.add((kind, value))
 
     def retries(self, run_id: str) -> list[dict[str, object]]:
-        rows = [item for item in self._retry_items() if item.get("run_id") == run_id]
+        run = self.run(run_id)
+        if run is None:
+            return []
+        rows = self._retry_items_for_run(run)
         rows.sort(key=lambda item: _int_value(item.get("retry_index")))
-        return [self._retry_with_history(row) for row in rows]
+        return rows
 
     def _upsert_run(self, patch: dict[str, object]) -> None:
         with self._lock:
@@ -393,10 +359,10 @@ class RunStateStore:
         runs = data.get("runs")
         return [item for item in runs if isinstance(item, dict)] if isinstance(runs, list) else []
 
-    def _retry_items(self) -> list[dict[str, object]]:
-        data = read_json_object(self.retries_path)
+    def _retry_items_for_run(self, run: StoredRun) -> list[dict[str, object]]:
+        data = read_json_object(self._run_history_path(run.id, run))
         retries = data.get("retries")
-        return [item for item in retries if isinstance(item, dict)] if isinstance(retries, list) else []
+        return [dict(item) for item in retries if isinstance(item, dict)] if isinstance(retries, list) else []
 
     def _write_retry_history(
         self,
@@ -415,7 +381,7 @@ class RunStateStore:
         summary_messages: list[dict[str, Any]] | None,
         log_entries: list[dict[str, Any]],
         log_files: dict[str, str] | None,
-    ) -> str:
+    ) -> None:
         run = self.run(run_id)
         path = self._run_history_path(run_id, run)
         existing = read_json_object(path)
@@ -448,7 +414,6 @@ class RunStateStore:
             "retries": retries,
         }
         write_json_object(path, data)
-        return self.references.reference("framework", path)
 
     def _sync_run_history(self, run_id: str) -> None:
         run = self.run(run_id)
@@ -462,28 +427,6 @@ class RunStateStore:
         existing["updated_at"] = _now()
         existing["run"] = run.to_dict()
         write_json_object(path, existing)
-
-    def _retry_with_history(self, row: dict[str, object]) -> dict[str, object]:
-        output = dict(row)
-        if "log_entries" in output:
-            return output
-        history_file = output.get("log_entries_file")
-        if not isinstance(history_file, str) or not history_file:
-            output["log_entries"] = []
-            return output
-        try:
-            path = self.references.resolve(history_file, expected_root="framework")
-        except ValueError:
-            output["log_entries"] = []
-            return output
-        data = read_json_object(path)
-        retry_id = output.get("id")
-        for item in data.get("retries", []):
-            if isinstance(item, dict) and item.get("id") == retry_id:
-                output["log_entries"] = item.get("log_entries") if isinstance(item.get("log_entries"), list) else []
-                return output
-        output["log_entries"] = []
-        return output
 
     def _run_history_path(self, run_id: str, run: StoredRun | None) -> Path:
         if run is None:
@@ -500,15 +443,6 @@ class RunStateStore:
             "runs": [run.to_dict() for run in records],
         }
         write_json_object(self.run_records_path, data)
-
-    def _write_retries(self, retries: list[dict[str, object]]) -> None:
-        data = {
-            "description": "Per-retry run index. Log blocks are stored in history/framework/runs and referenced by log_entries_file.",
-            "updated_at": _now(),
-            "retries": retries,
-        }
-        write_json_object(self.retries_path, data)
-
 
 def _stored_run_from_data(data: dict[str, object]) -> StoredRun | None:
     run_id = str(data.get("id") or "")

@@ -35,8 +35,8 @@ class ApplicationPaths:
 
 
 @dataclass(frozen=True)
-class FrameworkPaths:
-    """Framework-owned persistent configuration, state, history, and diagnostics."""
+class DataPaths:
+    """Panel-owned persistent data, partitioned by subsystem and provider."""
 
     root: Path
 
@@ -49,12 +49,12 @@ class FrameworkPaths:
         return self.root / "state"
 
     @property
-    def history_dir(self) -> Path:
-        return self.root / "history"
-
-    @property
     def debug_dir(self) -> Path:
         return self.root / "debug"
+
+    @property
+    def run_history_dir(self) -> Path:
+        return self.root / "run-history"
 
     @property
     def framework_config_dir(self) -> Path:
@@ -65,20 +65,8 @@ class FrameworkPaths:
         return self.state_dir / "framework"
 
     @property
-    def run_state_dir(self) -> Path:
-        return self.framework_state_dir / "run-history"
-
-    @property
     def scheduler_state_dir(self) -> Path:
         return self.framework_state_dir / "scheduler"
-
-    @property
-    def framework_history_dir(self) -> Path:
-        return self.history_dir / "framework"
-
-    @property
-    def run_history_dir(self) -> Path:
-        return self.framework_history_dir / "runs"
 
     @property
     def framework_log_dir(self) -> Path:
@@ -87,10 +75,6 @@ class FrameworkPaths:
     @property
     def framework_event_log_dir(self) -> Path:
         return self.framework_log_dir / "events"
-
-    @property
-    def framework_external_log_dir(self) -> Path:
-        return self.framework_log_dir / "external"
 
 
 @dataclass(frozen=True)
@@ -102,6 +86,10 @@ class CachePaths:
     @property
     def downloads_dir(self) -> Path:
         return self.root / "downloads"
+
+    @property
+    def maa_dir(self) -> Path:
+        return self.root / "maa"
 
 
 @dataclass(frozen=True)
@@ -139,7 +127,7 @@ class MaaInstallation:
 @dataclass(frozen=True)
 class PathLayout:
     application: ApplicationPaths
-    framework: FrameworkPaths
+    data: DataPaths
     cache: CachePaths
     maa: MaaInstallation
 
@@ -153,7 +141,7 @@ class PathLayout:
         cache_root: Path | None = None,
     ) -> PathLayout:
         application = ApplicationPaths(app_root.expanduser().resolve())
-        framework = FrameworkPaths(
+        data = DataPaths(
             _configured_root(data_root, DATA_DIR_ENV, application.root / "data")
         )
         cache = CachePaths(
@@ -161,6 +149,6 @@ class PathLayout:
         )
         maa = MaaInstallation(
             root=_configured_root(runtime_root, RUNTIME_DIR_ENV, application.root / "runtime") / "maa",
-            config_dir=framework.config_dir / "maa",
+            config_dir=data.config_dir / "maa",
         )
-        return cls(application=application, framework=framework, cache=cache, maa=maa)
+        return cls(application=application, data=data, cache=cache, maa=maa)

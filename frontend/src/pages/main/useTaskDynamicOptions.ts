@@ -15,11 +15,13 @@ export function useTaskDynamicOptions(selectedTaskItem: TaskItem | undefined, pa
       const next: Record<string, DynamicOption[]> = {};
       try {
         if (selectedTaskItem?.type === "Fight") {
-          const stages = await getMaaStages(fightClient);
-          next["fight-stages"] = stages.stages.map((stage) => ({
-            value: stage.value,
-            label: stage.display || stage.value || "当前/上次"
-          }));
+          const stages = await getMaaStages(fightClient, true);
+          next["fight-stages"] = stages.stages
+            .filter((stage) => stage.is_open_or_will_open !== false)
+            .map((stage) => ({
+              value: stage.value,
+              label: stage.display || stage.value || "当前/上次"
+            }));
         }
         if (selectedTaskItem?.type === "Infrast") {
           const files = await getInfrastFileOptions();

@@ -3,24 +3,24 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
-from maa_auto_panel.logs.records import LogMessage
 from maa_auto_panel.logs.state import RunLogBuffer
 from maa_auto_panel.process import StreamingProcessResult
 from maa_auto_panel.run_manager.command import CommandSpec
+from maa_auto_panel.run_manager.context import RetryContext, RetryDecision, RunCallbackAPI
 from maa_auto_panel.run_manager.logs import RunLogProfile
 from maa_auto_panel.run_manager.state import LiveRun, RunKind, RunTimeouts
 from maa_auto_panel.run_resources import RUN_PRIORITY_NORMAL, RUN_PRIORITY_VALUES, RunResource
 
 
-CommandBuilder = Callable[["RunAttempt"], CommandSpec | None]
-RawLineHandler = Callable[["RunAttempt", str, str], None]
-AttemptCallback = Callable[["RunAttempt"], None]
-StartCallback = Callable[["RunAttempt"], "RetryDecision | None"]
-EvaluateAttempt = Callable[["RunAttempt", StreamingProcessResult], "RetryDecision | None"]
-AfterAttempt = Callable[["RunAttempt", StreamingProcessResult, "RetryDecision"], "RetryDecision | None"]
-BeforeRetry = Callable[["RunAttempt", "RetryDecision"], None]
-FinishCallback = Callable[["RunCallbackAPI", "RunCompletion"], "RunCompletion | None"]
-ScriptCommandBuilder = Callable[["RunAttempt"], CommandSpec | None]
+CommandBuilder = Callable[[RetryContext], CommandSpec | None]
+RawLineHandler = Callable[[RetryContext, str, str], None]
+RetryCallback = Callable[[RetryContext], None]
+StartCallback = Callable[[RetryContext], "RetryDecision | None"]
+EvaluateRetry = Callable[[RetryContext, StreamingProcessResult], "RetryDecision | None"]
+AfterRetry = Callable[[RetryContext, StreamingProcessResult, "RetryDecision"], "RetryDecision | None"]
+BeforeRetry = Callable[[RetryContext, "RetryDecision"], None]
+FinishCallback = Callable[[RunCallbackAPI, "RunCompletion"], "RunCompletion | None"]
+ScriptCommandBuilder = Callable[[RetryContext], CommandSpec | None]
 LogConfigurator = Callable[[RunLogBuffer], None]
 RunFinishedListener = Callable[[LiveRun], None]
 
@@ -43,22 +43,6 @@ class RunTextTemplates:
 
 
 @dataclass
-class RetryDecision:
-    """Callback decision for the just-finished attempt."""
-
-    retry_status: str
-    return_code: int | None = None
-    run_status: str | None = None
-    continue_retry: bool = False
-    next_command: CommandSpec | None = None
-    next_attempt_payload: dict[str, object] | None = None
-    retry_metadata: dict[str, object] = field(default_factory=dict)
-    retry_artifacts: dict[str, object] = field(default_factory=dict)
-    retry_summary_messages: list[LogMessage] = field(default_factory=list)
-    summary_patch: dict[str, object] = field(default_factory=dict)
-
-
-@dataclass
 class RunCompletion:
     """Final run result assembled before persistence."""
 
@@ -75,11 +59,11 @@ class RunCallbacks:
 
     on_start: StartCallback | None = None
     before_retry: BeforeRetry | None = None
-    before_attempt: AttemptCallback | None = None
+    before_retry_execution: RetryCallback | None = None
     build_command: CommandBuilder | None = None
     on_raw_line: RawLineHandler | None = None
-    evaluate_attempt: EvaluateAttempt | None = None
-    after_attempt: AfterAttempt | None = None
+    evaluate_retry: EvaluateRetry | None = None
+    after_retry: AfterRetry | None = None
     on_finish: FinishCallback | None = None
 
 
@@ -117,7 +101,7 @@ class RunStartPlan:
     artifacts: dict[str, object] = field(default_factory=dict)
     log_files: dict[str, str] = field(default_factory=dict)
     event_log_file: str | None = None
-    initial_attempt_payload: dict[str, object] = field(default_factory=dict)
+    initial_retry_payload: dict[str, object] = field(default_factory=dict)
     history_scope: tuple[str, ...] = ()
     resources: tuple[RunResource, ...] = ()
     priority_name: str = "normal"

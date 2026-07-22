@@ -26,7 +26,7 @@ class TrashRecord:
 class TrashManager:
     """Move files into a structured recycle folder with lightweight metadata."""
 
-    def __init__(self, trash_root: Path, *, logical_root: Path, root_name: str = "framework") -> None:
+    def __init__(self, trash_root: Path, *, logical_root: Path, root_name: str = "data") -> None:
         self.trash_root = trash_root
         self.root_name = root_name
         self.references = PathReferenceResolver({root_name: logical_root})

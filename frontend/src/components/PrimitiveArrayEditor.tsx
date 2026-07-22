@@ -2,10 +2,11 @@ import React from "react";
 import * as SelectPrimitive from "@radix-ui/react-select";
 import { GripVertical, PencilLine, Plus } from "lucide-react";
 
+import { CreatableStringPicker } from "@/components/CreatableStringPicker";
 import { HelpTooltip } from "@/components/FormFields";
 import { InsertionLine } from "@/components/InsertionLine";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { FocusDeleteButton } from "@/components/FocusDeleteButton";
+import { FocusDeleteButton, rowActionButtonClassName } from "@/components/FocusDeleteButton";
 import { useInlineRename } from "@/components/useInlineRename";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -33,6 +34,7 @@ type PrimitiveArrayEditorProps = {
   unique?: boolean;
   valueKind?: "string" | "number" | "boolean";
   checkable?: boolean;
+  allowCustom?: boolean;
   enabled?: boolean;
   errors?: string;
   onChange: (values: PrimitiveArrayValue[]) => void;
@@ -48,12 +50,15 @@ export function PrimitiveArrayEditor({
   unique = false,
   valueKind = "string",
   checkable = false,
+  allowCustom = false,
   enabled = true,
   errors = "",
   onChange,
   onItemsChange
 }: PrimitiveArrayEditorProps) {
-  const constrained = options.length > 0;
+  const creatable = allowCustom && valueKind === "string";
+  const constrained = options.length > 0 && !creatable;
+  const stringOptions = options.filter((option): option is PrimitiveArrayOption & { value: string } => typeof option.value === "string");
   const rows = React.useMemo<PrimitiveArrayItem[]>(() => items ?? values.map((value) => ({ value, enabled: true })), [items, values]);
   const [draggingIndex, setDraggingIndex] = React.useState<number | null>(null);
   const [dropIndex, setDropIndex] = React.useState<number | null>(null);
@@ -115,6 +120,11 @@ export function PrimitiveArrayEditor({
     emitRows([...rows, { value: option.value, enabled: true }]);
   }
 
+  function appendCreatedValue(value: string) {
+    if (!enabled) return;
+    emitRows([...rows, { value, enabled: true }]);
+  }
+
   function removeAt(index: number) {
     if (!enabled) return;
     if (rename.renamingKey === index) rename.cancelRename();
@@ -136,6 +146,20 @@ export function PrimitiveArrayEditor({
     emitRows(next);
   }
 
+  function changeCreatedValue(index: number, value: string) {
+    if (!enabled) return;
+    const next = [...rows];
+    const existingIndex = unique ? next.findIndex((row) => valueKey(row.value) === valueKey(value)) : -1;
+    if (existingIndex >= 0 && existingIndex !== index) {
+      next[existingIndex] = next[index];
+      next[index] = { ...next[index], value };
+      emitRows(next);
+      return;
+    }
+    next[index] = { ...next[index], value };
+    emitRows(next);
+  }
+
   function setItemEnabled(index: number, nextEnabled: boolean) {
     if (!enabled) return;
     const next = [...rows];
@@ -147,7 +171,13 @@ export function PrimitiveArrayEditor({
     <section className={cn("grid min-w-0 gap-2 rounded-md border bg-background p-2", !enabled && "opacity-60")}>
       <div className="flex min-w-0 items-center justify-between gap-2">
         <ArrayTitle title={title} description={description} />
-        {constrained ? (
+        {creatable ? (
+          <CreatableStringPicker label={`新增${title}`} options={stringOptions} disabled={!enabled} onSelect={appendCreatedValue}>
+            <Button type="button" variant="outline" size="icon" className="size-8 shrink-0 active:scale-95">
+              <Plus className="size-4" />
+            </Button>
+          </CreatableStringPicker>
+        ) : constrained ? (
           <Select value="" disabled={!enabled} onValueChange={appendOption}>
             <IconSelectTrigger label={`新增${title}`} variant="outline" className="size-8 active:scale-95">
               <Plus className="size-4" />
@@ -217,9 +247,26 @@ export function PrimitiveArrayEditor({
                   </div>
                 )}
                 <div className="flex items-center justify-end gap-0.5">
-                  {constrained ? (
+                  {creatable ? (
+                    <CreatableStringPicker
+                      label={`${label} 选择或输入`}
+                      options={stringOptions}
+                      currentValue={typeof value === "string" ? value : ""}
+                      disabled={!enabled}
+                      onSelect={(nextValue) => changeCreatedValue(index, nextValue)}
+                    >
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className={cn(rowActionButtonClassName, "data-[state=open]:bg-accent data-[state=open]:text-foreground data-[state=open]:opacity-100")}
+                      >
+                        <PencilLine className="size-3.5" />
+                      </Button>
+                    </CreatableStringPicker>
+                  ) : constrained ? (
                     <Select value={selectValueKey(value)} disabled={!enabled} onValueChange={(nextValue) => changeOption(index, nextValue)}>
-                      <IconSelectTrigger label={`${label} 选择`} variant="ghost" className="size-7 text-muted-foreground/70 opacity-0 hover:text-foreground hover:opacity-100 focus-visible:opacity-100 group-hover:opacity-70">
+                      <IconSelectTrigger label={`${label} 选择`} variant="ghost" className={cn(rowActionButtonClassName, "data-[state=open]:bg-accent data-[state=open]:text-foreground data-[state=open]:opacity-100")}>
                         <PencilLine className="size-3.5" />
                       </IconSelectTrigger>
                       <SelectContent align="end">
@@ -235,7 +282,7 @@ export function PrimitiveArrayEditor({
                       type="button"
                       variant="ghost"
                       size="icon"
-                      className="size-7 text-muted-foreground/70 opacity-0 transition-opacity hover:text-foreground hover:opacity-100 focus-visible:opacity-100 group-hover:opacity-70"
+                      className={rowActionButtonClassName}
                       aria-label={`${label} 重命名`}
                       disabled={!enabled}
                       onClick={() => rename.startRename(index, displayValue(rows[index]?.value ?? ""))}

@@ -13,16 +13,9 @@ from maa_auto_panel.diagnostics import Diagnostics, get_logger
 from maa_auto_panel.errors import InvalidRequest, RuntimeUnavailable
 from maa_auto_panel.logs.pipeline import LogSourceSpec, plain_translate_line
 from maa_auto_panel.logs.pipeline import default_tone_for_source
-from maa_auto_panel.maa.cleanup import enforce_maa_debug_retention
-from maa_auto_panel.maa.log_templates import begin_maa_task_sequence, configure_maa_log_template, maa_log_source_specs
-from maa_auto_panel.maa.results import MaaTaskDescriptor, MaaTaskResultCollector, retry_result_summary
-from maa_auto_panel.maa.runner import (
-    current_log_offset,
-    load_task_file,
-    maacore_log_source,
-    prepare_maa_cli_task,
-    resolve_task_file,
-)
+from maa_auto_panel.maa.log_templates import configure_maa_log_template, maa_log_source_specs
+from maa_auto_panel.maa.results import MaaTaskDescriptor, retry_result_summary
+from maa_auto_panel.maa.retry import MaaRetrySession, load_task_file, resolve_task_file
 from maa_auto_panel.maa.runtime import MaaRuntime
 from maa_auto_panel.notifications import NotificationService
 from maa_auto_panel.process import StreamingProcessResult
@@ -36,11 +29,9 @@ from maa_auto_panel.run_manager.contracts import (
     RunTextTemplates,
 )
 from maa_auto_panel.run_manager.coordinator import RunCoordinator
+from maa_auto_panel.run_manager.context import RetryContext
 from maa_auto_panel.run_manager.logs import RunLogProfile
-from maa_auto_panel.run_manager.manager import (
-    GenericRunManager,
-    RunAttempt,
-)
+from maa_auto_panel.run_manager.manager import GenericRunManager
 from maa_auto_panel.run_manager.state import LiveRun, RunTimeouts
 from maa_auto_panel.run_manager.store import RunStateStore, StoredRun
 from maa_auto_panel.run_resources import maa_run_resources_from_profile, schedule_priority
@@ -61,11 +52,10 @@ ScheduleRunState = LiveRun
 
 @dataclass
 class ScheduledMaaRunCallbacks:
-    """Scheduled MAA attempt hooks; GenericRunManager owns lifecycle and retry loop."""
+    """Scheduled retry policy around the shared MAA retry translation session."""
 
-    runtime: MaaRuntime
+    maa: MaaRetrySession
     scheduler_state: SchedulerStateStore
-    diagnostics: Diagnostics
     config: ScheduleConfig
     entry: ScheduleEntry
     client: str
@@ -78,8 +68,6 @@ class ScheduledMaaRunCallbacks:
     def __post_init__(self) -> None:
         self.policy_by_id = {policy.id: policy for policy in self.policies}
         self.run_successful_task_ids: set[str] = set()
-        self.collectors: dict[str, MaaTaskResultCollector] = {}
-        self.maacore_log_offsets: dict[str, int] = {}
 
     def to_callbacks(self) -> RunCallbacks:
         return RunCallbacks(
@@ -87,15 +75,15 @@ class ScheduledMaaRunCallbacks:
             before_retry=self.before_retry,
             build_command=self.build_command,
             on_raw_line=self.on_raw_line,
-            evaluate_attempt=self.evaluate_attempt,
-            after_attempt=self.after_attempt,
+            evaluate_retry=self.evaluate_retry,
+            after_retry=self.after_retry,
         )
 
-    def on_start(self, attempt: RunAttempt) -> RetryDecision | None:
+    def on_start(self, context: RetryContext) -> RetryDecision | None:
         selected = list(self.selected_task_ids)
         if not selected:
-            attempt.add_event("本次没有需要运行的子任务。", tone="info")
-            self._append_skip_events(attempt, self.skipped_tasks)
+            context.add_event("本次没有需要运行的子任务。", tone="info")
+            self._append_skip_events(context, self.skipped_tasks)
             return RetryDecision(
                 "skipped",
                 0,
@@ -104,80 +92,40 @@ class ScheduledMaaRunCallbacks:
                 summary_patch={"reason": "no-selected-tasks"},
             )
 
-        attempt.add_event(f"本次运行实际任务: {', '.join(_task_names(self.policy_by_id, selected))}", tone="info")
-        self._append_skip_events(attempt, self.skipped_tasks)
+        context.add_event(f"本次运行实际任务: {', '.join(_task_names(self.policy_by_id, selected))}", tone="info")
+        self._append_skip_events(context, self.skipped_tasks)
         return None
 
-    def before_retry(self, attempt: RunAttempt, previous_decision: RetryDecision) -> None:
-        if not previous_decision.continue_retry or attempt.stop_requested:
+    def before_retry(self, context: RetryContext, previous_decision: RetryDecision) -> None:
+        if not previous_decision.continue_retry or context.stop_requested:
             return
         every = self.config.retry.buffer_every_retries
         seconds = self.config.retry.buffer_seconds
-        completed_attempts = attempt.attempt_index - 1
-        if every <= 0 or seconds <= 0 or completed_attempts % every != 0:
+        completed_retries = context.retry_index - 1
+        if every <= 0 or seconds <= 0 or completed_retries % every != 0:
             return
-        attempt.add_event(f"已连续重试 {completed_attempts} 次，缓冲等待 {seconds}s。", tone="warning")
-        attempt.wait_for_stop(seconds)
+        context.add_event(f"已连续运行 {completed_retries} 轮，缓冲等待 {seconds}s。", tone="warning")
+        context.wait_for_stop(seconds)
 
-    def build_command(self, attempt: RunAttempt) -> CommandSpec:
-        task_ids = _attempt_task_ids(attempt)
-        prepare_messages: list[str] = []
-        generated_profile = self.config.profile_name or f"{self.config.id}-profile"
-        generated_run_id = f"schedule-{attempt.run_id}"
-        run_task, run_env = prepare_maa_cli_task(
-            self.runtime,
-            self.config.task_config,
-            run_id=generated_run_id,
-            attempt=attempt.attempt_index,
-            messages=prepare_messages,
-            selected_task_ids=set(task_ids),
-            force_enable_selected=True,
-            profile_data=self.config.profile_data,
-            profile_name=generated_profile,
-        )
-        cmd = [
-            str(self.runtime.maa_bin),
-            "run",
-            run_task,
-            "--batch",
-            "--profile",
-            generated_profile,
-        ]
-        if self.config.log_level > 0:
-            cmd.extend(["-v"] * self.config.log_level)
-
-        attempt.add_event(f"开始第 {attempt.attempt_index} 次尝试: {', '.join(_task_names(self.policy_by_id, task_ids))}", tone="info")
-        for message in prepare_messages:
-            attempt.add_event(message, tone="info")
+    def build_command(self, context: RetryContext) -> CommandSpec:
+        task_ids = _retry_task_ids(context)
         task_descriptors = _task_descriptors(self.policy_by_id, task_ids)
-        attempt.configure_log(lambda log: begin_maa_task_sequence(log, _task_descriptor_dicts(task_descriptors)))
-        self.collectors[attempt.retry_id] = MaaTaskResultCollector(task_descriptors)
-        self.maacore_log_offsets[attempt.retry_id] = current_log_offset(maacore_log_source(self.runtime))
-        return CommandSpec(cmd, cwd=self.runtime.repo_root, env=run_env)
+        return self.maa.prepare_retry(context, task_descriptors)
 
-    def on_raw_line(self, attempt: RunAttempt, stream: str, line: str) -> None:
-        collector = self.collectors.get(attempt.retry_id)
-        if collector is not None:
-            collector.consume_raw_line(f"maa-cli:{stream}", line)
+    def on_raw_line(self, context: RetryContext, stream: str, line: str) -> None:
+        self.maa.consume_raw_line(context, stream, line)
 
-    def evaluate_attempt(self, attempt: RunAttempt, result: StreamingProcessResult) -> RetryDecision:
+    def evaluate_retry(self, context: RetryContext, result: StreamingProcessResult) -> RetryDecision:
         local_tz = effective_timezone(self.timezone_name)
-        collector = self.collectors.pop(attempt.retry_id, MaaTaskResultCollector([]))
-        collector.finish()
-        task_results = list(collector.results)
-        task_ids = _attempt_task_ids(attempt)
-        status_by_task_id = collector.status_by_task_id(task_ids)
-        attempt_status = "succeeded" if result.return_code == 0 and all(status == "succeeded" for status in status_by_task_id.values()) else "failed"
-        if result.stopped or attempt.stop_requested:
-            attempt_status = "stopped"
+        task_ids = _retry_task_ids(context)
+        outcome = self.maa.finish_retry(context, task_ids)
+        task_results = outcome.task_results
+        status_by_task_id = outcome.status_by_task_id
+        retry_status = "succeeded" if result.return_code == 0 and all(status == "succeeded" for status in status_by_task_id.values()) else "failed"
+        if result.stopped or context.stop_requested:
+            retry_status = "stopped"
         if result.timed_out:
-            attempt_status = "failed"
-        maacore_capture = self.diagnostics.capture_file_increment(
-            maacore_log_source(self.runtime),
-            self.maacore_log_offsets.pop(attempt.retry_id, 0),
-            capture_id=attempt.retry_id,
-        )
-        enforce_maa_debug_retention(self.runtime.layout.maa)
+            retry_status = "failed"
         current_game_day = game_day_key(datetime.now(local_tz), client=self.client)
         counted_statuses = {task_id: status for task_id, status in status_by_task_id.items() if status != "missing"}
         self.run_successful_task_ids.update(task_id for task_id, status in counted_statuses.items() if status == "succeeded")
@@ -189,7 +137,7 @@ class ScheduledMaaRunCallbacks:
         )
         stats = self.scheduler_state.daily_stats(self.config.id, current_game_day)
         next_task_ids: list[str] = []
-        if attempt_status != "stopped":
+        if retry_status != "stopped":
             next_task_ids = retry_task_ids(
                 self.policies,
                 self.entry,
@@ -198,9 +146,9 @@ class ScheduledMaaRunCallbacks:
                 status_by_task_id,
                 run_successful_task_ids=self.run_successful_task_ids,
             )
-        will_retry = bool(next_task_ids) and attempt.attempt_index < attempt.max_retries and attempt_status != "stopped"
+        will_retry = bool(next_task_ids) and context.retry_index < context.max_retries and retry_status != "stopped"
         final_status = None
-        if attempt_status == "stopped":
+        if retry_status == "stopped":
             final_status = "stopped"
         elif not next_task_ids:
             final_status = _final_status(
@@ -218,49 +166,47 @@ class ScheduledMaaRunCallbacks:
         if final_status is not None:
             summary = {
                 "final_status": final_status,
-                "retries": attempt.attempt_index,
+                "retries": context.retry_index,
                 "retry_groups": 1,
             }
         return RetryDecision(
-            attempt_status,
+            retry_status,
             result.return_code,
             run_status=final_status,
             continue_retry=will_retry,
-            next_attempt_payload={"task_ids": next_task_ids},
+            next_retry_payload={"task_ids": next_task_ids},
             retry_metadata={"task_ids": task_ids, "task_results": task_results},
             retry_artifacts={
-                "generated_config_dir": self.runtime.path_references.reference(
-                    "runtime", self.runtime.generated_config_dir / f"schedule-{attempt.run_id}"
-                ),
-                "diagnostic_log_file": maacore_capture.log_file,
+                "generated_config_dir": outcome.generated_config_dir,
+                "diagnostic_log_file": outcome.diagnostic_log_file,
             },
             retry_summary_messages=retry_result_summary(
                 _task_descriptors(self.policy_by_id, self.selected_task_ids),
                 task_results,
                 planned_task_ids=task_ids,
-                retry_status=attempt_status,
+                retry_status=retry_status,
             ),
             summary_patch=summary,
         )
 
-    def after_attempt(
+    def after_retry(
         self,
-        attempt: RunAttempt,
+        context: RetryContext,
         _result: StreamingProcessResult,
         decision: RetryDecision,
     ) -> RetryDecision | None:
-        if attempt.stop_requested or decision.retry_status == "stopped":
+        if context.stop_requested or decision.retry_status == "stopped":
             return None
-        next_task_ids = _payload_task_ids(decision.next_attempt_payload or {})
+        next_task_ids = _payload_task_ids(decision.next_retry_payload or {})
         if decision.continue_retry and next_task_ids:
-            attempt.add_event(f"准备重试: {', '.join(_task_names(self.policy_by_id, next_task_ids))}", tone="warning")
-        elif next_task_ids and attempt.attempt_index >= attempt.max_retries:
-            attempt.add_event("重试次数已达上限，仍有未成功子任务。", tone="danger")
+            context.add_event(f"准备重试: {', '.join(_task_names(self.policy_by_id, next_task_ids))}", tone="warning")
+        elif next_task_ids and context.retry_index >= context.max_retries:
+            context.add_event("重试次数已达上限，仍有未成功子任务。", tone="danger")
         return None
 
     def _append_skip_events(
         self,
-        attempt: RunAttempt,
+        context: RetryContext,
         skipped: list[dict[str, str]],
     ) -> None:
         enabled = set(self.entry.task_ids)
@@ -269,7 +215,7 @@ class ScheduledMaaRunCallbacks:
             if task_id not in enabled:
                 continue
             task_name = self.policy_by_id[task_id].name if task_id in self.policy_by_id else task_id
-            attempt.add_event(f"跳过子任务: {task_name}，原因: {item.get('reason', '未说明')}", tone="info")
+            context.add_event(f"跳过子任务: {task_name}，原因: {item.get('reason', '未说明')}", tone="info")
 
 
 class SchedulerService:
@@ -505,18 +451,25 @@ class SchedulerService:
         stats = self.scheduler_state.daily_stats(config.id, game_day)
         selection = initial_task_selection(policies, entry, stats)
         run_id = uuid.uuid4().hex[:12]
-        log_files = self.diagnostics.stream_log_files("maa-cli", run_id)
+        log_files = self.diagnostics.stream_log_files(("maa", "maa-cli"), run_id)
         if config.restart.script:
-            log_files.update(self.diagnostics.stream_log_files("scripts", run_id, key_prefix="script_"))
+            log_files.update(self.diagnostics.stream_log_files(("scheduler", "scripts"), run_id, key_prefix="script_"))
         max_retries = _retry_count(retry_count if retry_count is not None else config.retry.max_retries)
         priority = schedule_priority(trigger)
         resources = maa_run_resources_from_profile(config.profile_data)
         log_profile = _schedule_log_profile(self.diagnostics, include_script=bool(config.restart.script))
         script_log_profile = _schedule_script_log_profile(self.diagnostics)
         callbacks = ScheduledMaaRunCallbacks(
-            runtime=self.runtime,
+            maa=MaaRetrySession(
+                self.runtime,
+                self.diagnostics,
+                task=config.task_config,
+                profile_name=config.profile_name or f"{config.id}-profile",
+                log_level=config.log_level,
+                generated_run_id=f"schedule-{run_id}",
+                profile_data=config.profile_data,
+            ),
             scheduler_state=self.scheduler_state,
-            diagnostics=self.diagnostics,
             config=config,
             entry=entry,
             client=client,
@@ -552,7 +505,7 @@ class SchedulerService:
                 },
                 log_files=log_files,
                 event_log_file=self.diagnostics.event_log_file(run_id),
-                initial_attempt_payload={"task_ids": selection.selected},
+                initial_retry_payload={"task_ids": selection.selected},
                 history_scope=("schedules", config.id),
                 resources=resources,
                 priority_name="schedule.auto" if trigger == "schedule" else "schedule.manual",
@@ -584,7 +537,7 @@ def _restart_script_hooks(
     if not config.restart.script or config.restart.mode not in {"before_run", "before_retry"}:
         return RunScriptHooks()
 
-    def command(_attempt: RunAttempt) -> CommandSpec:
+    def command(_context: RetryContext) -> CommandSpec:
         script_command = scripts.command(config.restart.script, config.restart.variables)
         return CommandSpec(script_command.cmd, cwd=scripts.runtime.repo_root, env=script_command.env)
 
@@ -619,8 +572,8 @@ def _task_names(policy_by_id: dict[str, TaskPolicy], task_ids: list[str]) -> lis
     return [policy_by_id[task_id].name if task_id in policy_by_id else task_id for task_id in task_ids]
 
 
-def _attempt_task_ids(attempt: RunAttempt) -> list[str]:
-    return _payload_task_ids(attempt.payload)
+def _retry_task_ids(context: RetryContext) -> list[str]:
+    return _payload_task_ids(context.payload)
 
 
 def _payload_task_ids(payload: dict[str, object]) -> list[str]:
@@ -636,10 +589,6 @@ def _task_descriptors(policy_by_id: dict[str, TaskPolicy], task_ids: list[str]) 
     ]
 
 
-def _task_descriptor_dicts(descriptors: list[MaaTaskDescriptor]) -> list[dict[str, str]]:
-    return [{"task_id": item.task_id, "source_name": item.source_name, "name": item.name} for item in descriptors]
-
-
 def _schedule_log_profile(diagnostics: Diagnostics, *, include_script: bool) -> RunLogProfile:
     sources = list(maa_log_source_specs())
     if include_script:
@@ -652,14 +601,14 @@ def _schedule_log_profile(diagnostics: Diagnostics, *, include_script: bool) -> 
         source_specs=tuple(sources),
         configure_buffer=configure_maa_log_template,
         source_for_stream=lambda stream: f"maa-cli:{stream}",
-        diagnostic_sink=diagnostics.stream_sink("maa-cli"),
+        diagnostic_sink=diagnostics.stream_sink(("maa", "maa-cli")),
     )
 
 
 def _schedule_script_log_profile(diagnostics: Diagnostics) -> RunLogProfile:
     return RunLogProfile(
         source_for_stream=lambda stream: f"script:{stream}",
-        diagnostic_sink=diagnostics.stream_sink("scripts"),
+        diagnostic_sink=diagnostics.stream_sink(("scheduler", "scripts")),
     )
 
 

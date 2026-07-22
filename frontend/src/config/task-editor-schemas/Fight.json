@@ -10,6 +10,7 @@
         "description": "按顺序配置候选关卡；运行前由框架选择第一个当前可用关卡。",
         "x-frameworkManaged": "runtime-array",
         "x-optionsSource": "fight-stages",
+        "x-allowCustom": true,
         "items": {
           "type": "string"
         }

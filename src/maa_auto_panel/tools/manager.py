@@ -142,9 +142,10 @@ class ToolRunManager:
         command = spec.build_command(self, sanitized_config)
         resources = self._tool_resources(tool_id, sanitized_config)
         run_id = uuid.uuid4().hex[:12]
-        log_files = self.diagnostics.stream_log_files("tools", run_id)
+        diagnostic_scope = ("tools", tool_id)
+        log_files = self.diagnostics.stream_log_files(diagnostic_scope, run_id)
         max_retries = _retry_count(retry_count)
-        log_profile = plain_stream_log_profile("tool", diagnostic_sink=self.diagnostics.stream_sink("tools"))
+        log_profile = plain_stream_log_profile("tool", diagnostic_sink=self.diagnostics.stream_sink(diagnostic_scope))
         plan = RunStartPlan(
             kind="tool",
             title=spec.definition.title,

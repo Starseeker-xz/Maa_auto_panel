@@ -13,6 +13,7 @@
 
 ## Logs, state and configuration
 
+- `2026-07-21_1125-check-ad3-stage-support`: `StageActivityV2` 是带开放时间的 GUI 推荐集，不是 MaaCore 导航能力白名单。远端缺失值不能据关卡名格式推断为已关闭；自定义值应原样交给 Core，只有已知条目才应用活动窗口/星期元数据。
 - `2026-07-14_1304-investigate-9am-schedule`: 可插拔展示配置永远不能阻止 run 执行、错误报告或终态收尾。模板保持 strict 离线校验，同时在 runtime 使用片段容错与 last-known-good/plain fallback。
 - `2026-07-14_0244-optimize-log-template-migration`: 可见日志与结果判定必须分支：模板/pipeline 可翻译、折叠或静默展示，但 diagnostics 和 raw result collector 保留原始证据。未知行走 raw fallback，不用 catch-all 伪装覆盖。
 - `2026-07-14_0051-audit-maa-log-templates`: 结构化日志只能通过 pipeline 的统一 append API 更新，以保证 generation/touch/有界裁剪一致；不要由模板 runtime 直接突变 entry 列表。
@@ -22,6 +23,7 @@
 
 ## Frontend
 
+- `2026-07-21_1125-check-ad3-stage-support`: JSON Forms surface 对未标记的裸 `button` 有 fallback CSS。Radix `asChild` wrapper 不得覆盖 shadcn Button 的 `data-slot="button"`，否则会无条件出现边框/背景；行操作按钮应共享一个 hover/focus/active 基线，仅叠加语义颜色。
 - `2026-07-14_2057-full-code-audit`: 同一 manager 的 run 可按实体过滤“显示内容”，但 start/stop availability 必须依据未过滤的 global manager state，不能把其他实体的 active run 投影成 idle。
 - `2026-07-14_2057-full-code-audit`: 通用 `LogPane` 不得从翻译后的人类日志反解析领域状态；运行详情来自结构化 metadata/artifact/detail descriptor。
 - `2026-07-14_2057-full-code-audit`: 动态 option descriptor 必须有真实的 API 失败/空结果 fallback；无选项 Select 不等于 free-text。需要可输入选择时复用成熟 combobox primitive。

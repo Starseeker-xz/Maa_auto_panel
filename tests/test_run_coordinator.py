@@ -206,8 +206,8 @@ def test_maintenance_update_claims_runtime_exclusively(tmp_path, monkeypatch) ->
     runtime = MaaRuntime(tmp_path)
     manager = MaintenanceActionManager(
         runtime,
-        RunStateStore(runtime.layout.framework, runtime.path_references),
-        Diagnostics(runtime.layout.framework, runtime.path_references),
+        RunStateStore(runtime.layout.data, runtime.path_references),
+        Diagnostics(runtime.layout.data, runtime.path_references),
         FrameworkSettingsManager(runtime),
         RunCoordinator(),
     )
@@ -233,8 +233,8 @@ def test_tool_start_records_higher_priority_resource_conflict_as_failed_run(tmp_
     manager = ToolRunManager(
         runtime,
         ConfigManager(runtime),
-        RunStateStore(runtime.layout.framework, runtime.path_references),
-        Diagnostics(runtime.layout.framework, runtime.path_references),
+        RunStateStore(runtime.layout.data, runtime.path_references),
+        Diagnostics(runtime.layout.data, runtime.path_references),
         FrameworkSettingsManager(runtime),
         coordinator,
     )

@@ -19,9 +19,11 @@ def test_runtime_separates_application_framework_data_integration_runtime_and_ca
     assert runtime.runtime_root == tmp_path / "runtime"
     assert runtime.cache_root == tmp_path / "cache"
     assert runtime.config_dir == tmp_path / "data/config/maa"
-    assert runtime.run_history_dir == tmp_path / "data/history/framework/runs"
+    assert runtime.run_history_dir == tmp_path / "data/run-history"
+    assert runtime.maa_working_dir == tmp_path / "runtime/maa/state/maa"
     assert runtime.maa_bin == tmp_path / "runtime/maa/bin/maa"
     assert runtime.download_dir == tmp_path / "cache/downloads"
+    assert runtime.framework_maa_cache_dir == tmp_path / "cache/maa"
     assert runtime.frontend_dist == tmp_path / "frontend/dist"
     assert runtime.maa_schema_dir == tmp_path / "docs/maa-cli/schemas"
 
@@ -75,7 +77,7 @@ def test_logical_path_references_survive_relocated_roots_and_reject_escape(tmp_p
         relocated.resolve("runtime:maa", expected_root="framework")
 
 
-def test_trash_record_uses_framework_logical_references(tmp_path: Path) -> None:
+def test_trash_record_uses_data_logical_references(tmp_path: Path) -> None:
     data_root = tmp_path / "external-data"
     source = data_root / "config/maa/tasks/example.toml"
     source.parent.mkdir(parents=True)
@@ -85,5 +87,5 @@ def test_trash_record_uses_framework_logical_references(tmp_path: Path) -> None:
         data_root / "config/maa/.trash", logical_root=data_root
     ).move(source, label="task:example.toml")
 
-    assert record.original_path == "framework:config/maa/tasks/example.toml"
-    assert record.trash_path.startswith("framework:config/maa/.trash/")
+    assert record.original_path == "data:config/maa/tasks/example.toml"
+    assert record.trash_path.startswith("data:config/maa/.trash/")

@@ -76,16 +76,17 @@ class MaintenanceActionManager:
         title, args = command_info
         run_id = uuid.uuid4().hex[:12]
         cmd = [str(self.runtime.maa_bin), *args]
+        self.runtime.maa_working_dir.mkdir(parents=True, exist_ok=True)
         log_profile = _maa_cli_log_profile(self.diagnostics)
         state = self.runs.start(
             RunStartPlan(
                 kind="maintenance",
                 title=title,
-                command=CommandSpec(cmd, cwd=self.runtime.repo_root, env=self.runtime.env()),
+                command=CommandSpec(cmd, cwd=self.runtime.maa_working_dir, env=self.runtime.env()),
                 max_retries=1,
                 timeouts=self.framework_settings.run_timeouts(),
                 log_profile=log_profile,
-                log_files=self.diagnostics.stream_log_files("maa-cli", run_id),
+                log_files=self.diagnostics.stream_log_files(("maa", "maa-cli"), run_id),
                 event_log_file=self.diagnostics.event_log_file(run_id),
                 metadata={"maintenance_kind": kind},
                 history_scope=("maintenance", kind),
@@ -131,16 +132,17 @@ def _maa_cli_log_profile(diagnostics: Diagnostics) -> RunLogProfile:
         source_specs=maa_log_source_specs(),
         configure_buffer=configure_maa_log_template,
         source_for_stream=lambda stream: f"maa-cli:{stream}",
-        diagnostic_sink=diagnostics.stream_sink("maa-cli"),
+        diagnostic_sink=diagnostics.stream_sink(("maa", "maa-cli")),
     )
 
 
 def _current_versions(runtime: MaaRuntime, errors: list[str]) -> dict[str, object]:
     versions: dict[str, object] = {}
     try:
+        runtime.maa_working_dir.mkdir(parents=True, exist_ok=True)
         proc = subprocess.run(
             [str(runtime.maa_bin), "version"],
-            cwd=runtime.repo_root,
+            cwd=runtime.maa_working_dir,
             env=runtime.env(),
             text=True,
             capture_output=True,

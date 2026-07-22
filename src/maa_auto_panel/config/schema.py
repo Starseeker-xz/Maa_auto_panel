@@ -46,7 +46,7 @@ FRAMEWORK_METADATA_SCHEMA: dict[str, Any] = {
             "default": False,
             "description": (
                 "Scheduled-run retry policy hint. When true, this task item is included in retry attempts "
-                "even if it already succeeded in the current scheduled run attempt."
+                "even if it already succeeded in the current scheduled run retry."
             ),
         },
         "managed_params": {

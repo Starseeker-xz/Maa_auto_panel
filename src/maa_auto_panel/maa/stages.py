@@ -1,21 +1,28 @@
 from __future__ import annotations
 
 import json
-import re
 import subprocess
+import threading
+import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
+import requests
+
 from maa_auto_panel.maa.runtime import MaaRuntime
-from maa_auto_panel.utils import dict_value, extract_version, relative_path, version_key
+from maa_auto_panel.utils import dict_value, extract_version, relative_path, version_key, write_text_atomic
 
 
 CLIENT_ALIASES = {
     "Bilibili": "Official",
 }
 CURRENT_STAGE_VALUE = "__framework_stage__:current_last"
+STAGE_ALIASES_FILE = Path(__file__).with_name("stage_aliases.json")
+STAGE_ACTIVITY_URL = "https://api.maa.plus/MaaAssistantArknights/api/gui/StageActivityV2.json"
+STAGE_ACTIVITY_REFRESH_SECONDS = 600
+STAGE_ACTIVITY_REQUEST_TIMEOUT = (3.05, 8)
 
 
 @dataclass(frozen=True)
@@ -112,6 +119,8 @@ class MaaStageService:
 
     def __init__(self, runtime: MaaRuntime) -> None:
         self.runtime = runtime
+        self._refresh_lock = threading.Lock()
+        self._last_refresh_attempt: float | None = None
 
     def stage_candidates(
         self,
@@ -122,14 +131,17 @@ class MaaStageService:
     ) -> dict[str, object]:
         now = _as_utc(now)
         effective_client = normalize_client(client)
-        sources = self.sources(effective_client)
         errors: list[str] = []
+        self._refresh_activity_cache(errors)
+        sources = self.sources(effective_client)
         activity_data = _load_json_object(sources.activity_file, errors, label="StageActivityV2")
+        display_aliases = _load_stage_aliases(errors)
         core_version = _current_core_version(self.runtime, errors)
         stages = self._build_stage_map(
             activity_data,
             effective_client=effective_client,
             core_version=core_version,
+            display_aliases=display_aliases,
         )
         values = [
             stage.to_dict(now)
@@ -141,7 +153,7 @@ class MaaStageService:
             "effective_client": effective_client,
             "checked_at": now.isoformat(),
             "maa_core_version": core_version,
-            "sources": sources.to_dict(self.runtime.data_root),
+            "sources": sources.to_dict(self.runtime.repo_root),
             "stages": values,
             "errors": errors,
         }
@@ -158,11 +170,13 @@ class MaaStageService:
         sources = self.sources(effective_client)
         errors: list[str] = []
         activity_data = _load_json_object(sources.activity_file, errors, label="StageActivityV2")
+        display_aliases = _load_stage_aliases(errors)
         core_version = _current_core_version(self.runtime, errors)
         stages = self._build_stage_map(
             activity_data,
             effective_client=effective_client,
             core_version=core_version,
+            display_aliases=display_aliases,
         )
         for stage in stage_plan:
             normalized = normalize_stage_plan_value(stage)
@@ -172,6 +186,7 @@ class MaaStageService:
 
     def sources(self, effective_client: str) -> StageSources:
         activity_candidates = [
+            self.runtime.framework_maa_cache_dir / "StageActivityV2.json",
             self.runtime.cache_home / "maa" / "StageActivityV2.json",
             self.runtime.data_home / "maa" / "StageActivityV2.json",
         ]
@@ -185,12 +200,59 @@ class MaaStageService:
             global_tasks_file=global_tasks_file if global_tasks_file.is_file() else None,
         )
 
+    def _refresh_activity_cache(self, errors: list[str]) -> None:
+        cache_file = self.runtime.framework_maa_cache_dir / "StageActivityV2.json"
+        etag_file = cache_file.with_name(f"{cache_file.name}.etag")
+        if _activity_cache_is_fresh(cache_file, etag_file):
+            return
+
+        with self._refresh_lock:
+            if _activity_cache_is_fresh(cache_file, etag_file):
+                return
+            attempted_at = time.monotonic()
+            if (
+                self._last_refresh_attempt is not None
+                and attempted_at - self._last_refresh_attempt < STAGE_ACTIVITY_REFRESH_SECONDS
+            ):
+                return
+            self._last_refresh_attempt = attempted_at
+
+            try:
+                headers: dict[str, str] = {}
+                if cache_file.is_file() and etag_file.is_file():
+                    etag = etag_file.read_text(encoding="utf-8").strip()
+                    if etag:
+                        headers["If-None-Match"] = etag
+                response = requests.get(
+                    STAGE_ACTIVITY_URL,
+                    headers=headers,
+                    timeout=STAGE_ACTIVITY_REQUEST_TIMEOUT,
+                )
+                if response.status_code == 304 and cache_file.is_file():
+                    etag_file.touch()
+                    return
+                response.raise_for_status()
+                payload = response.json()
+                if not isinstance(payload, dict):
+                    raise ValueError("JSON 根节点不是对象")
+
+                write_text_atomic(
+                    cache_file,
+                    json.dumps(payload, ensure_ascii=False, separators=(",", ":")) + "\n",
+                )
+                etag = response.headers.get("ETag", "").strip()
+                if etag:
+                    write_text_atomic(etag_file, etag + "\n")
+            except Exception as exc:
+                errors.append(f"更新 StageActivityV2 失败: {exc}")
+
     def _build_stage_map(
         self,
         activity_data: dict[str, Any],
         *,
         effective_client: str,
         core_version: str,
+        display_aliases: dict[str, str],
     ) -> dict[str, StageInfo]:
         stages = _default_stages()
         client_data = activity_data.get(effective_client)
@@ -199,7 +261,7 @@ class MaaStageService:
             self._add_activity_stages(stages, client_data, core_version=core_version)
         else:
             resource_collection = StageActivity(is_resource_collection=True)
-        _add_permanent_stages(stages, resource_collection)
+        _add_permanent_stages(stages, resource_collection, display_aliases)
         return stages
 
     def _add_activity_stages(
@@ -251,7 +313,7 @@ def normalize_client(client: str) -> str:
 
 
 def normalize_stage_plan_value(value: object) -> str:
-    text = str(value or "")
+    text = str(value or "").strip()
     return CURRENT_STAGE_VALUE if text == "" else text
 
 
@@ -268,27 +330,34 @@ def _default_stages() -> dict[str, StageInfo]:
     }
 
 
-def _add_permanent_stages(stages: dict[str, StageInfo], resource_collection: StageActivity) -> None:
+def _add_permanent_stages(
+    stages: dict[str, StageInfo],
+    resource_collection: StageActivity,
+    display_aliases: dict[str, str],
+) -> None:
+    def permanent(value: str, **kwargs: Any) -> StageInfo:
+        return StageInfo(display=display_aliases.get(value, value), value=value, **kwargs)
+
     permanent = [
-        StageInfo(display="1-7", value="1-7"),
-        StageInfo(display="R8-11", value="R8-11"),
-        StageInfo(display="12-17-HARD", value="12-17-HARD"),
-        StageInfo(display="CE-6", value="CE-6", open_days_of_week=(1, 3, 5, 6), activity=resource_collection),
-        StageInfo(display="AP-5", value="AP-5", open_days_of_week=(0, 3, 5, 6), activity=resource_collection),
-        StageInfo(display="CA-5", value="CA-5", open_days_of_week=(1, 2, 4, 6), activity=resource_collection),
-        StageInfo(display="LS-6", value="LS-6", open_days_of_week=(), activity=resource_collection),
-        StageInfo(display="SK-5", value="SK-5", open_days_of_week=(0, 2, 4, 5), activity=resource_collection),
-        StageInfo(display="剿灭模式", value="Annihilation"),
-        StageInfo(display="PR-A-1", value="PR-A-1", open_days_of_week=(0, 3, 4, 6), activity=resource_collection),
-        StageInfo(display="PR-A-2", value="PR-A-2", open_days_of_week=(0, 3, 4, 6), activity=resource_collection),
-        StageInfo(display="PR-B-1", value="PR-B-1", open_days_of_week=(0, 1, 4, 5), activity=resource_collection),
-        StageInfo(display="PR-B-2", value="PR-B-2", open_days_of_week=(0, 1, 4, 5), activity=resource_collection),
-        StageInfo(display="PR-C-1", value="PR-C-1", open_days_of_week=(2, 3, 5, 6), activity=resource_collection),
-        StageInfo(display="PR-C-2", value="PR-C-2", open_days_of_week=(2, 3, 5, 6), activity=resource_collection),
-        StageInfo(display="PR-D-1", value="PR-D-1", open_days_of_week=(1, 2, 5, 6), activity=resource_collection),
-        StageInfo(display="PR-D-2", value="PR-D-2", open_days_of_week=(1, 2, 5, 6), activity=resource_collection),
-        StageInfo(display="OF-1", value="OF-1", is_hidden=True),
-        StageInfo(display="OF-F3", value="OF-F3", is_hidden=True),
+        permanent("1-7"),
+        permanent("R8-11"),
+        permanent("12-17-HARD"),
+        permanent("CE-6", open_days_of_week=(1, 3, 5, 6), activity=resource_collection),
+        permanent("AP-5", open_days_of_week=(0, 3, 5, 6), activity=resource_collection),
+        permanent("CA-5", open_days_of_week=(1, 2, 4, 6), activity=resource_collection),
+        permanent("LS-6", open_days_of_week=(), activity=resource_collection),
+        permanent("SK-5", open_days_of_week=(0, 2, 4, 5), activity=resource_collection),
+        permanent("Annihilation"),
+        permanent("PR-A-1", open_days_of_week=(0, 3, 4, 6), activity=resource_collection),
+        permanent("PR-A-2", open_days_of_week=(0, 3, 4, 6), activity=resource_collection),
+        permanent("PR-B-1", open_days_of_week=(0, 1, 4, 5), activity=resource_collection),
+        permanent("PR-B-2", open_days_of_week=(0, 1, 4, 5), activity=resource_collection),
+        permanent("PR-C-1", open_days_of_week=(2, 3, 5, 6), activity=resource_collection),
+        permanent("PR-C-2", open_days_of_week=(2, 3, 5, 6), activity=resource_collection),
+        permanent("PR-D-1", open_days_of_week=(1, 2, 5, 6), activity=resource_collection),
+        permanent("PR-D-2", open_days_of_week=(1, 2, 5, 6), activity=resource_collection),
+        permanent("OF-1", is_hidden=True),
+        permanent("OF-F3", is_hidden=True),
     ]
     for stage in permanent:
         stages.setdefault(stage.display, stage)
@@ -301,13 +370,21 @@ def _stage_info(stages: dict[str, StageInfo], stage: str) -> StageInfo:
     for info in stages.values():
         if info.value == stage:
             return info
-    if stage and re.match(r"^[A-Za-z]{2}-\d{1,2}$", stage):
-        closed_activity = StageActivity(
-            utc_start_time=datetime.min.replace(tzinfo=timezone.utc),
-            utc_expire_time=datetime.min.replace(tzinfo=timezone.utc),
-        )
-        return StageInfo(display=stage, value=stage, activity=closed_activity)
     return StageInfo(display=stage, value=stage)
+
+
+def _load_stage_aliases(errors: list[str], path: Path = STAGE_ALIASES_FILE) -> dict[str, str]:
+    loaded = _load_json_object(path, errors, label="关卡别名")
+    aliases: dict[str, str] = {}
+    invalid = False
+    for value, display in loaded.items():
+        if not isinstance(value, str) or not value or not isinstance(display, str) or not display:
+            invalid = True
+            continue
+        aliases[value] = display
+    if invalid:
+        errors.append("关卡别名包含无效条目")
+    return aliases
 
 
 def _resource_collection(token: object) -> StageActivity:
@@ -340,6 +417,15 @@ def _parse_activity_time(data: dict[str, Any], key: str) -> datetime | None:
     return parsed.replace(tzinfo=timezone.utc) - timedelta(hours=offset_hours)
 
 
+def _activity_cache_is_fresh(cache_file: Path, etag_file: Path) -> bool:
+    if not cache_file.is_file():
+        return False
+    timestamps = [cache_file.stat().st_mtime]
+    if etag_file.is_file():
+        timestamps.append(etag_file.stat().st_mtime)
+    return time.time() - max(timestamps) < STAGE_ACTIVITY_REFRESH_SECONDS
+
+
 def _load_json_object(path: Path | None, errors: list[str], *, label: str) -> dict[str, Any]:
     if path is None:
         errors.append(f"{label} 文件不存在")
@@ -357,9 +443,10 @@ def _load_json_object(path: Path | None, errors: list[str], *, label: str) -> di
 
 def _current_core_version(runtime: MaaRuntime, errors: list[str]) -> str:
     try:
+        runtime.maa_working_dir.mkdir(parents=True, exist_ok=True)
         proc = subprocess.run(
             [str(runtime.maa_bin), "version"],
-            cwd=runtime.repo_root,
+            cwd=runtime.maa_working_dir,
             env=runtime.env(),
             text=True,
             capture_output=True,

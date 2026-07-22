@@ -61,6 +61,7 @@ flowchart TB
 - `lib/runStream.ts` 负责 reset/patch 合并，但四个页面分别实现 snapshot、EventSource、reconnect error 和 cleanup 生命周期。
 - Main task config 在页面内维护 per-config drafts；Schedule/Settings 各自维护单份 draft。
 - JSON Forms editor 只在选中 task item 时加载，七类 MAA schema 与 UI field groups 编入独立 editor chunk。
+- 动态 option 默认是受限 Select；schema 可用 `x-allowCustom` 将 option 降为推荐集，由通用可创建选择器同时提供搜索、标准值选择和原样自定义输入。Fight 关卡计划使用该模式，因此远端列表失败或缺项时仍可编辑。
 
 ### UI primitive 使用判断
 
@@ -127,12 +128,6 @@ Main、Schedule、Tools、Settings 基本逐行重复：GET snapshot、构造 cu
 后端和前端 types 都声明 `ToolField.kind` 与 `ToolDefinition.description`，但 `ToolConfigPane` 对所有字段无条件渲染 text Input，也不展示 description。新增 number/select/boolean 或危险动作时会出现“契约声称支持、UI 实际忽略”。
 
 若短期只有 text，应删除 `kind` 并展示 description；若马上实现公招/牛杂，定义受控 field union（text/number/select/checkbox、options/min/max/side-effect/retry policy）和 renderer registry。高风险工具的 retry/确认策略必须是 descriptor 的一部分。
-
-### P2：动态 string option 失败时没有真实 fallback
-
-`useTaskDynamicOptions` 的注释声称 API 失败后保留 free-text，但 `jsonformsRenderers.tsx:33-40,89-128` 只要 schema 有 `x-optionsSource` 就始终渲染 Select；options 为空时只是一个无选项 Select，用户无法输入。
-
-无 options 时至少回退 TextControl。更合适的是使用 shadcn Command + Popover 组成可输入 combobox，复用成熟焦点/键盘 primitive，不自行实现 combobox。
 
 ### P2：通知运行期 Set 无界增长
 

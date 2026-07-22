@@ -6,7 +6,7 @@ import pytest
 
 from maa_auto_panel.config.manager import ConfigManager
 from maa_auto_panel.errors import CorruptState
-from maa_auto_panel.maa.runner import load_task_file
+from maa_auto_panel.maa.retry import load_task_file
 from maa_auto_panel.maa.runtime import MaaRuntime
 from maa_auto_panel.scheduler.config import ScheduleConfigManager
 

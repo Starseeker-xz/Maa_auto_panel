@@ -107,7 +107,7 @@ export function getCurrentRun() {
 }
 
 export function getRunHistory(runId: string) {
-  return readJson<RunHistoryResponse>(`/api/history/runs/${encodeURIComponent(runId)}`);
+  return readJson<RunHistoryResponse>(`/api/runs/history/${encodeURIComponent(runId)}`);
 }
 
 export function startRun(payload: {
@@ -232,11 +232,13 @@ export function forceStopCurrentToolRun() {
 }
 
 export function deleteRunHistory(runId: string) {
-  return readJson<{ deleted: Record<string, unknown> }>(`/api/history/runs/${encodeURIComponent(runId)}`, { method: "DELETE" });
+  return readJson<{ deleted: Record<string, unknown> }>(`/api/runs/history/${encodeURIComponent(runId)}`, { method: "DELETE" });
 }
 
-export function getMaaStages(client = "Bilibili") {
-  return readJson<MaaStagesResponse>(`/api/maa/stages?client=${encodeURIComponent(client)}`);
+export function getMaaStages(client = "Bilibili", includeUnavailable = false) {
+  const query = new URLSearchParams({ client });
+  if (includeUnavailable) query.set("include_unavailable", "true");
+  return readJson<MaaStagesResponse>(`/api/maa/stages?${query.toString()}`);
 }
 
 export function getInfrastPlanOptions(filename: string) {

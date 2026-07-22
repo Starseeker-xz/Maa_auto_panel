@@ -13,8 +13,9 @@ from maa_auto_panel.maa.runtime import MaaRuntime
 from maa_auto_panel.run_manager.command import CommandSpec
 from maa_auto_panel.run_manager.contracts import RetryDecision, RunCallbacks, RunStartPlan
 from maa_auto_panel.run_manager.coordinator import RunCoordinator, RunLease
+from maa_auto_panel.run_manager.context import RetryContext
 from maa_auto_panel.run_manager.logs import RunLogProfile
-from maa_auto_panel.run_manager.manager import GenericRunManager, RunAttempt
+from maa_auto_panel.run_manager.manager import GenericRunManager
 from maa_auto_panel.run_manager.state import RunTimeouts
 from maa_auto_panel.run_manager.store import RunStateStore
 from maa_auto_panel.run_resources import RunResource
@@ -22,25 +23,25 @@ from maa_auto_panel.run_resources import RunResource
 
 def test_generic_run_manager_persists_retry_and_releases_resources(tmp_path) -> None:
     runtime = MaaRuntime(tmp_path)
-    diagnostics = Diagnostics(runtime.layout.framework, runtime.path_references)
-    store = RunStateStore(runtime.layout.framework, runtime.path_references)
+    diagnostics = Diagnostics(runtime.layout.data, runtime.path_references)
+    store = RunStateStore(runtime.layout.data, runtime.path_references)
     coordinator = RunCoordinator()
     manager = GenericRunManager(store, diagnostics, coordinator)
     seen_payloads: list[dict[str, object]] = []
 
-    def on_start(attempt: RunAttempt) -> None:
-        assert attempt.payload == {"task_ids": ["task-1"]}
-        attempt.add_event("开始通用运行")
+    def on_start(context: RetryContext) -> None:
+        assert context.payload == {"task_ids": ["task-1"]}
+        context.add_event("开始通用运行")
 
-    def evaluate(attempt: RunAttempt, _result) -> RetryDecision:
-        seen_payloads.append(attempt.payload)
-        if attempt.attempt_index == 1:
+    def evaluate(context: RetryContext, _result) -> RetryDecision:
+        seen_payloads.append(context.payload)
+        if context.retry_index == 1:
             return RetryDecision(
                 "failed",
                 1,
                 continue_retry=True,
-                next_attempt_payload={"task_ids": ["task-2"]},
-                retry_metadata={"task_ids": attempt.payload["task_ids"], "task_results": [{"task_id": "task-1", "status": "failed"}]},
+                next_retry_payload={"task_ids": ["task-2"]},
+                retry_metadata={"task_ids": context.payload["task_ids"], "task_results": [{"task_id": "task-1", "status": "failed"}]},
                 retry_artifacts={"generated_config_dir": "runtime/generated/run-1"},
                 retry_summary_messages=[LogMessage("重试结果：❌ task-1", tone="danger")],
             )
@@ -48,7 +49,7 @@ def test_generic_run_manager_persists_retry_and_releases_resources(tmp_path) -> 
             "succeeded",
             0,
             run_status="succeeded",
-            retry_metadata={"task_ids": attempt.payload["task_ids"], "task_results": [{"task_id": "task-2", "status": "succeeded"}]},
+            retry_metadata={"task_ids": context.payload["task_ids"], "task_results": [{"task_id": "task-2", "status": "succeeded"}]},
             retry_artifacts={"generated_config_dir": "runtime/generated/run-2"},
             retry_summary_messages=[LogMessage("重试结果：✔️ task-2", tone="success")],
             summary_patch={"done": True},
@@ -59,10 +60,10 @@ def test_generic_run_manager_persists_retry_and_releases_resources(tmp_path) -> 
             kind="tool",
             title="Generic tool",
             command=CommandSpec([sys.executable, "-c", "print('raw output')"], cwd=tmp_path, env=os.environ.copy()),
-            callbacks=RunCallbacks(on_start=on_start, evaluate_attempt=evaluate),
+            callbacks=RunCallbacks(on_start=on_start, evaluate_retry=evaluate),
             max_retries=2,
             event_log_file=diagnostics.event_log_file("run-1"),
-            initial_attempt_payload={"task_ids": ["task-1"]},
+            initial_retry_payload={"task_ids": ["task-1"]},
             history_scope=("tools", "generic"),
             resources=(RunResource("device", "serial-1"),),
         ),
@@ -103,9 +104,9 @@ def test_generic_run_manager_persists_retry_and_releases_resources(tmp_path) -> 
 
 def test_visible_log_configuration_failure_does_not_reject_run(tmp_path) -> None:
     runtime = MaaRuntime(tmp_path)
-    diagnostics = Diagnostics(runtime.layout.framework, runtime.path_references)
+    diagnostics = Diagnostics(runtime.layout.data, runtime.path_references)
     manager = GenericRunManager(
-        RunStateStore(runtime.layout.framework, runtime.path_references),
+        RunStateStore(runtime.layout.data, runtime.path_references),
         diagnostics,
         RunCoordinator(),
     )
@@ -133,8 +134,8 @@ def test_visible_log_configuration_failure_does_not_reject_run(tmp_path) -> None
 
 def test_terminal_state_is_persisted_before_live_publication(tmp_path) -> None:
     runtime = MaaRuntime(tmp_path)
-    diagnostics = Diagnostics(runtime.layout.framework, runtime.path_references)
-    store = RunStateStore(runtime.layout.framework, runtime.path_references)
+    diagnostics = Diagnostics(runtime.layout.data, runtime.path_references)
+    store = RunStateStore(runtime.layout.data, runtime.path_references)
     manager = GenericRunManager(store, diagnostics, RunCoordinator())
     persistence_entered = threading.Event()
     allow_persistence = threading.Event()
@@ -168,8 +169,8 @@ def test_terminal_state_is_persisted_before_live_publication(tmp_path) -> None:
 
 def test_terminal_persistence_retries_without_publishing_split_state(tmp_path) -> None:
     runtime = MaaRuntime(tmp_path)
-    diagnostics = Diagnostics(runtime.layout.framework, runtime.path_references)
-    store = RunStateStore(runtime.layout.framework, runtime.path_references)
+    diagnostics = Diagnostics(runtime.layout.data, runtime.path_references)
+    store = RunStateStore(runtime.layout.data, runtime.path_references)
     manager = GenericRunManager(store, diagnostics, RunCoordinator())
     original_finish_run = store.finish_run
     attempts = 0
@@ -198,10 +199,39 @@ def test_terminal_persistence_retries_without_publishing_split_state(tmp_path) -
     assert store.run(state.id).status == "succeeded"  # type: ignore[union-attr]
 
 
+def test_retry_detail_persistence_failure_is_logged_without_stopping_retry_loop(tmp_path) -> None:
+    runtime = MaaRuntime(tmp_path)
+    diagnostics = Diagnostics(runtime.layout.data, runtime.path_references)
+    diagnostics.configure_logging()
+    store = RunStateStore(runtime.layout.data, runtime.path_references)
+    manager = GenericRunManager(store, diagnostics, RunCoordinator())
+
+    def failing_add_retry(**_kwargs) -> None:
+        raise OSError("injected retry detail failure")
+
+    store.add_retry = failing_add_retry  # type: ignore[method-assign]
+    state = manager.start(
+        RunStartPlan(
+            kind="tool",
+            title="retry detail failure",
+            command=CommandSpec([sys.executable, "-c", "pass"], cwd=tmp_path, env=os.environ.copy()),
+        ),
+        run_id="retry-detail-failure",
+    )
+
+    assert state.thread is not None
+    state.thread.join(timeout=2)
+    diagnostics.close_logging()
+    assert state.status == "succeeded"
+    assert store.run(state.id).status == "succeeded"  # type: ignore[union-attr]
+    assert store.retries(state.id) == []
+    assert "retry history persistence failed; continuing" in diagnostics.framework_log_file.read_text(encoding="utf-8")
+
+
 def test_persistent_terminal_failure_remains_fail_closed_until_recovery(tmp_path) -> None:
     runtime = MaaRuntime(tmp_path)
-    diagnostics = Diagnostics(runtime.layout.framework, runtime.path_references)
-    store = RunStateStore(runtime.layout.framework, runtime.path_references)
+    diagnostics = Diagnostics(runtime.layout.data, runtime.path_references)
+    store = RunStateStore(runtime.layout.data, runtime.path_references)
     coordinator = RunCoordinator()
     manager = GenericRunManager(store, diagnostics, coordinator)
     resource = RunResource("device", "serial-1")
@@ -230,9 +260,9 @@ def test_persistent_terminal_failure_remains_fail_closed_until_recovery(tmp_path
 
 def test_incremental_diagnostic_capture_runs_once_per_retry(tmp_path) -> None:
     runtime = MaaRuntime(tmp_path)
-    diagnostics = Diagnostics(runtime.layout.framework, runtime.path_references)
+    diagnostics = Diagnostics(runtime.layout.data, runtime.path_references)
     manager = GenericRunManager(
-        RunStateStore(runtime.layout.framework, runtime.path_references),
+        RunStateStore(runtime.layout.data, runtime.path_references),
         diagnostics,
         RunCoordinator(),
     )
@@ -240,20 +270,21 @@ def test_incremental_diagnostic_capture_runs_once_per_retry(tmp_path) -> None:
     offsets: dict[str, int] = {}
     capture_ids: list[str] = []
 
-    def build_command(attempt: RunAttempt) -> CommandSpec:
-        offsets[attempt.retry_id] = source.stat().st_size if source.exists() else 0
-        return_code = 1 if attempt.attempt_index == 1 else 0
-        code = f"open({str(source)!r}, 'ab').write(b'attempt-{attempt.attempt_index}\\n'); raise SystemExit({return_code})"
+    def build_command(context: RetryContext) -> CommandSpec:
+        offsets[context.retry_id] = source.stat().st_size if source.exists() else 0
+        return_code = 1 if context.retry_index == 1 else 0
+        code = f"open({str(source)!r}, 'ab').write(b'retry-{context.retry_index}\\n'); raise SystemExit({return_code})"
         return CommandSpec([sys.executable, "-c", code], cwd=tmp_path, env=os.environ.copy())
 
-    def evaluate(attempt: RunAttempt, result) -> RetryDecision:
+    def evaluate(context: RetryContext, result) -> RetryDecision:
         capture = diagnostics.capture_file_increment(
             source,
-            offsets.pop(attempt.retry_id),
-            capture_id=attempt.retry_id,
+            offsets.pop(context.retry_id),
+            scope=("maa", "maacore"),
+            capture_id=context.retry_id,
         )
         assert capture.log_file is not None
-        capture_ids.append(attempt.retry_id)
+        capture_ids.append(context.retry_id)
         return RetryDecision(
             "succeeded" if result.return_code == 0 else "failed",
             result.return_code,
@@ -266,7 +297,7 @@ def test_incremental_diagnostic_capture_runs_once_per_retry(tmp_path) -> None:
         RunStartPlan(
             kind="opaque",
             title="incremental capture",
-            callbacks=RunCallbacks(build_command=build_command, evaluate_attempt=evaluate),
+            callbacks=RunCallbacks(build_command=build_command, evaluate_retry=evaluate),
             max_retries=2,
         ),
         run_id="capture-run",
@@ -277,13 +308,13 @@ def test_incremental_diagnostic_capture_runs_once_per_retry(tmp_path) -> None:
     assert state.status == "succeeded"
     assert capture_ids == ["capture-run-1", "capture-run-2"]
     captures = [runtime.path_references.resolve(retry.artifacts["diagnostic_log_file"]) for retry in state.retries]
-    assert [path.read_bytes() for path in captures] == [b"attempt-1\n", b"attempt-2\n"]
+    assert [path.read_bytes() for path in captures] == [b"retry-1\n", b"retry-2\n"]
 
 
 def test_generic_run_manager_stop_current_adds_event_and_does_not_prepare_next_retry(tmp_path) -> None:
     runtime = MaaRuntime(tmp_path)
-    diagnostics = Diagnostics(runtime.layout.framework, runtime.path_references)
-    manager = GenericRunManager(RunStateStore(runtime.layout.framework, runtime.path_references), diagnostics, RunCoordinator())
+    diagnostics = Diagnostics(runtime.layout.data, runtime.path_references)
+    manager = GenericRunManager(RunStateStore(runtime.layout.data, runtime.path_references), diagnostics, RunCoordinator())
 
     state = manager.start(
         RunStartPlan(
@@ -320,15 +351,15 @@ def test_generic_run_manager_stop_current_adds_event_and_does_not_prepare_next_r
 
 def test_equal_priority_resource_wait_is_visible_before_command_starts(tmp_path) -> None:
     runtime = MaaRuntime(tmp_path)
-    diagnostics = Diagnostics(runtime.layout.framework, runtime.path_references)
+    diagnostics = Diagnostics(runtime.layout.data, runtime.path_references)
     coordinator = RunCoordinator()
     resource = RunResource("device", "serial-1")
     coordinator.acquire(RunLease("blocker", "tool", "现有运行", 10, resources=(resource,)))
     marker = tmp_path / "started"
-    manager = GenericRunManager(RunStateStore(runtime.layout.framework, runtime.path_references), diagnostics, coordinator)
+    manager = GenericRunManager(RunStateStore(runtime.layout.data, runtime.path_references), diagnostics, coordinator)
 
-    def on_start(attempt: RunAttempt) -> None:
-        attempt.add_event("运行前操作完成")
+    def on_start(context: RetryContext) -> None:
+        context.add_event("运行前操作完成")
 
     state = manager.start(
         RunStartPlan(
@@ -360,13 +391,13 @@ def test_equal_priority_resource_wait_is_visible_before_command_starts(tmp_path)
 
 def test_resource_wait_timeout_fails_complete_run_without_starting_command(tmp_path) -> None:
     runtime = MaaRuntime(tmp_path)
-    diagnostics = Diagnostics(runtime.layout.framework, runtime.path_references)
+    diagnostics = Diagnostics(runtime.layout.data, runtime.path_references)
     coordinator = RunCoordinator()
     resource = RunResource("device", "serial-1")
     coordinator.acquire(RunLease("blocker", "tool", "现有运行", 10, resources=(resource,)))
     marker = tmp_path / "should-not-start"
     manager = GenericRunManager(
-        RunStateStore(runtime.layout.framework, runtime.path_references),
+        RunStateStore(runtime.layout.data, runtime.path_references),
         diagnostics,
         coordinator,
         resource_wait_timeout_seconds=lambda: 0.05,
@@ -402,7 +433,7 @@ def test_stopping_resource_wait_finishes_without_starting_command(tmp_path) -> N
     resource = RunResource("device", "serial-1")
     coordinator.acquire(RunLease("blocker", "tool", "现有运行", 10, resources=(resource,)))
     marker = tmp_path / "stopped-before-start"
-    manager = GenericRunManager(RunStateStore(runtime.layout.framework, runtime.path_references), Diagnostics(runtime.layout.framework, runtime.path_references), coordinator)
+    manager = GenericRunManager(RunStateStore(runtime.layout.data, runtime.path_references), Diagnostics(runtime.layout.data, runtime.path_references), coordinator)
     state = manager.start(
         RunStartPlan(
             kind="tool",
@@ -427,10 +458,10 @@ def test_stopping_resource_wait_finishes_without_starting_command(tmp_path) -> N
 
 def test_terminal_run_releases_plan_callbacks_and_bounds_live_state(tmp_path) -> None:
     runtime = MaaRuntime(tmp_path)
-    manager = GenericRunManager(RunStateStore(runtime.layout.framework, runtime.path_references), Diagnostics(runtime.layout.framework, runtime.path_references), RunCoordinator())
+    manager = GenericRunManager(RunStateStore(runtime.layout.data, runtime.path_references), Diagnostics(runtime.layout.data, runtime.path_references), RunCoordinator())
 
     class CallbackOwner:
-        def on_start(self, _attempt: RunAttempt) -> None:
+        def on_start(self, _context: RetryContext) -> None:
             return None
 
     owner = CallbackOwner()

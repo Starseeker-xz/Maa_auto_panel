@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
-from maa_auto_panel.paths import FrameworkPaths
+from maa_auto_panel.paths import DataPaths
 from maa_auto_panel.storage.files import append_jsonl, append_text, read_jsonl
 from maa_auto_panel.storage.path_references import PathReferenceResolver
 from maa_auto_panel.time_utils import server_now_iso
@@ -25,7 +25,6 @@ class LogRetentionPolicy:
     max_age_days: int = 14
     max_event_log_files: int = 500
     max_stream_log_files_per_channel: int = 500
-    max_incremental_log_files: int = 500
     max_framework_log_bytes: int = 20 * 1024 * 1024
     framework_log_backups: int = 5
 
@@ -40,7 +39,7 @@ class IncrementalLogCapture:
 class Diagnostics:
     def __init__(
         self,
-        paths: FrameworkPaths,
+        paths: DataPaths,
         references: PathReferenceResolver,
         retention: LogRetentionPolicy | None = None,
     ) -> None:
@@ -58,14 +57,9 @@ class Diagnostics:
     def event_dir(self) -> Path:
         return self.paths.framework_event_log_dir
 
-    @property
-    def incremental_log_dir(self) -> Path:
-        return self.paths.framework_external_log_dir / "incremental"
-
     def ensure_dirs(self) -> None:
         self.paths.framework_log_dir.mkdir(parents=True, exist_ok=True)
         self.event_dir.mkdir(parents=True, exist_ok=True)
-        self.incremental_log_dir.mkdir(parents=True, exist_ok=True)
 
     def configure_logging(self) -> logging.Logger:
         return configure_framework_logging(self.paths, self.retention)
@@ -84,7 +78,7 @@ class Diagnostics:
     def event_log_file(self, run_id: str) -> str:
         path = self._event_path(run_id)
         path.parent.mkdir(parents=True, exist_ok=True)
-        return self.references.reference("framework", path)
+        return self.references.reference("data", path)
 
     def append_run_event(self, run_id: str, kind: str, source: str, text: str, **extra: object) -> None:
         if not text:
@@ -104,29 +98,36 @@ class Diagnostics:
         rows = read_jsonl(self._event_path(run_id))
         return rows[-limit:] if limit > 0 else rows
 
-    def stream_log_files(self, channel: str, run_id: str, *, key_prefix: str = "") -> dict[str, str]:
+    def stream_log_files(self, scope: tuple[str, ...], run_id: str, *, key_prefix: str = "") -> dict[str, str]:
         files = {
-            f"{key_prefix}stdout": self._stream_path(channel, run_id, "stdout"),
-            f"{key_prefix}stderr": self._stream_path(channel, run_id, "stderr"),
+            f"{key_prefix}stdout": self._stream_path(scope, run_id, "stdout"),
+            f"{key_prefix}stderr": self._stream_path(scope, run_id, "stderr"),
         }
         for path in files.values():
             path.parent.mkdir(parents=True, exist_ok=True)
-        return {key: self.references.reference("framework", path) for key, path in files.items()}
+        return {key: self.references.reference("data", path) for key, path in files.items()}
 
-    def append_stream_output(self, channel: str, run_id: str, stream: str, text: str) -> None:
+    def append_stream_output(self, scope: tuple[str, ...], run_id: str, stream: str, text: str) -> None:
         if not text:
             return
         stream = "stderr" if stream == "stderr" else "stdout"
         with self._lock:
-            append_text(self._stream_path(channel, run_id, stream), text)
+            append_text(self._stream_path(scope, run_id, stream), text)
 
-    def stream_sink(self, channel: str) -> Callable[[str, str, str], None]:
-        """Bind an opaque diagnostic channel for a RunLogProfile sink."""
-        self._stream_path(channel, "probe", "stdout")
-        return lambda run_id, stream, text: self.append_stream_output(channel, run_id, stream, text)
+    def stream_sink(self, scope: tuple[str, ...]) -> Callable[[str, str, str], None]:
+        """Bind a provider-owned diagnostic scope for a RunLogProfile sink."""
+        self._scope_dir(scope)
+        return lambda run_id, stream, text: self.append_stream_output(scope, run_id, stream, text)
 
-    def capture_file_increment(self, source: Path, start_offset: int, *, capture_id: str) -> IncrementalLogCapture:
-        """Copy bytes appended to ``source`` into a framework-owned diagnostic log."""
+    def capture_file_increment(
+        self,
+        source: Path,
+        start_offset: int,
+        *,
+        scope: tuple[str, ...],
+        capture_id: str,
+    ) -> IncrementalLogCapture:
+        """Copy bytes appended to ``source`` into a provider-owned diagnostic log."""
         if not capture_id or Path(capture_id).name != capture_id or capture_id in {".", ".."}:
             raise ValueError("capture_id must be a non-empty file name")
         try:
@@ -141,12 +142,12 @@ class Diagnostics:
             next_offset = handle.tell()
         if not content:
             return IncrementalLogCapture(log_file=None, next_offset=next_offset, captured_bytes=0)
-        target = self.incremental_log_dir / f"{capture_id}.log"
+        target = self._scope_dir(scope) / f"{capture_id}.log"
         target.parent.mkdir(parents=True, exist_ok=True)
         with self._lock:
             _write_bytes_atomic(target, content)
         return IncrementalLogCapture(
-            log_file=self.references.reference("framework", target),
+            log_file=self.references.reference("data", target),
             next_offset=next_offset,
             captured_bytes=len(content),
         )
@@ -165,35 +166,52 @@ class Diagnostics:
                 cutoff=cutoff,
                 protected=protected,
             )
-            for directory in self._stream_log_dirs():
+            for directory in self._provider_log_dirs():
                 _prune_files(
                     directory,
                     max_count=self.retention.max_stream_log_files_per_channel if orphan_limit is None else orphan_limit,
                     cutoff=cutoff,
                     protected=protected,
                 )
-            _prune_files(
-                self.incremental_log_dir,
-                max_count=self.retention.max_incremental_log_files if orphan_limit is None else orphan_limit,
-                cutoff=cutoff,
-                protected=protected,
-            )
 
     def _event_path(self, run_id: str) -> Path:
+        self._validate_file_id(run_id, label="run_id")
         return self.event_dir / f"{run_id}.jsonl"
 
-    def _stream_path(self, channel: str, run_id: str, stream: str) -> Path:
-        if not channel or Path(channel).name != channel or channel in {".", "..", "incremental"}:
-            raise ValueError("channel must be a non-empty diagnostic stream name")
-        return self.paths.framework_external_log_dir / channel / f"{run_id}.{stream}.log"
+    def _stream_path(self, scope: tuple[str, ...], run_id: str, stream: str) -> Path:
+        self._validate_file_id(run_id, label="run_id")
+        return self._scope_dir(scope) / f"{run_id}.{stream}.log"
 
-    def _stream_log_dirs(self) -> list[Path]:
-        root = self.paths.framework_external_log_dir
+    def _scope_dir(self, scope: tuple[str, ...]) -> Path:
+        if (
+            not scope
+            or scope[0] == "framework"
+            or any(not part or Path(part).name != part or part in {".", ".."} for part in scope)
+        ):
+            raise ValueError("diagnostic scope must contain safe non-empty path parts")
+        return self.paths.debug_dir.joinpath(*scope)
+
+    @staticmethod
+    def _validate_file_id(value: str, *, label: str) -> None:
+        if not value or Path(value).name != value or value in {".", ".."}:
+            raise ValueError(f"{label} must be a non-empty file name")
+
+    def _provider_log_dirs(self) -> list[Path]:
+        root = self.paths.debug_dir
         if not root.exists():
             return []
-        return [path for path in root.iterdir() if path.is_dir() and path != self.incremental_log_dir]
+        framework_root = self.paths.framework_log_dir
+        return [
+            path
+            for path in root.rglob("*")
+            if path.is_dir()
+            and path != framework_root
+            and framework_root not in path.parents
+            and any(child.is_file() for child in path.iterdir())
+        ]
 
-def configure_framework_logging(paths: FrameworkPaths, retention: LogRetentionPolicy | None = None) -> logging.Logger:
+
+def configure_framework_logging(paths: DataPaths, retention: LogRetentionPolicy | None = None) -> logging.Logger:
     policy = retention or LogRetentionPolicy()
     paths.framework_log_dir.mkdir(parents=True, exist_ok=True)
     log_file = paths.framework_log_dir / "framework.log"

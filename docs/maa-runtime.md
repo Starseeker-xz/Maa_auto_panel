@@ -152,8 +152,15 @@ info callback logs out of stderr in the observed maa-cli runtime. Low-level
 MaaCore debug logs remain under `runtime/maa/state/maa/debug/` for diagnosis and
 are not streamed as normal UI output. For Maa-backed manual and scheduled retry
 segments, the framework records the `asst.log` offset before the retry and
-stores that retry's delta under `data/debug/framework/external/maacore/<retry-id>.log`
+stores that retry's delta under `data/debug/maa/maacore/<retry-id>.log`
 when MaaCore writes new content.
+
+All panel-launched maa-cli and MaaCore commands use
+`runtime/maa/state/maa/` as their working directory. MaaCore native relative
+artifacts such as `debug/map/<stage>.jpeg` therefore stay below
+`runtime/maa/state/maa/debug/` and share the existing MAA debug retention.
+User-configured scheduler scripts intentionally continue to use the repository
+root as their working directory.
 
 Timeout handling is shared by all process-backed runs:
 
@@ -172,13 +179,13 @@ The WebUI captures visible process channels through the shared
 
 - `maa-cli` stdout and stderr are read from separate pipes. The UI still shows a
   merged live view, but detailed per-run text logs store the original streams in
-  separate `data/debug/framework/external/maa-cli/<run-id>.stdout.log` and
-  `data/debug/framework/external/maa-cli/<run-id>.stderr.log` files. These paths are
+  separate `data/debug/maa/maa-cli/<run-id>.stdout.log` and
+  `data/debug/maa/maa-cli/<run-id>.stderr.log` files. These paths are
   not split by manual/scheduled origin because they are maa-cli process logs.
 - Tool stdout/stderr are written to
-  `data/debug/framework/external/tools/<run-id>.*.log`; schedule script hook
+  `data/debug/tools/<tool-id>/<run-id>.*.log`; schedule script hook
   stdout/stderr are written to
-  `data/debug/framework/external/scripts/<run-id>.*.log`.
+  `data/debug/scheduler/scripts/<run-id>.*.log`.
 - Maa-backed live runs force `MAA_LOG_PREFIX=Always` so stderr logs keep the
   timestamp/level prefix expected by the structured log parser.
 - Framework-level events are written to high-level JSONL event files and to the
@@ -324,23 +331,26 @@ Each config binds one maa-cli task config and stores its own Profile copy. The
 default Profile in Settings is only the template used for new schedules and for
 manual main-page runs.
 
-The scheduler persists state as readable JSON under `data/state/framework/`:
+The panel persists run history and scheduler state as separate readable JSON:
 
-- `data/state/framework/run-history/recent-run-records.json`: recent WebUI,
+- `data/run-history/recent-run-records.json`: recent WebUI,
   scheduled, and maintenance run records. Schedule overview "recent runs" is
   derived from this file.
-- `data/state/framework/run-history/run-retries.json`: per-retry records for manual,
-  scheduled, tool, and maintenance runs. Each row references retry-scoped
-  visible log history through `log_entries_file`.
+- `data/run-history/{manual,schedules,maintenance,tools}/.../<run-id>.json`:
+  the only detailed per-run source for retry metadata, artifacts, summaries,
+  visible log entries, and provider diagnostic references.
 - `data/state/framework/scheduler/daily-task-stats.json`: per-schedule daily
   child-task run/success counters used by retry/skip policy.
 - `data/state/framework/scheduler/triggered-schedule-entries.json`: schedule entries
   already triggered for a game day, used to avoid duplicate execution.
 
-The `config/`, `history/`, `debug/`, and `state/` runtime directories remain
+Run history is exposed at `GET /api/runs/history`,
+`GET /api/runs/history/{run_id}`, and `DELETE /api/runs/history/{run_id}`.
+
+The `config/`, `run-history/`, `debug/`, and `state/` runtime directories remain
 ignored by git, but they have different semantics: `config/` is local editable
-input, `history/` is durable visible run history, `debug/` is disposable
-diagnostics, and `state/` is framework runtime state.
+input, `run-history/` is durable run history, `debug/` is disposable diagnostics,
+and `state/` is framework business/runtime state.
 
 Schedule entries store their own `task_ids`; these are independent from the
 main task editor's `enable` checkbox. When a scheduled retry segment is
@@ -393,7 +403,7 @@ environment variables when the hook runs. Hooks run with the project
 `MaaRuntime.env()` environment, so scripts can call the project-local `maa`
 binary and see the same `MAA_CONFIG_DIR`/XDG paths as normal framework actions.
 Hook stdout/stderr stream live into the scheduled run's visible log and are also
-stored under `data/debug/framework/external/scripts/`.
+stored under `data/debug/scheduler/scripts/`.
 
 ## Fight stage list API
 
@@ -404,19 +414,33 @@ time data, and stores a `StagePlan` list. Before starting the task, it chooses
 the first currently open stage from that list; if none are open, the task is
 skipped.
 
-The backend now exposes only the list-building half of that GUI behavior through
-`GET /api/maa/stages`. By default it returns currently open, non-hidden stage
-candidates; `include_unavailable=true` also returns stages that are known but not
-currently open. The API accepts `client`, maps `Bilibili` to `Official` like the
-GUI, reads the local `runtime/maa/cache/maa/StageActivityV2.json`, and includes
-the MaaCore version and source paths in the response.
+The backend exposes that GUI list as a recommendation set through
+`GET /api/maa/stages`; it is not a complete MaaCore navigation capability list.
+By default the API returns currently open, non-hidden candidates;
+`include_unavailable=true` also returns stages that are known but not currently
+open. It accepts `client`, maps `Bilibili` to `Official` like the GUI, and refreshes
+`StageActivityV2.json` at most once every 10 minutes with an ETag conditional
+request. The downloaded file and its ETag are stored under the framework-owned
+`cache/maa/`; refresh failure is reported in `errors` and falls back to the last
+cache without blocking the editor. Existing maa-cli cache/data locations remain
+read-only fallbacks. The response also includes the MaaCore version and source
+paths. The task editor requests unavailable entries as well so users can prepare
+weekday-based candidate plans; availability is resolved only when a run starts.
+Permanent-stage display aliases such
+as `CE-6` → `龙门币-6/5` are maintained in the packaged
+`maa/stage_aliases.json`; aliases affect display only, never the value sent to
+MaaCore.
 
 The same stage service is also used by the runner for managed Fight stage plans:
 `framework.managed_params.stage` keeps the user-facing candidate list, while the
 generated task config contains the first currently open stage as the single
 MaaCore `Fight.stage` value. The API returns `value =
 "__framework_stage__:current_last"` and `maa_value = ""` for "当前/上次"; UI code
-uses the non-empty `value`, while the runner writes `maa_value` semantics.
+uses the non-empty `value`, while the runner writes `maa_value` semantics. The
+editor also accepts trimmed custom stage names. A custom value missing from the
+recommendation set is considered eligible and passed through unchanged; MaaCore
+remains the authority on whether it can navigate that value. Known activity and
+resource stages retain their activity-window and weekday checks.
 
 ## Infrast option APIs
 

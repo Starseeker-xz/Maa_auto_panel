@@ -59,13 +59,13 @@ def enabled_task_ids_from_config(data: dict[str, object]) -> list[str]:
     return task_ids
 
 
-def retry_unfinished_task_ids(task_ids: list[str], attempt_status_by_task_id: dict[str, str], *, run_successful_task_ids: set[str] | None = None) -> list[str]:
+def retry_unfinished_task_ids(task_ids: list[str], retry_status_by_task_id: dict[str, str], *, run_successful_task_ids: set[str] | None = None) -> list[str]:
     run_successful_task_ids = run_successful_task_ids or set()
     output: list[str] = []
     for task_id in task_ids:
         if task_id in run_successful_task_ids:
             continue
-        if attempt_status_by_task_id.get(task_id) == SUCCESS_STATUS:
+        if retry_status_by_task_id.get(task_id) == SUCCESS_STATUS:
             continue
         output.append(task_id)
     return output
@@ -121,7 +121,7 @@ def retry_task_ids(
     entry: ScheduleEntry,
     sorted_entries: list[ScheduleEntry],
     stats: dict[str, DailyTaskStats],
-    attempt_status_by_task_id: dict[str, str],
+    retry_status_by_task_id: dict[str, str],
     *,
     run_successful_task_ids: set[str] | None = None,
 ) -> list[str]:
@@ -133,7 +133,7 @@ def retry_task_ids(
     for policy in policy_list:
         if policy.id not in enabled or not policy.important:
             continue
-        status = attempt_status_by_task_id.get(policy.id, "missing")
+        status = retry_status_by_task_id.get(policy.id, "missing")
         already_succeeded = policy.id in run_successful_task_ids
         if policy.retry_even_success:
             rerun_on_retry.add(policy.id)

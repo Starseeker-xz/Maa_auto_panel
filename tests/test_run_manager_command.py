@@ -19,7 +19,7 @@ from maa_auto_panel.run_manager.store import RunStateStore
 def test_command_run_driver_streams_logs_and_raw_lines(tmp_path: Path) -> None:
     _runtime, diagnostics, manager = _manager(tmp_path)
     raw_lines: list[tuple[str, str]] = []
-    profile = plain_stream_log_profile("tool", diagnostic_sink=diagnostics.stream_sink("tools"))
+    profile = plain_stream_log_profile("tool", diagnostic_sink=diagnostics.stream_sink(("tools", "generic")))
     run_id = "cmd-run"
 
     state = manager.start(
@@ -31,9 +31,9 @@ def test_command_run_driver_streams_logs_and_raw_lines(tmp_path: Path) -> None:
                 cwd=tmp_path,
                 env=os.environ.copy(),
             ),
-            callbacks=RunCallbacks(on_raw_line=lambda attempt, stream, line: raw_lines.append((stream, line))),
+            callbacks=RunCallbacks(on_raw_line=lambda _context, stream, line: raw_lines.append((stream, line))),
             log_profile=profile,
-            log_files=diagnostics.stream_log_files("tools", run_id),
+            log_files=diagnostics.stream_log_files(("tools", "generic"), run_id),
             event_log_file=diagnostics.event_log_file(run_id),
         ),
         run_id=run_id,
@@ -44,21 +44,21 @@ def test_command_run_driver_streams_logs_and_raw_lines(tmp_path: Path) -> None:
     assert manager.current_response()["run"]["status"] == "succeeded"  # type: ignore[index]
     assert ("stdout", "hello") in raw_lines
     assert ("stderr", "warn") in raw_lines
-    assert (tmp_path / "data/debug/framework/external/tools/cmd-run.stdout.log").read_text(encoding="utf-8") == "hello\n"
-    assert (tmp_path / "data/debug/framework/external/tools/cmd-run.stderr.log").read_text(encoding="utf-8") == "warn\n"
+    assert (tmp_path / "data/debug/tools/generic/cmd-run.stdout.log").read_text(encoding="utf-8") == "hello\n"
+    assert (tmp_path / "data/debug/tools/generic/cmd-run.stderr.log").read_text(encoding="utf-8") == "warn\n"
 
 
 def test_command_run_driver_retries_until_command_succeeds(tmp_path: Path) -> None:
     _runtime, diagnostics, manager = _manager(tmp_path)
     counter = tmp_path / "counter.txt"
-    profile = plain_stream_log_profile("tool", diagnostic_sink=diagnostics.stream_sink("tools"))
+    profile = plain_stream_log_profile("tool", diagnostic_sink=diagnostics.stream_sink(("tools", "generic")))
 
     code = (
         "from pathlib import Path; import sys; "
         "path = Path(sys.argv[1]); "
         "count = int(path.read_text() or '0') if path.exists() else 0; "
         "path.write_text(str(count + 1)); "
-        "print(f'attempt {count + 1}', flush=True); "
+        "print(f'retry {count + 1}', flush=True); "
         "raise SystemExit(1 if count == 0 else 0)"
     )
     state = manager.start(
@@ -68,7 +68,7 @@ def test_command_run_driver_retries_until_command_succeeds(tmp_path: Path) -> No
             command=CommandSpec([sys.executable, "-c", code, str(counter)], cwd=tmp_path, env=os.environ.copy()),
             max_retries=2,
             log_profile=profile,
-            log_files=diagnostics.stream_log_files("tools", "retry-run"),
+            log_files=diagnostics.stream_log_files(("tools", "generic"), "retry-run"),
             event_log_file=diagnostics.event_log_file("retry-run"),
         ),
         run_id="retry-run",
@@ -84,7 +84,7 @@ def test_command_run_driver_retries_until_command_succeeds(tmp_path: Path) -> No
 
 def test_command_run_driver_stops_running_process(tmp_path: Path) -> None:
     _runtime, diagnostics, manager = _manager(tmp_path)
-    profile = plain_stream_log_profile("tool", diagnostic_sink=diagnostics.stream_sink("tools"))
+    profile = plain_stream_log_profile("tool", diagnostic_sink=diagnostics.stream_sink(("tools", "generic")))
     state = manager.start(
         RunStartPlan(
             kind="tool",
@@ -96,7 +96,7 @@ def test_command_run_driver_stops_running_process(tmp_path: Path) -> None:
             ),
             log_profile=profile,
             timeouts=RunTimeouts(stop_kill_seconds=2),
-            log_files=diagnostics.stream_log_files("tools", "stop-command"),
+            log_files=diagnostics.stream_log_files(("tools", "generic"), "stop-command"),
             event_log_file=diagnostics.event_log_file("stop-command"),
         ),
         run_id="stop-command",
@@ -113,7 +113,7 @@ def test_command_run_driver_stops_running_process(tmp_path: Path) -> None:
 
 def test_command_run_driver_records_runtime_timeout(tmp_path: Path) -> None:
     _runtime, diagnostics, manager = _manager(tmp_path)
-    profile = plain_stream_log_profile("tool", diagnostic_sink=diagnostics.stream_sink("tools"))
+    profile = plain_stream_log_profile("tool", diagnostic_sink=diagnostics.stream_sink(("tools", "generic")))
     state = manager.start(
         RunStartPlan(
             kind="tool",
@@ -125,7 +125,7 @@ def test_command_run_driver_records_runtime_timeout(tmp_path: Path) -> None:
             ),
             log_profile=profile,
             timeouts=RunTimeouts(runtime_kill_seconds=1),
-            log_files=diagnostics.stream_log_files("tools", "timeout-command"),
+            log_files=diagnostics.stream_log_files(("tools", "generic"), "timeout-command"),
             event_log_file=diagnostics.event_log_file("timeout-command"),
         ),
         run_id="timeout-command",
@@ -140,8 +140,8 @@ def test_command_run_driver_records_runtime_timeout(tmp_path: Path) -> None:
 
 def _manager(tmp_path: Path) -> tuple[MaaRuntime, Diagnostics, GenericRunManager]:
     runtime = MaaRuntime(tmp_path)
-    diagnostics = Diagnostics(runtime.layout.framework, runtime.path_references)
-    store = RunStateStore(runtime.layout.framework, runtime.path_references)
+    diagnostics = Diagnostics(runtime.layout.data, runtime.path_references)
+    store = RunStateStore(runtime.layout.data, runtime.path_references)
     return runtime, diagnostics, GenericRunManager(store, diagnostics, RunCoordinator())
 
 

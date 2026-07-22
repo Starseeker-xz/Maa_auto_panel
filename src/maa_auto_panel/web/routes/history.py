@@ -10,18 +10,18 @@ from maa_auto_panel.web.services import WebServices
 
 def create_history_router(services: WebServices) -> APIRouter:
     """Create APIRouter with endpoints for the history API group."""
-    router = APIRouter(prefix="/api/history", tags=["history"])
+    router = APIRouter(prefix="/api/runs/history", tags=["runs"])
     run_state = services.run_state
     diagnostics = services.diagnostics
 
-    @router.get("/runs")
+    @router.get("")
     def list_runs(
         kind: Literal["manual", "schedule", "maintenance", "tool"] | None = None,
         limit: int = Query(default=50, ge=1, le=500),
     ) -> dict[str, object]:
         return {"runs": [run.to_dict() for run in run_state.runs(kind=kind, limit=limit)]}
 
-    @router.get("/runs/{run_id}")
+    @router.get("/{run_id}")
     def get_run(run_id: str) -> dict[str, object]:
         run = run_state.run(run_id)
         if run is None:
@@ -32,7 +32,7 @@ def create_history_router(services: WebServices) -> APIRouter:
             "events": diagnostics.run_events(run_id),
         }
 
-    @router.delete("/runs/{run_id}")
+    @router.delete("/{run_id}")
     def delete_run(run_id: str) -> dict[str, object]:
         deleted = run_state.delete_run(run_id)
         services.discard_terminal_run(run_id)

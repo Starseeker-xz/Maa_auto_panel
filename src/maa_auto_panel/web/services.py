@@ -125,12 +125,12 @@ def create_services(
         data_root=data_root,
         cache_root=cache_root,
     )
-    framework_paths = runtime.layout.framework
+    data_paths = runtime.layout.data
     path_references = runtime.path_references
-    diagnostics = Diagnostics(framework_paths, path_references)
+    diagnostics = Diagnostics(data_paths, path_references)
     diagnostics.configure_logging()
     enforce_maa_debug_retention(runtime.layout.maa)
-    run_state = RunStateStore(framework_paths, path_references)
+    run_state = RunStateStore(data_paths, path_references)
     recovered_runs = run_state.recover_interrupted_runs()
     run_state.enforce_retention()
     diagnostics.enforce_retention(protected_paths=run_state.owned_paths())

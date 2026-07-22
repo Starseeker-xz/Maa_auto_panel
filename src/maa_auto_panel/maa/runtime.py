@@ -26,7 +26,7 @@ class MaaRuntime:
         )
         self.path_references = PathReferenceResolver(
             {
-                "framework": self.layout.framework.root,
+                "data": self.layout.data.root,
                 "runtime": self.layout.maa.root.parent,
                 "cache": self.layout.cache.root,
             }
@@ -38,7 +38,7 @@ class MaaRuntime:
 
     @property
     def data_root(self) -> Path:
-        return self.layout.framework.root
+        return self.layout.data.root
 
     @property
     def cache_root(self) -> Path:
@@ -51,6 +51,10 @@ class MaaRuntime:
     @property
     def download_dir(self) -> Path:
         return self.layout.cache.downloads_dir
+
+    @property
+    def framework_maa_cache_dir(self) -> Path:
+        return self.layout.cache.maa_dir
 
     @property
     def frontend_dist(self) -> Path:
@@ -70,11 +74,11 @@ class MaaRuntime:
 
     @property
     def framework_config_dir(self) -> Path:
-        return self.layout.framework.config_dir / "framework"
+        return self.layout.data.framework_config_dir
 
     @property
     def debug_dir(self) -> Path:
-        return self.layout.framework.debug_dir
+        return self.layout.data.debug_dir
 
     @property
     def framework_log_dir(self) -> Path:
@@ -85,16 +89,12 @@ class MaaRuntime:
         return self.framework_log_dir / "events"
 
     @property
-    def framework_external_log_dir(self) -> Path:
-        return self.framework_log_dir / "external"
-
-    @property
     def maa_cli_log_dir(self) -> Path:
-        return self.framework_external_log_dir / "maa-cli"
+        return self.debug_dir / "maa" / "maa-cli"
 
     @property
     def maacore_capture_log_dir(self) -> Path:
-        return self.framework_external_log_dir / "maacore"
+        return self.debug_dir / "maa" / "maacore"
 
     @property
     def schedule_config_dir(self) -> Path:
@@ -126,23 +126,19 @@ class MaaRuntime:
 
     @property
     def framework_state_dir(self) -> Path:
-        return self.layout.framework.state_dir / "framework"
-
-    @property
-    def run_state_dir(self) -> Path:
-        return self.framework_state_dir / "run-history"
+        return self.layout.data.framework_state_dir
 
     @property
     def scheduler_state_dir(self) -> Path:
-        return self.framework_state_dir / "scheduler"
-
-    @property
-    def framework_history_dir(self) -> Path:
-        return self.layout.framework.history_dir / "framework"
+        return self.layout.data.scheduler_state_dir
 
     @property
     def run_history_dir(self) -> Path:
-        return self.framework_history_dir / "runs"
+        return self.layout.data.run_history_dir
+
+    @property
+    def maa_working_dir(self) -> Path:
+        return self.state_home / "maa"
 
     def env(self) -> dict[str, str]:
         env = os.environ.copy()

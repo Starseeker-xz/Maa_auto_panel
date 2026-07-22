@@ -5,7 +5,6 @@ import tomllib
 import uuid
 from collections import deque
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Literal, Protocol
 
 from maa_auto_panel.errors import InvalidRequest

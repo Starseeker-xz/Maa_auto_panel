@@ -77,8 +77,8 @@ def test_game_update_tool_runs_python_unbuffered(tmp_path: Path) -> None:
     manager = ToolRunManager(
         runtime,
         ConfigManager(runtime),
-        RunStateStore(runtime.layout.framework, runtime.path_references),
-        Diagnostics(runtime.layout.framework, runtime.path_references),
+        RunStateStore(runtime.layout.data, runtime.path_references),
+        Diagnostics(runtime.layout.data, runtime.path_references),
         FrameworkSettingsManager(runtime),
         RunCoordinator(),
     )
@@ -94,8 +94,8 @@ def test_tool_start_rejects_stopping_current_run(tmp_path: Path) -> None:
     manager = ToolRunManager(
         runtime,
         ConfigManager(runtime),
-        RunStateStore(runtime.layout.framework, runtime.path_references),
-        Diagnostics(runtime.layout.framework, runtime.path_references),
+        RunStateStore(runtime.layout.data, runtime.path_references),
+        Diagnostics(runtime.layout.data, runtime.path_references),
         FrameworkSettingsManager(runtime),
         RunCoordinator(),
     )
@@ -302,8 +302,8 @@ def test_schedule_response_uses_single_current_snapshot_for_matching_run() -> No
 
 def test_schedule_restart_script_streams_to_visible_logs_and_diagnostics(tmp_path: Path) -> None:
     runtime = MaaRuntime(tmp_path)
-    diagnostics = Diagnostics(runtime.layout.framework, runtime.path_references)
-    store = RunStateStore(runtime.layout.framework, runtime.path_references)
+    diagnostics = Diagnostics(runtime.layout.data, runtime.path_references)
+    store = RunStateStore(runtime.layout.data, runtime.path_references)
     script_path = runtime.script_dir / "hook.sh"
     script_path.parent.mkdir(parents=True, exist_ok=True)
     script_path.write_text(
@@ -349,7 +349,7 @@ def test_schedule_restart_script_streams_to_visible_logs_and_diagnostics(tmp_pat
                 )
             ),
             script_log_profile=script_log_profile,
-            log_files={**diagnostics.stream_log_files("maa-cli", "run-script"), **diagnostics.stream_log_files("scripts", "run-script", key_prefix="script_")},
+            log_files={**diagnostics.stream_log_files(("maa", "maa-cli"), "run-script"), **diagnostics.stream_log_files(("scheduler", "scripts"), "run-script", key_prefix="script_")},
             event_log_file=diagnostics.event_log_file("run-script"),
             text=RunTextTemplates(start="", completed="", exit_code=""),
         ),
@@ -364,8 +364,8 @@ def test_schedule_restart_script_streams_to_visible_logs_and_diagnostics(tmp_pat
     assert lines[0] == "运行脚本(before_run): hook.sh"
     assert set(lines[1:]) == {"Summary", "target=ark", f"warn={runtime.config_dir}"}
     assert state.retries[0].metadata == {}
-    assert (tmp_path / "data/debug/framework/external/scripts/run-script.stdout.log").read_text(encoding="utf-8") == "Summary\ntarget=ark\n"
-    assert (tmp_path / "data/debug/framework/external/scripts/run-script.stderr.log").read_text(encoding="utf-8") == f"warn={runtime.config_dir}\n"
+    assert (tmp_path / "data/debug/scheduler/scripts/run-script.stdout.log").read_text(encoding="utf-8") == "Summary\ntarget=ark\n"
+    assert (tmp_path / "data/debug/scheduler/scripts/run-script.stderr.log").read_text(encoding="utf-8") == f"warn={runtime.config_dir}\n"
 
 
 def test_create_app_exposes_expected_api_paths(tmp_path: Path) -> None:
@@ -376,7 +376,8 @@ def test_create_app_exposes_expected_api_paths(tmp_path: Path) -> None:
     assert "/api/settings" in paths
     assert "/api/maintenance/current" in paths
     assert "/api/tools/current" in paths
-    assert "/api/history/runs" in paths
+    assert "/api/runs/history" in paths
+    assert "/api/history/runs" not in paths
     assert "/api/maa/stages" in paths
     assert "/api/schedules/current" in paths
     assert "/api/runs/current" in paths
@@ -385,14 +386,15 @@ def test_create_app_exposes_expected_api_paths(tmp_path: Path) -> None:
 def test_api_requests_are_written_to_framework_log(tmp_path: Path) -> None:
     app = create_app(tmp_path)
 
-    status = asyncio.run(_asgi_get_status(app, "/api/history/runs"))
+    status = asyncio.run(_asgi_get_status(app, "/api/runs/history"))
 
     assert status == 200
     framework_log = tmp_path / "data/debug/framework/framework.log"
     content = framework_log.read_text(encoding="utf-8")
     assert "INFO" in content
-    assert "api request started method=GET path=/api/history/runs" in content
-    assert "api request finished method=GET path=/api/history/runs status=200" in content
+    assert "api request started method=GET path=/api/runs/history" in content
+    assert "api request finished method=GET path=/api/runs/history status=200" in content
+    assert asyncio.run(_asgi_get_status(app, "/api/history/runs")) == 404
 
 
 async def _asgi_get_status(app, path: str) -> int:

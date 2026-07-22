@@ -95,15 +95,12 @@ default`, define scheduled execution configs under `/schedule`, show
 retry-scoped structured logs/status in the right pane, and stop or force-stop
 active manual, scheduled, or tool processes.
 Framework state, durable run-history JSON, and diagnostics are separated.
-Recent runs and scheduler bookkeeping live as readable JSON under
-`data/state/framework/`; visible per-run, per-retry history is under
-`data/history/framework/runs/`.
-Both are local runtime state and ignored by git. Deletable diagnostic
-logs live under `data/debug/framework/`: `framework.log` is the standard Python
-logging output for framework/API internals, human-level run events are JSONL
-under `events/`, and per-run external-process stdout/stderr grouped by source
-(`maa-cli`, tools, scripts) plus MaaCore `asst.log` excerpts are under
-`external/`.
+Scheduler bookkeeping lives under `data/state/framework/`; recent run records
+and the only detailed per-run/retry records live under `data/run-history/`.
+Both are local runtime state and ignored by git. `data/debug/framework/` contains
+only the standard framework/API log and high-level JSONL run events. Child
+process diagnostics are grouped by provider under `data/debug/maa/`,
+`data/debug/scheduler/`, and `data/debug/tools/`.
 
 Current WebUI routes:
 

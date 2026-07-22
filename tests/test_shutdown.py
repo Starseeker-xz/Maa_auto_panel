@@ -43,7 +43,7 @@ async def _exercise_lifespan(app) -> None:
 
 def test_manager_rejects_new_runs_after_shutdown_begins(tmp_path: Path) -> None:
     runtime = MaaRuntime(tmp_path)
-    manager = GenericRunManager(RunStateStore(runtime.layout.framework, runtime.path_references), Diagnostics(runtime.layout.framework, runtime.path_references))
+    manager = GenericRunManager(RunStateStore(runtime.layout.data, runtime.path_references), Diagnostics(runtime.layout.data, runtime.path_references))
     manager.begin_shutdown()
 
     with pytest.raises(RuntimeUnavailable, match="shutting down"):
@@ -137,8 +137,8 @@ def test_web_services_close_stops_all_run_managers_with_shared_budget(tmp_path: 
 
 def test_force_stop_kills_process_group_descendants(tmp_path: Path) -> None:
     runtime = MaaRuntime(tmp_path)
-    diagnostics = Diagnostics(runtime.layout.framework, runtime.path_references)
-    manager = GenericRunManager(RunStateStore(runtime.layout.framework, runtime.path_references), diagnostics)
+    diagnostics = Diagnostics(runtime.layout.data, runtime.path_references)
+    manager = GenericRunManager(RunStateStore(runtime.layout.data, runtime.path_references), diagnostics)
     pid_file = tmp_path / "child.pid"
     child_code = "import signal,time; signal.signal(signal.SIGTERM, signal.SIG_IGN); time.sleep(30)"
     parent_code = (
@@ -157,7 +157,7 @@ def test_force_stop_kills_process_group_descendants(tmp_path: Path) -> None:
                 cwd=tmp_path,
                 env=os.environ.copy(),
             ),
-            log_profile=plain_stream_log_profile("tool", diagnostic_sink=diagnostics.stream_sink("tools")),
+            log_profile=plain_stream_log_profile("tool", diagnostic_sink=diagnostics.stream_sink(("tools", "generic"))),
         ),
         run_id="process-tree",
     )

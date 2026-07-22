@@ -2,9 +2,9 @@
 
 状态：基于当前工作树的完整审计
 
-审计日期：2026-07-14
+审计日期：2026-07-22
 
-来源会话：`2026-07-14_2057-full-code-audit`
+来源会话：`2026-07-14_2057-full-code-audit`；存储边界更新：`2026-07-20_0910-reorganize-storage`；提交前复核：`2026-07-22_0942-audit-and-commit`
 
 ## 结论摘要
 
@@ -15,9 +15,8 @@
 1. scheduler 只匹配轮询瞬间的当前分钟，停机、卡顿或重启跨过该分钟会永久漏执行。
 2. APK manifest 损坏仍会静默退化为空状态，且 APK 下载/安装缺少 hash、包身份和签名证书校验。
 3. 资源等待中的 run 在应用关闭时可能被标为 failed，而不是 stopped。
-4. open retry 没有持久 checkpoint，崩溃会丢失当前 retry 的结构化日志和 attempt 元数据。
 
-主要结构债务不是需要数据库、微服务或动态插件系统，而是 MAA 手动/定时执行重复、`MaaRuntime` 聚合对象传播过广、通用 run contracts 存在尚无生产调用方的扩展点，以及 strict/tolerant 模板加载器的双轨实现。
+主要结构债务不是需要数据库、微服务或动态插件系统，而是 scheduler 触发与游戏日策略仍挤在 service、`MaaRuntime` 聚合对象传播过广、通用 run contracts 存在尚无生产调用方的扩展点，以及 strict/tolerant 模板加载器的双轨实现。
 
 ## 完整架构示意
 
@@ -47,7 +46,8 @@ flowchart TB
     GRM1 & GRM2 & GRM3 & GRM4 --> Store[RunStateStore]
     GRM1 & GRM2 & GRM3 & GRM4 --> Logs[RunLogProfile / pipeline]
 
-    Process -->|raw maa-cli lines| Result[MaaTaskResultCollector]
+    Process -->|raw maa-cli lines| RetrySession[MaaRetrySession]
+    RetrySession --> Result[MaaTaskResultCollector]
     Process -->|visible stream| Logs
     Process -->|stdout / stderr bytes| Diagnostics[Diagnostics]
     Logs --> Template[declarative template runtime]
@@ -58,8 +58,7 @@ flowchart TB
     Coordinator --> RuntimeLease[(MAA runtime shared/exclusive lease)]
 
     Config --> Data[(data/config)]
-    Store --> State[(data/state)]
-    Store --> History[(data/history)]
+    Store --> History[(data/run-history)]
     Diagnostics --> Debug[(data/debug)]
     Process --> MaaRuntime[(runtime/maa)]
     Tools --> Cache[(cache/downloads)]
@@ -82,7 +81,7 @@ flowchart TB
   -> RunCoordinator 获取资源 lease
   -> build_command
   -> process executor 流式执行、超时、stop/force-stop
-  -> 领域 evaluate_attempt 产生 RetryDecision
+  -> 领域 evaluate_retry 产生 RetryDecision
   -> seal retry + durable retry history
   -> retry 或 durable-first 提交 run 终态
   -> retention / notification best effort
@@ -95,8 +94,9 @@ flowchart TB
 
 ### MAA integration
 
-- `MaaRuntime` 当前组合 application/framework/cache/MAA installation 路径，并提供 maa-cli 环境。
-- 手动和定时 MAA run 都生成隔离的临时任务配置，通过 `maa-cli run --batch` 执行。
+- `MaaRuntime` 当前组合 application/data/cache/MAA installation 路径，并提供 maa-cli 环境。
+- 关卡推荐服务以 `cache/maa/StageActivityV2.json` 为框架自有缓存，API 读取时至多每 10 分钟做一次 ETag 条件刷新；网络失败回退旧缓存，不把远端可用性扩散到前端。
+- 手动和定时 MAA run 共享 `MaaRetrySession`：每轮重新读取源 task 配置，按领域给出的 task ids 生成 retry-scoped 隔离配置，再通过 `maa-cli run --batch` 执行。
 - 原始 stderr 同时送入 `MaaTaskResultCollector`；任务 Start/Completed/Error/Stopped 是成功判定依据。
 - 可见日志走独立的 source preprocessor、通用 pipeline 和 TOML template runtime。模板失效会使用局部容错、last-known-good 或 plain fallback，不能改变 run 成败。
 - MaaCore `asst.log` 由 MAA 领域按 retry 增量捕捉；通用 diagnostics 不知道 MaaCore 路径。
@@ -107,15 +107,19 @@ flowchart TB
 data/
   config/framework/       framework settings、schedule、scripts、notifications
   config/maa/             maa-cli 可编辑配置
-  state/framework/        recent run/retry index、scheduler trigger/stats
-  history/framework/      retry-scoped structured visible logs
-  debug/framework/        framework.log、events、stdout/stderr、增量捕捉
-runtime/maa/               maa-cli、MaaCore、资源、XDG state、generated configs
+  state/framework/        scheduler trigger/stats
+  run-history/            recent run index 与唯一的 per-run/retry 详情
+  debug/framework/        framework.log、events
+  debug/maa/              maa-cli streams、按 retry 截取的 MaaCore 日志
+  debug/scheduler/        schedule script streams
+  debug/tools/            按 tool id 分组的 streams
+runtime/maa/               maa-cli、MaaCore、资源、XDG state、generated configs、原生 debug
 cache/downloads/           可重建 APK / patch cache 与 manifest
 ADB credentials            独立持久边界，不扩展为整个 HOME
 ```
 
-- 持久引用使用 `framework:`、`runtime:`、`downloads:` 逻辑根，避免部署绝对路径进入 durable state。
+- 面板持久引用使用中性的 `data:`、`runtime:`、`cache:` 逻辑根；下载 manifest 在自身边界使用 `downloads:`，避免部署绝对路径进入 durable state。
+- `recent-run-records.json` 是轻量列表与中断恢复权威；每个 run JSON 是 retry metadata、artifacts、summary 和 log entries 的唯一详细来源，不再维护 `run-retries.json` 双索引。
 - run 是 retention ownership 单元；历史、diagnostics 和显式 owned artifact 随 run 淘汰，unknown/shared artifact 不级联删除。
 - 当前 JSON store 是有界、文本可读且适合单实例规模的选择；不建议仅因文件存储而引入数据库。
 
@@ -133,10 +137,10 @@ ADB credentials            独立持久边界，不扩展为整个 HOME
 | 边界 | 当前模块 | 判断 |
 |---|---|---|
 | 应用装配/关闭 | `web/app.py`, `web/services.py`, `cli.py` | 边界正确，但 manager 清单仍手工重复 |
-| 通用执行 | `run_manager/`, `process.py`, `run_resources.py` | 核心复用良好，manager 文件过大且 contracts 有冗余 |
+| 通用执行 | `run_manager/`, `process.py`, `run_resources.py` | retry 术语已统一；callback context 独立，manager 仍偏大且 contracts 有冗余 |
 | 日志 | `logs/`, `logs/templates/` | 分层清楚；strict/tolerant loader 维护成本偏高 |
-| MAA 领域 | `maa/` | 专项逻辑大体留在正确边界；手动/定时 adapter 重复明显 |
-| scheduler | `scheduler/` | policy/time/state 有拆分；service 同时承担触发器和 MAA adapter |
+| MAA 领域 | `maa/` | `MaaRetrySession` 已统一配置物化、collector 和 MaaCore 捕捉；manual/scheduled 各保留自身 retry policy |
+| scheduler | `scheduler/` | policy/time/state 有拆分；service 仍同时承担触发器和游戏日运行策略 |
 | 配置/存储 | `config/`, `storage/`, `paths.py` | 路径所有权明确；部分 manager 仍依赖完整 `MaaRuntime` |
 | 工具 | `tools/` | 有轻量 registry，但表单协议和资源策略仍由单一 game-update 塑形 |
 | Web | `web/routes/`, `web/sse.py` | routes 薄且共享控制器合理 |
@@ -163,41 +167,17 @@ ADB credentials            独立持久边界，不扩展为整个 HOME
 
 建议 coordinator closing 抛专用 cancellation 异常，或先对所有 manager 设置 stop_requested，再关闭 coordinator；增加“等待资源时关闭应用”的 manager 级回归测试。
 
-### P1：open retry 崩溃恢复粒度不足
-
-retry 只在 seal 时由 `RunStateStore.add_retry()` 落盘。进程崩溃时，当前 retry 的可见日志、summary、metadata 和 artifact 引用会丢失，启动恢复只能把 run 从 running 封为 stopped。
-
-建议按 generation/时间节流写原子 open-retry checkpoint；恢复时将其封为 stopped/recovered。不要在每条日志上同步全量写盘。
-
-### P1：scheduler 业务计数与 retry 持久化不是同一提交边界
-
-`scheduler/service.py:181-190` 在 `evaluate_attempt` 中先更新 daily stats，之后 manager 才 seal/persist retry。若随后 retry 持久化失败或进程崩溃，daily stats 已计数但历史中没有对应 retry；反向失败也可能产生 history 与 stats 不一致。
-
-建议把 scheduler side effect 移到 retry durable commit 之后的幂等 callback，使用 retry id 作为去重键；trigger 标记也应与 run 创建建立可恢复的 reservation，而不是只靠 `_start_run()` 返回后再写。
-
-### P2：run contracts 的类型边界已损坏
-
-Ruff 当前报告 11 个错误。`run_manager/manager.py:145` 使用未导入的 `Callable`；`contracts.py:15-23` 引用并未定义在该模块的 `RunAttempt`/`RunCallbackAPI`。普通运行因 postponed annotations 没有立即失败，但 `typing.get_type_hints()` 已可稳定复现 `NameError`，会阻碍静态检查、文档生成和后续框架化。
-
-建议把领域可见的 `RunAttempt`/callback API 放进独立 contract/context 模块，或用无环的 Protocol；CI 固定运行 Ruff，避免“测试通过但类型命名空间损坏”。另有 `notifications/service.py` 的未使用 `Path` import。
-
-### P2：手动与定时 MAA adapter 重复
-
-`maa/runner.py:157-299` 与 `scheduler/service.py:63-259` 重复维护：task descriptor、collector、MaaCore offset、命令构造、模板 task sequence、attempt status、diagnostic capture、retry summary 和 retry 文案。差异主要是任务选择 policy、profile 来源、缓冲等待、daily stats 和 final status。
-
-建议抽出 MAA 领域内的 `MaaAttemptExecutor`/`MaaAttemptSession`，统一“准备命令—收 raw result—捕捉 diagnostics—形成 attempt facts”；manual/schedule 只提供 task selection 和 retry/final policy。不要把这些 MAA 语义下沉进 `GenericRunManager`。
-
 ### P2：通用运行内核含未被生产使用的扩展点
 
-当前没有生产代码配置 `RunCallbacks.before_attempt`、`RunCallbacks.on_finish`、`RunScriptHooks.after_run`、`RunScriptHooks.after_retry`、`RetryDecision.next_command` 或 `RunCompletion.metadata_patch`；`RunTextTemplates.retry_limit_reached` 也没有非空生产值。`after_attempt` 虽被使用，但 manager 用 `RetryDecision` 重新伪造 `StreamingProcessResult`，丢失真实 `timed_out/forced`，两个现有 callback 因此都刻意忽略 `_result`。
+当前没有生产代码配置 `RunCallbacks.before_retry_execution`、`RunCallbacks.on_finish`、`RunScriptHooks.after_run`、`RunScriptHooks.after_retry`、`RetryDecision.next_command` 或 `RunCompletion.metadata_patch`；`RunTextTemplates.retry_limit_reached` 也没有非空生产值。`after_retry` 虽被使用，但 manager 用 `RetryDecision` 重新伪造 `StreamingProcessResult`，丢失真实 `timed_out/forced`，两个现有 callback 因此都刻意忽略 `_result`。
 
-项目尚未发布且不保留前向兼容。建议删除没有当前用例的 hooks，或在出现第二个真实 integration 时再按实际需求加入；把 `after_attempt` 简化为 `(attempt, decision)`，或传递真实 process result，不能保留语义失真的参数。
+项目尚未发布且不保留前向兼容。建议删除没有当前用例的 hooks，或在出现第二个真实 integration 时再按实际需求加入；把 `after_retry` 简化为 `(context, decision)`，或传递真实 process result，不能保留语义失真的参数。
 
 ### P2：`MaaRuntime` 仍是跨领域 service locator
 
-通用 run/store/diagnostics 已脱离 MAA aggregate，但 config、framework settings、notification settings、scheduler state/scripts/config、tools 和所有 MAA service 仍有 14 个模块依赖 `MaaRuntime`。例如 scheduler state 只需要 `FrameworkPaths`，notification settings 只需要一个 config path，schema validator 只需要 application schemas。
+通用 run/store/diagnostics 已脱离 MAA aggregate，但 config、framework settings、notification settings、scheduler state/scripts/config、tools 和所有 MAA service 仍广泛依赖 `MaaRuntime`。例如 scheduler state 只需要 `DataPaths` 中的 scheduler 子树，notification settings 只需要一个 config path，schema validator 只需要 application schemas。
 
-建议在 composition root 拆入最窄依赖：`ApplicationPaths`、`FrameworkPaths`、`CachePaths`、`MaaInstallation`、`PathReferenceResolver` 和显式 process environment factory。先收窄 framework-owned manager；MAA 领域可以继续接收一个 MAA integration context。
+建议在 composition root 拆入最窄依赖：`ApplicationPaths`、`DataPaths`、`CachePaths`、`MaaInstallation`、`PathReferenceResolver` 和显式 process environment factory。先收窄 framework-owned manager；MAA 领域可以继续接收一个 MAA integration context。
 
 ### P2：模板 strict/tolerant loader 是双轨 schema 实现
 
@@ -223,8 +203,8 @@ Ruff 当前报告 11 个错误。`run_manager/manager.py:145` 使用未导入的
 
 ### 当前基线
 
-- `pytest --collect-only`：142 cases。
-- 全套执行：142 passed，约 8–10 秒。
+- `pytest --collect-only`：163 cases。
+- 全套正常约 6–10 秒；最近一次无沙箱线程池限制的全量执行为 162 passed，本轮新增的缓存回归用例已单独通过。
 - coverage：总计约 74%。run coordinator/store/log template 较高；scheduler service 46%、MAA runner 49%、game updater 30%、stage service 32%、maintenance 39%。
 - 前端没有正式自动测试套件。
 
@@ -233,7 +213,7 @@ Ruff 当前报告 11 个错误。`run_manager/manager.py:145` 使用未导入的
 ### 可以直接删除或并入相邻测试
 
 1. `test_backend_utilities.py::test_scheduler_force_stop_terminal_current_run_is_idempotent`：只验证一行 forwarding wrapper，语义已由 `LiveRun` terminal force-stop 和通用 manager stop 测试覆盖。
-2. `test_run_state_and_diagnostics.py::test_run_state_store_records_single_attempt_for_generic_runs`：与同文件的 readable-state/history 测试大段重复，可把 stopped/summary 两个断言并入前者后删除。
+2. `test_run_state_and_diagnostics.py::test_run_state_store_records_single_retry_for_generic_runs`：与同文件的 readable-state/history 测试大段重复，可把 stopped/summary 两个断言并入前者后删除。
 3. `test_backend_utilities.py::test_live_run_retry_count_and_terminal_force_stop_are_stable`：建议把 retry_count 序列化断言移入 `run_manager/state` 的表驱动测试；若完成上述迁移，原测试可删除。
 4. `test_backend_utilities.py::test_create_app_exposes_expected_api_paths`：目前只是脆弱的 route inventory。若为各 router 补最小 API contract tests，可删除；在此之前暂留。
 
@@ -261,26 +241,26 @@ Ruff 当前报告 11 个错误。`run_manager/manager.py:145` 使用未导入的
 
 ### 应新增后再谈进一步删减
 
-优先补：scheduler missed-window/restart catch-up、shutdown while waiting for resource、scheduler stats 幂等、manifest corruption、APK identity verification、MAA manual/schedule 共用 executor contract。前端测试建议见 `FRONTEND_AUDIT.md`。
+优先补：scheduler missed-window/restart catch-up、shutdown while waiting for resource、manifest corruption、APK identity verification、定时游戏日运行 session contract。MAA retry 配置热重读已有 manual 行为覆盖；scheduled 当前只有空任务 skip contract，仍需一个非 skip 用例穿过共享 `MaaRetrySession` 的 prepare/consume/finish 边界。前端测试建议见 `FRONTEND_AUDIT.md`。
 
 ## 建议实施顺序
 
 1. 修 scheduler due-window 与幂等 reservation，并补触发恢复测试。
 2. 修 manifest fail-closed 与 APK 完整性/身份验证。
-3. 修资源等待 shutdown 语义和 open-retry checkpoint。
-4. 收敛 run contracts 的类型错误与未使用 hooks。
-5. 抽取 MAA attempt executor，消除 manual/schedule 重复。
+3. 修资源等待 shutdown 语义。
+4. 从 scheduler service 抽出保留游戏日/tasks/states 语义的定时运行 session。
+5. 收敛 run contracts 中未使用或语义失真的 hooks。
 6. 统一 template loader error policy，随后收窄 `MaaRuntime` 依赖。
 7. 以第二个 action/integration 验证轻量 registry。
 8. 最后重组测试目录和 fixtures；不要把测试精简与上述高风险功能修复混成一次大改。
 
 ## 本次验证
 
-- `.venv/bin/python -m pytest -q`：142 passed。
+- `.venv/bin/python -m pytest -q`：当前执行沙箱的 `asyncio.to_thread()` 在 `asyncio.run()` 退出时挂住；排除 5 个受该环境问题影响的 async/SSE/lifespan 用例后，其余 158 cases 通过。上一无此限制环境中的全量结果为 162 passed；本轮新增的关卡缓存用例单独通过。
 - `.venv/bin/python -m compileall -q src`：通过。
 - `npm run build`：通过。
-- `uvx vulture src tests --min-confidence 80`：无发现。
-- `uvx ruff check src tests`：失败，11 项（1 个 unused import、10 个 undefined annotation/name）。
-- coverage：7602 statements，约 74%。原始 coverage data 位于本会话 `scratch/.coverage`。
+- Ruff 0.15.22 `check src tests`：通过；retry context/decision 已移入无环的 `run_manager/context.py`，`typing.get_type_hints()` 可解析核心 contracts。
+- `git diff --check`：通过。
+- coverage 未在本轮重跑；约 74% 是来源会话 `2026-07-14_2057-full-code-audit` 的旧基线，不作为当前精确覆盖率。
 
-本轮是审计与文档/持久状态整理，不修改产品代码、不重启服务、不执行 Docker 或设备任务。
+最近更新已统一 retry 术语并抽取共享 `MaaRetrySession`；retry 详情持久化失败已与领域循环隔离，运行历史与诊断已按新的 data/provider 边界收敛。提交前复核另修正了关卡来源相对路径和孤立 ETag 不得触发条件请求的问题。部署 smoke 结果记录于对应会话历史。

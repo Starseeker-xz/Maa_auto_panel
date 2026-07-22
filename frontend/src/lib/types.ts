@@ -100,7 +100,6 @@ export type RunRetry = {
   return_code?: number | null;
   log_entries?: MaaLogEntry[];
   summary_messages?: MaaLogMessage[];
-  log_entries_file?: string;
   log_files?: Record<string, string>;
   metadata?: Record<string, unknown>;
   artifacts?: Record<string, unknown>;
@@ -488,6 +487,7 @@ export type MaaStagesResponse = {
     value: string;
     display: string;
     is_open: boolean;
+    is_open_or_will_open?: boolean;
     [key: string]: unknown;
   }>;
   errors: string[];

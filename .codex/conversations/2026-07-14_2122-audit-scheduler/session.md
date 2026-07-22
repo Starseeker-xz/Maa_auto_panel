@@ -49,10 +49,30 @@
 
 ## 环境效果
 
-- 只创建本会话 `.codex` 记录；未修改产品代码、配置或服务，未运行 MAA/设备任务。
+- 已修改产品代码：统一 retry 术语，新增 `run_manager/context.py` 与 `maa/retry.py`，manual/scheduled 共用 `MaaRetrySession`；同步后端审计与测试。
+- 未修改运行配置、未重启服务、未运行 MAA/设备任务。
 
 ## 验证
 
 - `uv run pytest ...`：未启动测试，当前 uv 环境没有可生成的 `pytest` console script（`Failed to spawn: pytest`）。
 - `.venv/bin/python -m pytest -q tests/test_scheduler_policy.py tests/test_scheduler_run_manager.py tests/test_scheduler_service_status.py tests/test_run_state_and_diagnostics.py -k 'scheduler or scheduled or game_day or daily or final_status'`：11 passed，9 deselected，0.20s。
 - 现有通过用例没有覆盖 scanner/due-window/reservation；因此该结果只确认既有 policy/final-status/持久化基本行为未坏，不能反证本轮发现的问题。
+- `.venv/bin/python -m pytest -q`：143 passed，6.56s。
+- `uvx ruff check src tests`：All checks passed。
+- `.venv/bin/python -m compileall -q src tests`、`git diff --check`：通过。
+- `typing.get_type_hints()` 已验证 `RetryContext`、`RunCallbacks`、`RunStartPlan` 均可解析。
+
+## 本轮实现
+
+- `RunAttempt` 改为 `RetryContext` 并移入 `run_manager/context.py`；移除重复 `attempt_index`，统一 `evaluate_retry`、`after_retry`、`initial_retry_payload`、`next_retry_payload` 等契约。
+- `RetryDecision` 与 callback facade 同处无环 context 边界；顺手修复 manager `Callable` 与 notifications unused import，使 Ruff 清零。
+- 新增 `maa/retry.py::MaaRetrySession`，统一每轮源 task 重读、task plan 筛选/force-enable、`retry-N` 生成配置、命令构造、模板 task sequence、raw collector、MaaCore 增量捕捉和 artifacts。
+- manual/scheduled callback 只保留各自 task selection、daily stats、buffer 和 final policy；不再各自持有 collector/offset/命令生成实现。
+- 新增动态重读行为测试：第二轮修改源 task 参数后，session 读取新值、仍只物化 plan 中的 task，并生成独立 retry-2 文件。
+
+## MaaFramework 官方资料结论
+
+- PI (`interface.json`) 是官方为 General UI 定义的项目 discovery/config contract，包含稳定 task `name`、pipeline `entry`、group、controller/resource applicability、options、presets、imports 和 pipeline overrides。
+- MaaFW Core 运行边界是 `Resource + Controller + Tasker`；`post_task(entry, pipeline_override)` 异步返回 task id，status/wait/task detail 提供结构化终态。
+- callback protocol 提供 Tasker/Node/Recognition/Action 等结构化事件；PI 的 `focus` 进一步声明 log/toast/notification/dialog/modal 展示语义。未来 WebUI 不应从 stdout 或人类日志反解析任务状态。
+- 后续建议把 scheduler 抽象围绕项目无关的 PI task identity + task option snapshot + execution adapter，而不是围绕现有 maa-cli task JSON；当前 `MaaRetrySession` 保持 MAA 专用，作为未来 `ExecutionAdapter` 的一个实现依据。

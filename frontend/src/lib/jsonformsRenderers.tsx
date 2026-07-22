@@ -152,6 +152,7 @@ function PrimitiveArrayControl(props: ControlProps) {
       unique={schema.uniqueItems === true}
       valueKind={primitiveValueKind(itemSchema)}
       checkable={checkable}
+      allowCustom={(schema as FrameworkSchema)["x-allowCustom"] === true}
       enabled={enabled}
       errors={errors}
       onChange={(nextValues) => handleChange(path, nextValues)}
@@ -354,6 +355,7 @@ type ConditionalSchema = ControlProps["schema"] & {
 type FrameworkSchema = ConditionalSchema & {
   "x-frameworkManaged"?: string;
   "x-optionsSource"?: string;
+  "x-allowCustom"?: boolean;
 };
 
 type ManagedParamItem = {

@@ -4,6 +4,7 @@
 
 ## Retained sessions
 
+- `2026-07-14_2122-audit-scheduler`: scheduler 正确性核实、跨游戏日产品语义、retry 术语统一、共享 `MaaRetrySession` 实现，以及 MaaFramework ProjectInterface/Tasker 对未来通用 WebUI 边界的官方资料结论。
 - `2026-07-14_2057-full-code-audit`: 当前完整代码/架构/测试审计；含 coverage data、前端子代理逐项证据及本轮持久化整理记录。
 - `2026-07-14_0244-optimize-log-template-migration`: 保留 174 个 raw stdout/stderr、7,866 行模板覆盖审计的耐久结论 `raw_template_audit.md`；用于后续模板规则取舍，不作为当前架构说明。
 - `2026-07-14_0145-audit-gui-tools`: 保留 MAA GUI/Core/maa-cli 上游探索；是下一轮“公招识别 + 牛杂”参数、副作用、结果边界和动态限时条目的详细依据。
